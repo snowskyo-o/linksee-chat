@@ -1,0 +1,39 @@
+{
+  "name": "linksee-chat",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node ./scripts/dev.mjs",
+    "start": "node ./apps/api/src/server/index.mjs",
+    "dev:web": "vite --config ./apps/web/vite.config.mjs",
+    "dev:desktop": "node ./scripts/dev-desktop.mjs",
+    "build:web": "vite build --config ./apps/web/vite.config.mjs",
+    "preview:web": "vite preview --config ./apps/web/vite.config.mjs",
+    "check": "node --check ./apps/api/src/server/index.mjs && node --check ./apps/api/src/app.mjs && npm run build:web",
+    "test": "npm run test:unit",
+    "test:unit": "node ./tests/unit/run-unit.mjs",
+    "test:integration": "node ./tests/integration/run-integration.mjs",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:seed": "node ./prisma/seed.mjs",
+    "docker:up": "docker compose up -d --build",
+    "docker:down": "docker compose down"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.18.0",
+    "express": "^4.19.2",
+    "ioredis": "^5.4.1",
+    "minio": "^8.0.1",
+    "socket.io": "^4.8.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.2.4",
+    "electron": "^31.7.7",
+    "prisma": "^5.18.0",
+    "socket.io-client": "^4.8.1",
+    "vite": "^5.4.19",
+    "vue": "^3.5.18",
+    "vue-router": "^4.4.5"
+  }
+}

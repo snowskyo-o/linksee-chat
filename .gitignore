@@ -3,3 +3,6 @@ dist/
 .env
 .DS_Store
 npm-debug.log*
+coverage/
+apps/web/dist/
+prisma/dev.db

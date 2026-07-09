@@ -1,0 +1,141 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  admin
+  member
+}
+
+enum ConversationKind {
+  direct
+  group
+}
+
+model User {
+  id           String                   @id @db.VarChar(32)
+  passwordHash String                   @db.VarChar(255)
+  role         Role                     @default(member)
+  isActive     Boolean                  @default(true)
+  createdAt    DateTime                 @default(now())
+  lastLoginAt  DateTime?
+  lastSeenAt   DateTime?
+
+  profile             UserProfile?
+  createdConversations ChatConversation[]       @relation("ConversationCreator")
+  conversationMembers ChatConversationMember[]
+  chatMessages        ChatMessage[]
+  chatReads           ChatConversationRead[]
+
+  @@map("users")
+}
+
+model UserProfile {
+  userId     String  @id @db.VarChar(32)
+  realName   String  @db.VarChar(40)
+  avatarUrl  String? @db.VarChar(255)
+  bio        String? @db.Text
+  location   String? @db.VarChar(100)
+  accountNo  String? @db.VarChar(40)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_profiles")
+}
+
+model ChatConversation {
+  id         BigInt                   @id @default(autoincrement()) @db.UnsignedBigInt
+  kind       ConversationKind
+  title      String?                  @db.VarChar(80)
+  scopeId    String                   @db.VarChar(120)
+  roomKey    String                   @unique @db.VarChar(120)
+  directKey  String?                  @unique @db.VarChar(80)
+  createdBy  String?                  @db.VarChar(32)
+  createdAt  DateTime                 @default(now())
+  updatedAt  DateTime                 @updatedAt
+
+  creator    User?                    @relation("ConversationCreator", fields: [createdBy], references: [id])
+  members    ChatConversationMember[]
+  messages   ChatMessage[]
+  reads      ChatConversationRead[]
+
+  @@index([kind, scopeId])
+  @@map("chat_conversations")
+}
+
+model ChatConversationMember {
+  conversationId BigInt   @db.UnsignedBigInt
+  userId         String   @db.VarChar(32)
+  joinedAt       DateTime @default(now())
+
+  conversation ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([conversationId, userId])
+  @@index([userId, joinedAt])
+  @@map("chat_conversation_members")
+}
+
+model ChatMessage {
+  id             BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  conversationId BigInt    @db.UnsignedBigInt
+  senderId       String    @db.VarChar(32)
+  content        String?   @db.Text
+  files          Json?
+  mentions       Json?
+  replyToId      BigInt?   @db.UnsignedBigInt
+  eventId        String    @unique @db.VarChar(64)
+  traceId        String    @db.VarChar(64)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  editedAt       DateTime?
+  deletedAt      DateTime?
+
+  conversation ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User             @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  replyTo      ChatMessage?     @relation("MessageReply", fields: [replyToId], references: [id])
+  replies      ChatMessage[]    @relation("MessageReply")
+  filesMeta    ChatFile[]
+
+  @@index([conversationId, createdAt, id])
+  @@index([senderId, createdAt])
+  @@map("chat_messages")
+}
+
+model ChatFile {
+  id           BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  messageId    BigInt   @db.UnsignedBigInt
+  objectKey    String   @unique @db.VarChar(255)
+  name         String   @db.VarChar(200)
+  size         BigInt   @db.UnsignedBigInt
+  mimeType     String   @db.VarChar(120)
+  uploadedAt   DateTime
+  expiresAt    DateTime
+  thumbnailKey String?  @db.VarChar(255)
+
+  message ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
+  @@index([expiresAt])
+  @@map("chat_files")
+}
+
+model ChatConversationRead {
+  conversationId BigInt   @db.UnsignedBigInt
+  userId         String   @db.VarChar(32)
+  lastMessageId  BigInt?  @db.UnsignedBigInt
+  lastReadAt     DateTime?
+  updatedAt      DateTime @updatedAt
+
+  conversation ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([conversationId, userId])
+  @@index([userId, lastReadAt])
+  @@map("chat_conversation_reads")
+}
