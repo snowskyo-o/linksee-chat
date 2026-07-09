@@ -89,6 +89,7 @@ onMounted(async () => {
       @refresh="actions.refreshAll"
       @new-direct="actions.createDirectConversation"
       @new-group="actions.createGroupConversation"
+      @toggle-pin="actions.toggleConversationPinById"
       @logout="logout"
     />
 
@@ -108,12 +109,15 @@ onMounted(async () => {
       :composer-hint="store.composerHint.value"
       :composer-hint-tone="store.composerHintTone.value"
       :uploading-files="store.uploadingFiles.value"
+      :upload-progress-text="store.uploadProgressText.value"
+      :is-pinned="Boolean(store.selectedConversation.value?.pinnedAt)"
       :has-more-messages="store.hasMoreMessages.value"
       :loading-more-messages="store.loadingMoreMessages.value"
       @update:message-keyword="store.messageKeyword.value = $event"
       @search="actions.searchMessages"
       @announcement="actions.sendAnnouncement"
       @mark-read="actions.markSelectedConversationRead"
+      @toggle-pin="actions.toggleConversationPin"
       @cancel-edit="cancelEdit"
       @update:message-input="store.messageInput.value = $event; store.updateMentionState($event)"
       @message-keydown="handleComposerKeydown"

@@ -16,6 +16,7 @@ defineEmits([
   "new-direct",
   "new-group",
   "logout",
+  "toggle-pin",
 ]);
 </script>
 
@@ -59,15 +60,23 @@ defineEmits([
           <span v-else>{{ (row.title || row.roomKey || "?").slice(0, 2).toUpperCase() }}</span>
         </div>
         <div class="conversation-copy">
-        <div class="conversation-item-head">
-          <strong>{{ row.title || row.roomKey }}</strong>
-          <div class="conversation-item-meta">
-            <span v-if="row.unreadCount" class="badge">{{ row.unreadCount }}</span>
-            <span v-if="row.unreadMentionCount" class="badge ghost">@{{ row.unreadMentionCount }}</span>
+          <div class="conversation-item-head">
+            <strong>{{ row.title || row.roomKey }}</strong>
+            <div class="conversation-item-meta">
+              <span v-if="row.pinnedAt" class="badge ghost">置顶</span>
+              <span v-if="row.unreadCount" class="badge">{{ row.unreadCount }}</span>
+              <span v-if="row.unreadMentionCount" class="badge ghost">@{{ row.unreadMentionCount }}</span>
+              <button
+                class="message-link"
+                type="button"
+                @click.stop="$emit('toggle-pin', row.id)"
+              >
+                {{ row.pinnedAt ? "取消置顶" : "置顶" }}
+              </button>
+            </div>
           </div>
-        </div>
-        <p class="muted">{{ row.kind || "group" }} · {{ row.roomKey || "" }}</p>
-        <p>{{ row.preview }}</p>
+          <p class="muted">{{ row.kind || "group" }} · {{ row.roomKey || "" }}</p>
+          <p>{{ row.preview }}</p>
         </div>
       </article>
     </div>

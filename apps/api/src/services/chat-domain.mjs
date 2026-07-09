@@ -150,22 +150,33 @@ export async function createConversationForRequest(userId, body, res) {
 }
 
 export async function buildConversationResponse(userId, conversation) {
-  const reads = await prisma.chatConversationRead.findUnique({
-    where: {
-      conversationId_userId: {
-        conversationId: conversation.id,
-        userId,
+  const [reads, pin, lastMessage] = await Promise.all([
+    prisma.chatConversationRead.findUnique({
+      where: {
+        conversationId_userId: {
+          conversationId: conversation.id,
+          userId,
+        },
       },
-    },
-  });
-  const lastMessage = await prisma.chatMessage.findFirst({
-    where: { conversationId: conversation.id, deletedAt: null },
-    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-    include: {
-      sender: { include: { profile: true } },
-      filesMeta: true,
-    },
-  });
+    }),
+    prisma.chatConversationPin.findUnique({
+      where: {
+        conversationId_userId: {
+          conversationId: conversation.id,
+          userId,
+        },
+      },
+    }),
+    prisma.chatMessage.findFirst({
+      where: { conversationId: conversation.id, deletedAt: null },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      include: {
+        sender: { include: { profile: true } },
+        filesMeta: true,
+      },
+    }),
+  ]);
+
   const unreadCount = await prisma.chatMessage.count({
     where: {
       conversationId: conversation.id,
@@ -190,6 +201,8 @@ export async function buildConversationResponse(userId, conversation) {
     title: buildConversationTitle(conversation, userId),
     roomKey: conversation.roomKey,
     kind: conversation.kind,
+    updatedAt: conversation.updatedAt.toISOString(),
+    pinnedAt: pin?.pinnedAt?.toISOString() || null,
     scopeType: conversation.kind,
     scopeId: conversation.scopeId,
     unreadCount,

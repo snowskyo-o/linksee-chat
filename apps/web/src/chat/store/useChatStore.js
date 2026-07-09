@@ -1,6 +1,14 @@
 import { computed, ref } from "vue";
 import { escapeHtml, formatDateTime, formatExpiry, formatFileSize, getInitials } from "../../shared/utils.js";
 
+function conversationRank(row) {
+  const pinnedRank = row.pinnedAt ? 1 : 0;
+  const mentionRank = Number(row.unreadMentionCount || 0) > 0 ? 1 : 0;
+  const unreadRank = Number(row.unreadCount || 0) > 0 ? 1 : 0;
+  const timeRank = new Date(row.pinnedAt || row.updatedAt || 0).getTime();
+  return { pinnedRank, mentionRank, unreadRank, timeRank };
+}
+
 export function useChatStore(auth) {
   const me = ref(null);
   const contacts = ref([]);
@@ -22,6 +30,8 @@ export function useChatStore(auth) {
   const messageKeyword = ref("");
   const messageInput = ref("");
   const uploadingFiles = ref(false);
+  const uploadProgress = ref(0);
+  const uploadFileName = ref("");
   const composerHint = ref("");
   const composerHintTone = ref("");
   const profileName = ref("");
@@ -35,6 +45,11 @@ export function useChatStore(auth) {
   const meAvatarUrl = computed(() => me.value?.profile?.avatarUrl || "");
 
   const selectedConversation = computed(() => conversations.value.find((item) => item.id === selectedId.value) || null);
+  const uploadProgressText = computed(() => {
+    if (!uploadingFiles.value) return "";
+    if (!uploadFileName.value) return `上传中 ${uploadProgress.value}%`;
+    return `正在上传 ${uploadFileName.value} · ${uploadProgress.value}%`;
+  });
 
   const filteredConversations = computed(() => {
     const keyword = conversationKeyword.value.trim().toLowerCase();
@@ -47,7 +62,7 @@ export function useChatStore(auth) {
         preview: row.lastMessage
           ? (
             row.lastMessage.deletedAt
-              ? "消息已删除"
+              ? "消息已撤回"
               : row.lastMessage.type === "announcement"
                 ? `【公告】${row.lastMessage.content || ""}`
                 : row.lastMessage.type === "file"
@@ -61,6 +76,14 @@ export function useChatStore(auth) {
         const title = String(row.title || row.roomKey || "").toLowerCase();
         const preview = String(row.preview || "").toLowerCase();
         return title.includes(keyword) || preview.includes(keyword);
+      })
+      .sort((a, b) => {
+        const aRank = conversationRank(a);
+        const bRank = conversationRank(b);
+        if (aRank.pinnedRank !== bRank.pinnedRank) return bRank.pinnedRank - aRank.pinnedRank;
+        if (aRank.mentionRank !== bRank.mentionRank) return bRank.mentionRank - aRank.mentionRank;
+        if (aRank.unreadRank !== bRank.unreadRank) return bRank.unreadRank - aRank.unreadRank;
+        return bRank.timeRank - aRank.timeRank;
       });
   });
 
@@ -72,10 +95,10 @@ export function useChatStore(auth) {
   ));
 
   const renderedMessages = computed(() => messages.value.map((message) => {
-      const senderName = message.sender?.profile?.realName || message.senderId || "未知用户";
+    const senderName = message.sender?.profile?.realName || message.senderId || "未知用户";
     const deleted = Boolean(message.deletedAt);
     const isFileMessage = Array.isArray(message.files) && message.files.length > 0;
-    let html = deleted ? "<em>消息已删除</em>" : escapeHtml(message.content || "");
+    let html = deleted ? "<em>消息已撤回</em>" : escapeHtml(message.content || "");
 
     participants.value.forEach((user) => {
       const name = user.profile?.realName || "";
@@ -90,7 +113,7 @@ export function useChatStore(auth) {
       isFileMessage,
       isMe: String(message.senderId) === String(auth.userId),
       canEdit: String(message.senderId) === String(auth.userId) && !deleted && message.type === "text" && !isFileMessage,
-      canDelete: String(message.senderId) === String(auth.userId) && !deleted,
+      canRecall: String(message.senderId) === String(auth.userId) && !deleted,
       timeText: formatDateTime(message.createdAt),
       html,
       files: isFileMessage
@@ -173,6 +196,8 @@ export function useChatStore(auth) {
     messageInput.value = "";
     mentionOpen.value = false;
     mentionOptions.value = [];
+    uploadProgress.value = 0;
+    uploadFileName.value = "";
     setComposerHint("", "");
     searchKeyword.value = "";
     messageKeyword.value = "";
@@ -199,6 +224,9 @@ export function useChatStore(auth) {
     messageKeyword,
     messageInput,
     uploadingFiles,
+    uploadProgress,
+    uploadFileName,
+    uploadProgressText,
     composerHint,
     composerHintTone,
     profileName,

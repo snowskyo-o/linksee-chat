@@ -15,6 +15,8 @@ defineProps({
   composerHint: { type: String, default: "" },
   composerHintTone: { type: String, default: "" },
   uploadingFiles: { type: Boolean, default: false },
+  uploadProgressText: { type: String, default: "" },
+  isPinned: { type: Boolean, default: false },
   hasMoreMessages: { type: Boolean, default: false },
   loadingMoreMessages: { type: Boolean, default: false },
 });
@@ -24,6 +26,7 @@ defineEmits([
   "search",
   "announcement",
   "mark-read",
+  "toggle-pin",
   "cancel-edit",
   "update:messageInput",
   "message-keydown",
@@ -53,6 +56,7 @@ defineEmits([
           @keydown.enter.prevent="$emit('search')"
         />
         <button class="ghost-btn" type="button" @click="$emit('announcement')">公告</button>
+        <button class="ghost-btn" type="button" @click="$emit('toggle-pin')">{{ isPinned ? "取消置顶" : "置顶会话" }}</button>
         <div class="socket-pill" :class="socketOnline ? 'online' : 'offline'">
           {{ socketOnline ? "在线" : "离线" }}
         </div>
@@ -83,57 +87,57 @@ defineEmits([
           <span v-else>{{ message.senderName.slice(0, 2).toUpperCase() }}</span>
         </div>
         <div class="message-body">
-        <div class="message-head">
-          <strong>{{ message.senderName }}</strong>
-          <span>
-            <span v-if="message.type === 'announcement'" class="badge ghost">公告</span>
-            <span class="muted">{{ message.timeText }}{{ message.editedAt ? " · 已编辑" : "" }}</span>
-          </span>
-        </div>
-        <div v-if="message.replyToText" class="reply-quote">{{ message.replyToText }}</div>
-        <div class="message-content" v-html="message.html"></div>
-        <div class="message-actions">
-          <button class="message-link" type="button" @click="$emit('message-action', { id: message.id, action: 'reply' })">回复</button>
-          <button
-            v-if="message.canEdit"
-            class="message-link"
-            type="button"
-            @click="$emit('message-action', { id: message.id, action: 'edit' })"
-          >
-            编辑
-          </button>
-        <button
-          v-if="message.canDelete"
-          class="message-link"
-            type="button"
-            @click="$emit('message-action', { id: message.id, action: 'delete' })"
-        >
-          删除
-        </button>
-        <template v-if="message.isFileMessage">
-          <button
-            v-for="file in message.files"
-            :key="file.objectKey"
-            class="message-link"
-            type="button"
-            :disabled="file.expired || !file.downloadPath"
-            @click="$emit('download-file', file)"
-          >
-            {{ file.expired ? `${file.name} 已过期` : `下载 ${file.name}` }}
-          </button>
-        </template>
-      </div>
-      <div v-if="message.isFileMessage" class="file-list">
-        <div v-for="file in message.files" :key="file.objectKey" class="file-card" :class="{ expired: file.expired }">
-          <div class="file-card-main">
-            <strong>{{ file.name }}</strong>
-            <span class="muted">{{ file.metaText }}</span>
+          <div class="message-head">
+            <strong>{{ message.senderName }}</strong>
+            <span>
+              <span v-if="message.type === 'announcement'" class="badge ghost">公告</span>
+              <span class="muted">{{ message.timeText }}{{ message.editedAt ? " · 已编辑" : "" }}</span>
+            </span>
           </div>
-          <span class="file-expiry" :class="{ expired: file.expired }">{{ file.expiryText }}</span>
+          <div v-if="message.replyToText" class="reply-quote">{{ message.replyToText }}</div>
+          <div class="message-content" v-html="message.html"></div>
+          <div class="message-actions">
+            <button class="message-link" type="button" @click="$emit('message-action', { id: message.id, action: 'reply' })">回复</button>
+            <button
+              v-if="message.canEdit"
+              class="message-link"
+              type="button"
+              @click="$emit('message-action', { id: message.id, action: 'edit' })"
+            >
+              编辑
+            </button>
+            <button
+              v-if="message.canRecall"
+              class="message-link"
+              type="button"
+              @click="$emit('message-action', { id: message.id, action: 'recall' })"
+            >
+              撤回
+            </button>
+            <template v-if="message.isFileMessage">
+              <button
+                v-for="file in message.files"
+                :key="file.objectKey"
+                class="message-link"
+                type="button"
+                :disabled="file.expired || !file.downloadPath"
+                @click="$emit('download-file', file)"
+              >
+                {{ file.expired ? `${file.name} 已过期` : `下载 ${file.name}` }}
+              </button>
+            </template>
+          </div>
+          <div v-if="message.isFileMessage" class="file-list">
+            <div v-for="file in message.files" :key="file.objectKey" class="file-card" :class="{ expired: file.expired }">
+              <div class="file-card-main">
+                <strong>{{ file.name }}</strong>
+                <span class="muted">{{ file.metaText }}</span>
+              </div>
+              <span class="file-expiry" :class="{ expired: file.expired }">{{ file.expiryText }}</span>
+            </div>
+          </div>
         </div>
-      </div>
-      </div>
-    </article>
+      </article>
     </div>
 
     <div v-if="showReplyBar" class="reply-bar">{{ replyText }}</div>
@@ -147,6 +151,7 @@ defineEmits([
           {{ uploadingFiles ? "上传中..." : "发送文件" }}
         </button>
       </div>
+      <div v-if="uploadProgressText" class="search-bar">{{ uploadProgressText }}</div>
       <textarea
         :value="messageInput"
         class="message-input"

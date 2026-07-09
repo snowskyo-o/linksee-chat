@@ -8,6 +8,14 @@ export function useChatActions(store) {
     return `${files[0].name || "附件"} 等 ${files.length} 个文件`;
   }
 
+  function patchConversationLocally(conversationId, patch) {
+    store.conversations.value = store.conversations.value.map((item) => (
+      String(item.id) === String(conversationId)
+        ? { ...item, ...(typeof patch === "function" ? patch(item) : patch) }
+        : item
+    ));
+  }
+
   async function loadProfile(auth) {
     const payload = await chatApi.getJson("/api/v1/users/me");
     store.me.value = payload.data || {};
@@ -75,6 +83,22 @@ export function useChatActions(store) {
     }
   }
 
+  async function markConversationReadIfNeeded() {
+    const selected = store.selectedConversation.value;
+    const lastMessage = store.messages.value[store.messages.value.length - 1];
+    if (!selected || !lastMessage?.id) return;
+    if (!selected.unreadCount && !selected.unreadMentionCount) return;
+
+    await chatApi.postJson(`/api/v1/conversations/${encodeURIComponent(selected.id)}/read`, {
+      messageId: lastMessage.id,
+    });
+    patchConversationLocally(selected.id, {
+      unreadCount: 0,
+      unreadMentionCount: 0,
+      lastReadAt: new Date().toISOString(),
+    });
+  }
+
   async function refreshSelectedConversation() {
     await loadParticipants();
     await loadMessages();
@@ -92,6 +116,7 @@ export function useChatActions(store) {
     store.messageKeyword.value = "";
     store.clearReplyState();
     await refreshSelectedConversation();
+    await markConversationReadIfNeeded().catch(() => {});
   }
 
   async function createDirectConversation() {
@@ -172,6 +197,7 @@ export function useChatActions(store) {
 
     store.resetComposer();
     await refreshAll();
+    await markConversationReadIfNeeded().catch(() => {});
   }
 
   async function uploadFiles(fileList) {
@@ -180,11 +206,15 @@ export function useChatActions(store) {
     if (!files.length) return;
 
     store.uploadingFiles.value = true;
+    store.uploadProgress.value = 0;
+    store.uploadFileName.value = files[0]?.name || "";
     store.setComposerHint(`正在上传 ${files.length} 个文件...`, "");
 
     try {
       const uploadedFiles = [];
-      for (const file of files) {
+      for (let index = 0; index < files.length; index += 1) {
+        const file = files[index];
+        store.uploadFileName.value = file.name || `file-${index + 1}`;
         const presign = await chatApi.postJson("/api/v1/chat/files/presign-upload", {
           conversationId: store.selectedId.value,
           fileName: file.name || "attachment",
@@ -192,9 +222,16 @@ export function useChatActions(store) {
           size: file.size,
         });
         const data = presign.data || {};
-        await chatApi.putExternal(data.uploadUrl, file, data.headers || {
-          "Content-Type": file.type || "application/octet-stream",
-        });
+        await chatApi.putExternal(
+          data.uploadUrl,
+          file,
+          data.headers || { "Content-Type": file.type || "application/octet-stream" },
+          ({ percent }) => {
+            const base = Math.floor((index / files.length) * 100);
+            const scaled = Math.min(100, Math.floor(((index + percent / 100) / files.length) * 100));
+            store.uploadProgress.value = Math.max(base, scaled);
+          },
+        );
         uploadedFiles.push({
           name: file.name || "attachment",
           objectKey: data.objectKey,
@@ -204,6 +241,7 @@ export function useChatActions(store) {
         });
       }
 
+      store.uploadProgress.value = 100;
       await chatApi.postJson(`/api/v1/conversations/${encodeURIComponent(store.selectedId.value)}/messages`, {
         type: "file",
         content: buildFileMessageContent(uploadedFiles),
@@ -216,11 +254,14 @@ export function useChatActions(store) {
         store.clearReplyState();
         store.setComposerHint(`已上传 ${uploadedFiles.length} 个文件`, "success");
         await refreshAll();
+        await markConversationReadIfNeeded().catch(() => {});
       }
     } catch (error) {
       store.setComposerHint(error?.message || "上传失败", "error");
     } finally {
       store.uploadingFiles.value = false;
+      store.uploadProgress.value = 0;
+      store.uploadFileName.value = "";
     }
   }
 
@@ -244,9 +285,35 @@ export function useChatActions(store) {
     }, 1000);
   }
 
-  async function deleteMessage(messageId) {
-    await chatApi.delete(`/api/v1/conversations/${encodeURIComponent(store.selectedId.value)}/messages/${encodeURIComponent(messageId)}`);
+  async function recallMessage(messageId) {
+    await chatApi.postJson(`/api/v1/conversations/${encodeURIComponent(store.selectedId.value)}/messages/${encodeURIComponent(messageId)}/recall`, {});
     await refreshAll();
+  }
+
+  async function toggleConversationPin() {
+    const selected = store.selectedConversation.value;
+    if (!selected?.id) return;
+    if (selected.pinnedAt) {
+      await chatApi.delete(`/api/v1/conversations/${encodeURIComponent(selected.id)}/pin`);
+      patchConversationLocally(selected.id, { pinnedAt: null });
+      store.setComposerHint("已取消置顶", "success");
+      return;
+    }
+    await chatApi.postJson(`/api/v1/conversations/${encodeURIComponent(selected.id)}/pin`, {});
+    patchConversationLocally(selected.id, { pinnedAt: new Date().toISOString() });
+    store.setComposerHint("已置顶会话", "success");
+  }
+
+  async function toggleConversationPinById(conversationId) {
+    const target = store.conversations.value.find((item) => String(item.id) === String(conversationId));
+    if (!target) return;
+    if (target.pinnedAt) {
+      await chatApi.delete(`/api/v1/conversations/${encodeURIComponent(conversationId)}/pin`);
+      patchConversationLocally(conversationId, { pinnedAt: null });
+      return;
+    }
+    await chatApi.postJson(`/api/v1/conversations/${encodeURIComponent(conversationId)}/pin`, {});
+    patchConversationLocally(conversationId, { pinnedAt: new Date().toISOString() });
   }
 
   async function handleMessageAction({ id, action }) {
@@ -263,11 +330,11 @@ export function useChatActions(store) {
       store.messageInput.value = message.content || "";
       return;
     }
-    if (action === "delete") {
+    if (action === "recall") {
       try {
-        await deleteMessage(message.id);
+        await recallMessage(message.id);
       } catch (error) {
-        store.setComposerHint(error?.message || "删除失败", "error");
+        store.setComposerHint(error?.message || "撤回失败", "error");
       }
     }
   }
@@ -278,7 +345,11 @@ export function useChatActions(store) {
     await chatApi.postJson(`/api/v1/conversations/${encodeURIComponent(store.selectedId.value)}/read`, {
       messageId: lastMessage.id,
     });
-    await loadConversations();
+    patchConversationLocally(store.selectedId.value, {
+      unreadCount: 0,
+      unreadMentionCount: 0,
+      lastReadAt: new Date().toISOString(),
+    });
   }
 
   async function saveProfile() {
@@ -334,6 +405,8 @@ export function useChatActions(store) {
     downloadFile,
     handleMessageAction,
     markSelectedConversationRead,
+    toggleConversationPin,
+    toggleConversationPinById,
     saveProfile,
     uploadAvatar,
   };

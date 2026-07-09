@@ -24,6 +24,7 @@
 - `@提及`
 - 会话内消息搜索
 - 已读标记
+- 未读消息角标 / @ 提醒角标
 - Socket.IO 实时刷新
 - 文件消息上传 / 下载 / 过期处理
 - Docker 正式环境接入 `MySQL + Redis + MinIO`
@@ -141,7 +142,45 @@ http://localhost:3010/chat/login.html
 
 - 完善头像上传与裁剪
 - 增加未读提醒和已读回执详情
-- 增加消息撤回 / 置顶 / 草稿箱
+- 已支持消息撤回 / 会话置顶 / 上传进度
+- 增加草稿箱
 - 增加 Electron 打包与发布配置
 - 补正式 Prisma migration
 - 补更完整的 Socket / 文件上传回归测试
+
+## 打包与远程测试
+
+如果你本地没有 Docker，推荐直接让桌面壳连接服务器：
+
+1. 先把服务器部署好，确保能访问：
+
+```text
+http://你的服务器IP:3010/chat/login.html
+```
+
+2. 在仓库根目录新建 `desktop-config.json`，内容可参考 `desktop-config.example.json`：
+
+```json
+{
+  "remoteOrigin": "http://186.241.89.102:3010"
+}
+```
+
+3. 本地直接联调桌面壳：
+
+```bash
+npm run dev:desktop
+```
+
+4. 如需打便携包测试：
+
+```bash
+npm run pack:desktop
+npm run dist:desktop
+```
+
+默认输出目录：
+
+```text
+release/
+```

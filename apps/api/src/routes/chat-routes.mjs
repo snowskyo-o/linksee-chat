@@ -1,8 +1,9 @@
 import crypto from "node:crypto";
 import express, { Router } from "express";
 import { prisma } from "../../../../infra/db/prisma.mjs";
+import { env } from "../../../../infra/config/env.mjs";
+import { minioClient } from "../../../../infra/storage/minio.mjs";
 import {
-  buildConversationTitle,
   buildMessageType,
   findContacts,
   sanitizeUser,
@@ -77,6 +78,32 @@ async function loadMessagesForConversation(conversationId, beforeId = "", limit 
   return rows.reverse();
 }
 
+async function removeChatMessageFiles(message) {
+  const filesMeta = Array.isArray(message.filesMeta) ? message.filesMeta : [];
+  const objectKeys = filesMeta.flatMap((file) => [file.objectKey, file.thumbnailKey].filter(Boolean));
+
+  await Promise.all(
+    objectKeys.map((key) => minioClient.removeObject(env.minio.bucketChatFiles, key).catch(() => {})),
+  );
+  await Promise.all(
+    filesMeta.map((file) => prisma.chatFile.delete({ where: { id: file.id } }).catch(() => {})),
+  );
+}
+
+async function loadConversationMessage(req, res, conversationId, messageId) {
+  return prisma.chatMessage.findFirst({
+    where: { id: BigInt(messageId), conversationId },
+    include: {
+      sender: { include: { profile: true } },
+      replyTo: { include: { filesMeta: true } },
+      filesMeta: true,
+    },
+  }).catch(() => {
+    res.status(404).json({ ok: false, code: "NOT_FOUND", message: "消息不存在" });
+    return null;
+  });
+}
+
 export function createChatRouter(emitConversationEvent) {
   const router = Router();
 
@@ -115,10 +142,7 @@ export function createChatRouter(emitConversationEvent) {
       return res.status(403).json({ ok: false, code: "FORBIDDEN", message: "无权访问该附件" });
     }
 
-    const stream = await (await import("../../../../infra/storage/minio.mjs")).minioClient.getObject(
-      process.env.MINIO_BUCKET_CHAT_FILES || "chat-files",
-      objectKey,
-    );
+    const stream = await minioClient.getObject(env.minio.bucketChatFiles, objectKey);
     res.setHeader("Content-Type", file.mimeType || "application/octet-stream");
     res.setHeader("Content-Disposition", `attachment; filename*=UTF-8''${encodeURIComponent(file.name || "attachment")}`);
     stream.pipe(res);
@@ -224,6 +248,43 @@ export function createChatRouter(emitConversationEvent) {
       ok: true,
       data: await buildConversationResponse(req.userId, created.conversation),
     });
+  });
+
+  router.post("/conversations/:conversationId/pin", async (req, res) => {
+    const ctx = await requireConversation(req, res);
+    if (!ctx) return;
+
+    await prisma.chatConversationPin.upsert({
+      where: {
+        conversationId_userId: {
+          conversationId: ctx.conversation.id,
+          userId: req.userId,
+        },
+      },
+      update: { pinnedAt: new Date() },
+      create: {
+        conversationId: ctx.conversation.id,
+        userId: req.userId,
+      },
+    });
+
+    return res.json({ ok: true, data: await buildConversationResponse(req.userId, ctx.conversation) });
+  });
+
+  router.delete("/conversations/:conversationId/pin", async (req, res) => {
+    const ctx = await requireConversation(req, res);
+    if (!ctx) return;
+
+    await prisma.chatConversationPin.delete({
+      where: {
+        conversationId_userId: {
+          conversationId: ctx.conversation.id,
+          userId: req.userId,
+        },
+      },
+    }).catch(() => {});
+
+    return res.json({ ok: true, data: await buildConversationResponse(req.userId, ctx.conversation) });
   });
 
   router.get("/conversations/:conversationId/participants", async (req, res) => {
@@ -389,10 +450,7 @@ export function createChatRouter(emitConversationEvent) {
     const ctx = await requireConversation(req, res);
     if (!ctx) return;
 
-    const message = await prisma.chatMessage.findFirst({
-      where: { id: BigInt(req.params.messageId), conversationId: ctx.conversation.id },
-      include: { filesMeta: true },
-    }).catch(() => null);
+    const message = await loadConversationMessage(req, res, ctx.conversation.id, req.params.messageId);
     if (!message || message.deletedAt) {
       return res.status(404).json({ ok: false, code: "NOT_FOUND", message: "消息不存在" });
     }
@@ -427,14 +485,43 @@ export function createChatRouter(emitConversationEvent) {
     return res.json({ ok: true, data: serializeMessage(updated) });
   });
 
+  router.post("/conversations/:conversationId/messages/:messageId/recall", async (req, res) => {
+    const ctx = await requireConversation(req, res);
+    if (!ctx) return;
+
+    const message = await loadConversationMessage(req, res, ctx.conversation.id, req.params.messageId);
+    if (!message || message.deletedAt) {
+      return res.status(404).json({ ok: false, code: "NOT_FOUND", message: "消息不存在" });
+    }
+    if (message.senderId !== req.userId) {
+      return res.status(403).json({ ok: false, code: "FORBIDDEN", message: "只能撤回自己的消息" });
+    }
+
+    await removeChatMessageFiles(message);
+    const updated = await prisma.chatMessage.update({
+      where: { id: message.id },
+      data: {
+        content: null,
+        files: null,
+        mentions: null,
+        deletedAt: new Date(),
+      },
+      include: {
+        sender: { include: { profile: true } },
+        replyTo: { include: { filesMeta: true } },
+        filesMeta: true,
+      },
+    });
+
+    emitConversationEvent(ctx.conversation.id, "conversation.message.deleted", { messageId: updated.id.toString() });
+    return res.json({ ok: true, data: serializeMessage(updated) });
+  });
+
   router.delete("/conversations/:conversationId/messages/:messageId", async (req, res) => {
     const ctx = await requireConversation(req, res);
     if (!ctx) return;
 
-    const message = await prisma.chatMessage.findFirst({
-      where: { id: BigInt(req.params.messageId), conversationId: ctx.conversation.id },
-      include: { filesMeta: true },
-    }).catch(() => null);
+    const message = await loadConversationMessage(req, res, ctx.conversation.id, req.params.messageId);
     if (!message || message.deletedAt) {
       return res.status(404).json({ ok: false, code: "NOT_FOUND", message: "消息不存在" });
     }
@@ -442,9 +529,7 @@ export function createChatRouter(emitConversationEvent) {
       return res.status(403).json({ ok: false, code: "FORBIDDEN", message: "只能删除自己的消息" });
     }
 
-    await Promise.all(
-      (message.filesMeta || []).map((file) => prisma.chatFile.delete({ where: { id: file.id } }).catch(() => {})),
-    );
+    await removeChatMessageFiles(message);
     const updated = await prisma.chatMessage.update({
       where: { id: message.id },
       data: {

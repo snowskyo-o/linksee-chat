@@ -31,6 +31,7 @@ model User {
   conversationMembers ChatConversationMember[]
   chatMessages        ChatMessage[]
   chatReads           ChatConversationRead[]
+  conversationPins    ChatConversationPin[]
 
   @@map("users")
 }
@@ -63,6 +64,7 @@ model ChatConversation {
   members    ChatConversationMember[]
   messages   ChatMessage[]
   reads      ChatConversationRead[]
+  pins       ChatConversationPin[]
 
   @@index([kind, scopeId])
   @@map("chat_conversations")
@@ -138,4 +140,18 @@ model ChatConversationRead {
   @@id([conversationId, userId])
   @@index([userId, lastReadAt])
   @@map("chat_conversation_reads")
+}
+
+model ChatConversationPin {
+  conversationId BigInt   @db.UnsignedBigInt
+  userId         String   @db.VarChar(32)
+  pinnedAt       DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  conversation ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([conversationId, userId])
+  @@index([userId, pinnedAt])
+  @@map("chat_conversation_pins")
 }

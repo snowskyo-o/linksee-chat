@@ -120,6 +120,35 @@ async function requestBlob(path, options) {
   return response;
 }
 
+function putExternal(url, body, headers = {}, onProgress) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", url, true);
+    Object.entries(headers || {}).forEach(([key, value]) => {
+      if (value != null) xhr.setRequestHeader(key, value);
+    });
+    if (typeof onProgress === "function") {
+      xhr.upload.onprogress = (event) => {
+        if (!event.lengthComputable) return;
+        onProgress({
+          loaded: event.loaded,
+          total: event.total,
+          percent: Math.max(0, Math.min(100, Math.round((event.loaded / event.total) * 100))),
+        });
+      };
+    }
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(xhr);
+        return;
+      }
+      reject(new Error(xhr.responseText || "上传失败"));
+    };
+    xhr.onerror = () => reject(new Error("上传失败"));
+    xhr.send(body);
+  });
+}
+
 export const chatApi = {
   getApiBaseUrl,
   clearSession,
@@ -154,17 +183,5 @@ export const chatApi = {
   getBlob(path) {
     return requestBlob(path, { headers: authHeaders() });
   },
-  putExternal(url, body, headers = {}) {
-    return fetch(url, {
-      method: "PUT",
-      headers,
-      body,
-    }).then(async (response) => {
-      if (!response.ok) {
-        const text = await response.text().catch(() => "");
-        throw new Error(text || "上传失败");
-      }
-      return response;
-    });
-  },
+  putExternal,
 };

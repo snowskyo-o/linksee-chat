@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "main": "apps/desktop/main.cjs",
   "scripts": {
     "dev": "node ./scripts/dev.mjs",
     "start": "node ./apps/api/src/server/index.mjs",
@@ -18,7 +19,33 @@
     "db:push": "prisma db push",
     "db:seed": "node ./prisma/seed.mjs",
     "docker:up": "docker compose up -d --build",
-    "docker:down": "docker compose down"
+    "docker:down": "docker compose down",
+    "pack:desktop": "npm run build:web && electron-builder --dir",
+    "dist:desktop": "npm run build:web && electron-builder --win portable"
+  },
+  "build": {
+    "appId": "com.snowskyo.linkseechat",
+    "productName": "Linksee Chat",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "apps/**/*",
+      "dist/**/*",
+      "infra/**/*",
+      "prisma/**/*",
+      "scripts/**/*",
+      "package.json",
+      "node_modules/**/*"
+    ],
+    "extraMetadata": {
+      "main": "apps/desktop/main.cjs"
+    },
+    "win": {
+      "target": [
+        "portable"
+      ]
+    }
   },
   "dependencies": {
     "@prisma/client": "^5.18.0",
@@ -30,6 +57,7 @@
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.2.4",
     "electron": "^31.7.7",
+    "electron-builder": "^26.15.3",
     "prisma": "^5.18.0",
     "socket.io-client": "^4.8.1",
     "vite": "^5.4.19",
