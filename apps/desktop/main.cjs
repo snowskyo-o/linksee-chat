@@ -1,4 +1,4 @@
-﻿const { app, BrowserWindow } = require("electron");
+﻿const { app, BrowserWindow, ipcMain } = require("electron");
 const fs = require("node:fs");
 const path = require("node:path");
 const http = require("node:http");
@@ -34,6 +34,20 @@ function readRemoteOrigin() {
   }
 
   return DEFAULT_REMOTE_ORIGIN;
+}
+
+function buildWindowState(window) {
+  if (!window || window.isDestroyed()) {
+    return { isMaximized: false };
+  }
+  return {
+    isMaximized: window.isMaximized(),
+  };
+}
+
+function sendWindowState(window) {
+  if (!window || window.isDestroyed()) return;
+  window.webContents.send("desktop:window-state", buildWindowState(window));
 }
 
 const remoteOrigin = readRemoteOrigin();
@@ -90,14 +104,40 @@ async function loadChatOrOffline(reason = "") {
   }
 }
 
+function registerIpcHandlers() {
+  ipcMain.handle("desktop:get-window-state", () => buildWindowState(mainWindow));
+  ipcMain.handle("desktop:minimize", () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return null;
+    mainWindow.minimize();
+    return buildWindowState(mainWindow);
+  });
+  ipcMain.handle("desktop:toggle-maximize", () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return null;
+    if (mainWindow.isMaximized()) {
+      mainWindow.unmaximize();
+    } else {
+      mainWindow.maximize();
+    }
+    return buildWindowState(mainWindow);
+  });
+  ipcMain.handle("desktop:close", () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return null;
+    mainWindow.close();
+    return null;
+  });
+}
+
 async function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1440,
     height: 920,
     minWidth: 1120,
     minHeight: 760,
-    backgroundColor: "#f3f6fb",
+    backgroundColor: "#e9eef5",
     autoHideMenuBar: true,
+    frame: false,
+    titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "hidden",
+    trafficLightPosition: process.platform === "darwin" ? { x: 18, y: 18 } : undefined,
     webPreferences: {
       preload: preloadPath,
       contextIsolation: true,
@@ -113,8 +153,16 @@ async function createWindow() {
     }
   });
 
+  mainWindow.on("maximize", () => sendWindowState(mainWindow));
+  mainWindow.on("unmaximize", () => sendWindowState(mainWindow));
+  mainWindow.on("enter-full-screen", () => sendWindowState(mainWindow));
+  mainWindow.on("leave-full-screen", () => sendWindowState(mainWindow));
+  mainWindow.once("ready-to-show", () => sendWindowState(mainWindow));
+
   await loadChatOrOffline();
 }
+
+registerIpcHandlers();
 
 app.whenReady().then(async () => {
   await createWindow();

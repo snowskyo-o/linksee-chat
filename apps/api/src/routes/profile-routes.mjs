@@ -1,4 +1,4 @@
-import express, { Router } from "express";
+﻿import express, { Router } from "express";
 import { prisma } from "../../../../infra/db/prisma.mjs";
 import { env } from "../../../../infra/config/env.mjs";
 import { minioClient } from "../../../../infra/storage/minio.mjs";
@@ -25,6 +25,31 @@ async function streamUserAvatar(req, res) {
   res.setHeader("Content-Type", "image/*");
   stream.pipe(res);
 }
+
+publicProfileRouter.get("/users/:userId/profile", async (req, res) => {
+  const user = await prisma.user.findUnique({
+    where: { id: req.params.userId },
+    include: { profile: true },
+  });
+
+  if (!user || !user.isActive) {
+    return res.status(404).json({ ok: false, code: "NOT_FOUND", message: "用户不存在" });
+  }
+
+  return res.json({
+    ok: true,
+    data: {
+      id: user.id,
+      profile: {
+        realName: user.profile?.realName || user.id,
+        bio: user.profile?.bio || "",
+        avatarUrl: user.profile?.avatarUrl
+          ? `/api/v1/users/${encodeURIComponent(user.id)}/avatar`
+          : "",
+      },
+    },
+  });
+});
 
 profileRouter.get("/users/me", async (req, res) => {
   const user = await findUserById(req.userId);

@@ -1,11 +1,55 @@
 ﻿<script setup>
-import { ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { chatApi } from "../shared/api-client.js";
+import DesktopTitlebar from "../shared/components/DesktopTitlebar.vue";
+import { getInitials } from "../shared/utils.js";
 
 const userId = ref("");
 const password = ref("");
 const hint = ref("");
 const hintTone = ref("");
+const previewLoading = ref(false);
+const previewName = ref("欢迎回来");
+const previewBio = ref("输入账号以查看头像和昵称");
+const previewAvatarUrl = ref("");
+
+const previewInitials = computed(() => getInitials(previewName.value, userId.value || "LC"));
+
+let previewTimer = null;
+
+async function loadPreview(nextUserId) {
+  const account = String(nextUserId || "").trim();
+  previewAvatarUrl.value = "";
+
+  if (!account) {
+    previewName.value = "欢迎回来";
+    previewBio.value = "输入账号以查看头像和昵称";
+    previewLoading.value = false;
+    return;
+  }
+
+  previewLoading.value = true;
+  try {
+    const payload = await chatApi.request(`/api/v1/users/${encodeURIComponent(account)}/profile`);
+    const profile = payload.data?.profile || {};
+    previewName.value = profile.realName || account;
+    previewBio.value = profile.bio || "准备开始新的会话";
+    previewAvatarUrl.value = profile.avatarUrl || "";
+  } catch {
+    previewName.value = account;
+    previewBio.value = "未找到资料，确认账号后可直接登录";
+    previewAvatarUrl.value = "";
+  } finally {
+    previewLoading.value = false;
+  }
+}
+
+watch(userId, (value) => {
+  if (previewTimer) clearTimeout(previewTimer);
+  previewTimer = setTimeout(() => {
+    loadPreview(value);
+  }, 180);
+});
 
 async function submitLogin() {
   hint.value = "正在登录...";
@@ -30,44 +74,62 @@ async function submitLogin() {
 </script>
 
 <template>
-  <main class="auth-layout">
-    <section class="auth-card">
-      <div class="brand-lockup">
-        <div class="brand-mark"></div>
-        <div>
-          <h1>Linksee Chat</h1>
-          <p>最小聊天产品</p>
-        </div>
-      </div>
+  <main class="desktop-page-shell auth-page-shell">
+    <DesktopTitlebar app-title="Linksee Chat" view-title="账号登录" view-meta="桌面聊天客户端" />
 
-      <form class="stack-lg" @submit.prevent="submitLogin">
-        <label class="field">
-          <span>账号</span>
-          <input v-model="userId" name="userId" placeholder="10 位数字账号" autocomplete="username" />
-        </label>
+    <section class="auth-stage">
+      <section class="auth-window">
+        <aside class="auth-showcase">
+          <div class="auth-brand-row">
+            <div class="auth-brand-badge">L</div>
+            <div>
+              <h1>Linksee Chat</h1>
+              <p>简洁、克制、专注沟通</p>
+            </div>
+          </div>
 
-        <label class="field">
-          <span>密码</span>
-          <input
-            v-model="password"
-            name="password"
-            type="password"
-            placeholder="请输入密码"
-            autocomplete="current-password"
-          />
-        </label>
+          <div class="account-preview-card">
+            <div class="account-preview-avatar">
+              <img v-if="previewAvatarUrl" :src="previewAvatarUrl" alt="" />
+              <span v-else>{{ previewInitials }}</span>
+            </div>
+            <div class="account-preview-copy">
+              <strong>{{ previewName }}</strong>
+              <p>{{ previewLoading ? "正在读取账号资料..." : previewBio }}</p>
+            </div>
+          </div>
+        </aside>
 
-        <button class="primary-btn" type="submit">进入聊天</button>
-        <div class="hint" :class="hint ? (hintTone === 'error' ? 'is-error' : 'is-success') : ''">
-          {{ hint }}
-        </div>
-      </form>
-    </section>
+        <section class="auth-form-panel">
+          <div class="auth-window-head">
+            <h2>账号登录</h2>
+            <span class="auth-window-tag">客户端模式</span>
+          </div>
 
-    <section class="auth-copy">
-      <span class="eyebrow">Vue + Vite</span>
-      <h2>保留会话、消息和实时推送，把协作平台收敛成一个纯聊天软件。</h2>
-      <p>当前版本已经升级为 Vue 前端结构，后续更适合继续封装成桌面程序。</p>
+          <form class="auth-form" @submit.prevent="submitLogin">
+            <label class="field field-quiet">
+              <span>账号</span>
+              <input v-model="userId" name="userId" placeholder="输入账号" autocomplete="username" />
+            </label>
+
+            <label class="field field-quiet">
+              <span>密码</span>
+              <input
+                v-model="password"
+                name="password"
+                type="password"
+                placeholder="输入密码"
+                autocomplete="current-password"
+              />
+            </label>
+
+            <button class="primary-btn auth-submit" type="submit">登录</button>
+            <div class="hint" :class="hint ? (hintTone === 'error' ? 'is-error' : 'is-success') : ''">
+              {{ hint }}
+            </div>
+          </form>
+        </section>
+      </section>
     </section>
   </main>
 </template>

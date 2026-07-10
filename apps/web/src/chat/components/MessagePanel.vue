@@ -1,7 +1,9 @@
-<script setup>
+﻿<script setup>
+import MessageBubble from "./MessageBubble.vue";
+
 defineProps({
   chatTitle: { type: String, default: "请选择会话" },
-  chatSubtitle: { type: String, default: "登录后可查看你已加入的会话。" },
+  chatSubtitle: { type: String, default: "选择一个会话开始聊天" },
   messageKeyword: { type: String, default: "" },
   socketOnline: { type: Boolean, default: false },
   searchResultText: { type: String, default: "" },
@@ -41,9 +43,9 @@ defineEmits([
 </script>
 
 <template>
-  <section class="qq-main">
-    <header class="chat-panel-head">
-      <div>
+  <section class="chat-workspace">
+    <header class="chat-workspace-head">
+      <div class="chat-title-block">
         <h2>{{ chatTitle }}</h2>
         <p class="muted">{{ chatSubtitle }}</p>
       </div>
@@ -55,8 +57,8 @@ defineEmits([
           @input="$emit('update:messageKeyword', $event.target.value)"
           @keydown.enter.prevent="$emit('search')"
         />
-        <button class="ghost-btn" type="button" @click="$emit('announcement')">公告</button>
-        <button class="ghost-btn" type="button" @click="$emit('toggle-pin')">{{ isPinned ? "取消置顶" : "置顶会话" }}</button>
+        <button class="ghost-btn compact-btn" type="button" @click="$emit('announcement')">公告</button>
+        <button class="ghost-btn compact-btn" type="button" @click="$emit('toggle-pin')">{{ isPinned ? "取消置顶" : "置顶" }}</button>
         <div class="socket-pill" :class="socketOnline ? 'online' : 'offline'">
           {{ socketOnline ? "在线" : "离线" }}
         </div>
@@ -65,98 +67,45 @@ defineEmits([
 
     <div v-if="searchResultText" class="search-bar">{{ searchResultText }}</div>
 
-    <div class="message-list">
+    <div class="message-list desktop-message-list">
       <button
         v-if="hasMoreMessages"
-        class="ghost-btn load-more-btn"
+        class="ghost-btn load-more-btn compact-btn"
         type="button"
         :disabled="loadingMoreMessages"
         @click="$emit('load-more')"
       >
-        {{ loadingMoreMessages ? "加载中..." : "加载更早消息" }}
+        {{ loadingMoreMessages ? "加载中..." : "查看更多消息" }}
       </button>
       <div v-if="!messages.length" class="empty-state">这里还没有消息，发一条开始吧。</div>
-      <article
+      <MessageBubble
         v-for="message in messages"
         :key="message.id"
-        class="message-item"
-        :class="{ me: message.isMe, deleted: message.deletedAt }"
-      >
-        <div class="message-avatar" v-if="!message.isMe">
-          <img v-if="message.avatarUrl" :src="message.avatarUrl" alt="" />
-          <span v-else>{{ message.senderName.slice(0, 2).toUpperCase() }}</span>
-        </div>
-        <div class="message-body">
-          <div class="message-head">
-            <strong>{{ message.senderName }}</strong>
-            <span>
-              <span v-if="message.type === 'announcement'" class="badge ghost">公告</span>
-              <span class="muted">{{ message.timeText }}{{ message.editedAt ? " · 已编辑" : "" }}</span>
-            </span>
-          </div>
-          <div v-if="message.replyToText" class="reply-quote">{{ message.replyToText }}</div>
-          <div class="message-content" v-html="message.html"></div>
-          <div class="message-actions">
-            <button class="message-link" type="button" @click="$emit('message-action', { id: message.id, action: 'reply' })">回复</button>
-            <button
-              v-if="message.canEdit"
-              class="message-link"
-              type="button"
-              @click="$emit('message-action', { id: message.id, action: 'edit' })"
-            >
-              编辑
-            </button>
-            <button
-              v-if="message.canRecall"
-              class="message-link"
-              type="button"
-              @click="$emit('message-action', { id: message.id, action: 'recall' })"
-            >
-              撤回
-            </button>
-            <template v-if="message.isFileMessage">
-              <button
-                v-for="file in message.files"
-                :key="file.objectKey"
-                class="message-link"
-                type="button"
-                :disabled="file.expired || !file.downloadPath"
-                @click="$emit('download-file', file)"
-              >
-                {{ file.expired ? `${file.name} 已过期` : `下载 ${file.name}` }}
-              </button>
-            </template>
-          </div>
-          <div v-if="message.isFileMessage" class="file-list">
-            <div v-for="file in message.files" :key="file.objectKey" class="file-card" :class="{ expired: file.expired }">
-              <div class="file-card-main">
-                <strong>{{ file.name }}</strong>
-                <span class="muted">{{ file.metaText }}</span>
-              </div>
-              <span class="file-expiry" :class="{ expired: file.expired }">{{ file.expiryText }}</span>
-            </div>
-          </div>
-        </div>
-      </article>
+        :message="message"
+        @action="$emit('message-action', $event)"
+        @download-file="$emit('download-file', $event)"
+      />
     </div>
 
     <div v-if="showReplyBar" class="reply-bar">{{ replyText }}</div>
 
-    <form class="composer" @submit.prevent="$emit('submit')">
+    <form class="composer desktop-composer" @submit.prevent="$emit('submit')">
       <input class="hidden" type="file" multiple @change="$emit('file-change', $event)" />
-      <div class="composer-top">
-        <button v-if="editing || showReplyBar" class="ghost-btn" type="button" @click="$emit('cancel-edit')">取消编辑</button>
-        <button class="ghost-btn" type="button" @click="$emit('mark-read')">标记已读</button>
-        <button class="ghost-btn" type="button" :disabled="uploadingFiles" @click="$emit('open-file-picker')">
-          {{ uploadingFiles ? "上传中..." : "发送文件" }}
-        </button>
+      <div class="composer-top desktop-composer-top">
+        <div class="composer-tool-group">
+          <button v-if="editing || showReplyBar" class="ghost-btn compact-btn" type="button" @click="$emit('cancel-edit')">取消</button>
+          <button class="ghost-btn compact-btn" type="button" @click="$emit('mark-read')">标记已读</button>
+          <button class="ghost-btn compact-btn" type="button" :disabled="uploadingFiles" @click="$emit('open-file-picker')">
+            {{ uploadingFiles ? "上传中..." : "发送文件" }}
+          </button>
+        </div>
+        <div v-if="uploadProgressText" class="search-bar upload-inline-tip">{{ uploadProgressText }}</div>
       </div>
-      <div v-if="uploadProgressText" class="search-bar">{{ uploadProgressText }}</div>
       <textarea
         :value="messageInput"
-        class="message-input"
+        class="message-input desktop-message-input"
         rows="4"
-        placeholder="输入消息，输入 @ 可提及成员，Enter 发送，Shift+Enter 换行"
+        placeholder="输入消息，Enter 发送，Shift+Enter 换行，@ 可提及成员"
         @input="$emit('update:messageInput', $event.target.value)"
         @keydown="$emit('message-keydown', $event)"
       ></textarea>
@@ -175,9 +124,7 @@ defineEmits([
         <div class="hint" :class="composerHint ? (composerHintTone === 'error' ? 'is-error' : 'is-success') : ''">
           {{ composerHint }}
         </div>
-        <div class="composer-actions">
-          <button class="primary-btn" type="submit">发送</button>
-        </div>
+        <button class="primary-btn" type="submit">发送</button>
       </div>
     </form>
   </section>

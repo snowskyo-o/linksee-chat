@@ -1,7 +1,7 @@
-<script setup>
+﻿<script setup>
 defineProps({
   meName: { type: String, default: "未登录" },
-  meMeta: { type: String, default: "--" },
+  meMeta: { type: String, default: "" },
   meAvatar: { type: String, default: "ME" },
   meAvatarUrl: { type: String, default: "" },
   keyword: { type: String, default: "" },
@@ -21,63 +21,64 @@ defineEmits([
 </script>
 
 <template>
-  <aside class="qq-sidebar">
-    <div class="qq-user-card">
-      <div class="qq-avatar">
+  <aside class="chat-rail">
+    <div class="chat-rail-header">
+      <div class="qq-avatar user-avatar-large">
         <img v-if="meAvatarUrl" :src="meAvatarUrl" alt="" />
         <span v-else>{{ meAvatar }}</span>
       </div>
-      <div class="qq-user-meta">
+      <div class="chat-rail-user-copy">
         <strong>{{ meName }}</strong>
-        <span class="muted">{{ meMeta }}</span>
+        <p>{{ meMeta }}</p>
       </div>
-      <button class="ghost-btn" type="button" @click="$emit('logout')">退出</button>
+      <button class="ghost-btn compact-btn" type="button" @click="$emit('logout')">退出</button>
     </div>
 
-    <div class="qq-tools">
+    <div class="chat-rail-toolbar">
       <input
         :value="keyword"
         class="qq-search"
         placeholder="搜索会话"
         @input="$emit('update:keyword', $event.target.value)"
       />
-      <button class="ghost-btn" type="button" @click="$emit('new-direct')">新私聊</button>
-      <button class="ghost-btn" type="button" @click="$emit('new-group')">新群聊</button>
-      <button class="ghost-btn" type="button" @click="$emit('refresh')">刷新</button>
+      <div class="chat-rail-actions">
+        <button class="ghost-btn compact-btn" type="button" @click="$emit('new-direct')">私聊</button>
+        <button class="ghost-btn compact-btn" type="button" @click="$emit('new-group')">群聊</button>
+        <button class="ghost-btn compact-btn" type="button" @click="$emit('refresh')">刷新</button>
+      </div>
     </div>
 
-    <div class="conversation-list">
-      <div v-if="!conversations.length" class="empty-state">没有匹配的会话。</div>
+    <div class="conversation-list desktop-conversation-list">
+      <div v-if="!conversations.length" class="empty-state">暂无会话</div>
       <article
         v-for="row in conversations"
         :key="row.id"
-        class="conversation-item"
+        class="conversation-item desktop-conversation-item"
         :class="{ 'is-active': row.id === selectedId }"
         @click="$emit('select', row.id)"
       >
         <div class="conversation-avatar">
           <img v-if="row.avatarUrl" :src="row.avatarUrl" alt="" />
-          <span v-else>{{ (row.title || row.roomKey || "?").slice(0, 2).toUpperCase() }}</span>
+          <span v-else>{{ (row.displayTitle || "?").slice(0, 2).toUpperCase() }}</span>
         </div>
         <div class="conversation-copy">
           <div class="conversation-item-head">
-            <strong>{{ row.title || row.roomKey }}</strong>
+            <strong>{{ row.displayTitle }}</strong>
             <div class="conversation-item-meta">
-              <span v-if="row.pinnedAt" class="badge ghost">置顶</span>
-              <span v-if="row.unreadCount" class="badge">{{ row.unreadCount }}</span>
-              <span v-if="row.unreadMentionCount" class="badge ghost">@{{ row.unreadMentionCount }}</span>
-              <button
-                class="message-link"
-                type="button"
-                @click.stop="$emit('toggle-pin', row.id)"
-              >
-                {{ row.pinnedAt ? "取消置顶" : "置顶" }}
-              </button>
+              <span v-if="row.unreadMentionCount" class="badge mention-badge">@{{ row.unreadMentionCount }}</span>
+              <span v-else-if="row.unreadCount" class="badge">{{ row.unreadCount }}</span>
             </div>
           </div>
-          <p class="muted">{{ row.kind || "group" }} · {{ row.roomKey || "" }}</p>
-          <p>{{ row.preview }}</p>
+          <p class="conversation-subtitle">{{ row.displaySubtitle }}</p>
+          <p class="conversation-preview">{{ row.preview }}</p>
         </div>
+        <button
+          class="message-link pin-action"
+          type="button"
+          @click.stop="$emit('toggle-pin', row.id)"
+        >
+          {{ row.pinnedAt ? "取消置顶" : "置顶" }}
+        </button>
       </article>
     </div>
   </aside>

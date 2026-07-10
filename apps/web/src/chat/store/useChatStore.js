@@ -1,4 +1,4 @@
-import { computed, ref } from "vue";
+﻿import { computed, ref } from "vue";
 import { escapeHtml, formatDateTime, formatExpiry, formatFileSize, getInitials } from "../../shared/utils.js";
 
 function conversationRank(row) {
@@ -9,6 +9,44 @@ function conversationRank(row) {
   return { pinnedRank, mentionRank, unreadRank, timeRank };
 }
 
+function buildConversationTitle(row, authUserId) {
+  if (!row) return "未命名会话";
+  if (row.title) return row.title;
+  if (row.kind === "direct") {
+    const peer = (row.participants || []).find((item) => item.id !== authUserId);
+    return peer?.profile?.realName || peer?.id || "单聊";
+  }
+  return "群聊";
+}
+
+function buildConversationSubtitle(row, authUserId) {
+  if (!row) return "";
+  if (row.kind === "direct") {
+    const peer = (row.participants || []).find((item) => item.id !== authUserId);
+    return peer?.profile?.bio || "私聊";
+  }
+  const count = Array.isArray(row.participants) ? row.participants.length : 0;
+  return count > 0 ? `${count} 位成员` : "群聊";
+}
+
+function buildPreview(row) {
+  if (!row?.lastMessage) return "还没有消息";
+  if (row.lastMessage.deletedAt) return "消息已撤回";
+  if (row.lastMessage.type === "announcement") return `【公告】${row.lastMessage.content || ""}`;
+  if (row.lastMessage.type === "file") return row.lastMessage.content || "[文件]";
+  return row.lastMessage.content || "[空消息]";
+}
+
+function buildReplyText(message) {
+  if (!message?.replyTo) return "";
+  const replySenderName = message.replyTo.sender?.profile?.realName || message.replyTo.senderId || "对方";
+  const replyContent = message.replyTo.content
+    || (Array.isArray(message.replyTo.files) && message.replyTo.files.length
+      ? message.replyTo.files.map((file) => file.name || "附件").join("、")
+      : "");
+  return `回复 ${replySenderName}：${replyContent}`;
+}
+
 export function useChatStore(auth) {
   const me = ref(null);
   const contacts = ref([]);
@@ -16,6 +54,7 @@ export function useChatStore(auth) {
   const selectedId = ref("");
   const participants = ref([]);
   const messages = ref([]);
+  const notifications = ref([]);
   const hasMoreMessages = ref(false);
   const loadingMoreMessages = ref(false);
   const replyTo = ref(null);
@@ -38,13 +77,39 @@ export function useChatStore(auth) {
   const profileBio = ref("");
   const profileHint = ref("");
   const profileHintTone = ref("");
+  const createDialogOpen = ref(false);
+  const createDialogMode = ref("direct");
+  const createDialogTitle = ref("");
+  const createDialogPeerId = ref("");
+  const createDialogParticipantIds = ref([]);
+  const createDialogHint = ref("");
+  const createDialogHintTone = ref("");
+  const createDialogSubmitting = ref(false);
+  const announcementDialogOpen = ref(false);
+  const announcementDraft = ref("");
+  const announcementHint = ref("");
+  const announcementHintTone = ref("");
+  const announcementSubmitting = ref(false);
+  const confirmDialogOpen = ref(false);
+  const confirmDialogTitle = ref("");
+  const confirmDialogMessage = ref("");
+  const confirmDialogConfirmText = ref("确认");
+  const confirmDialogSubmitting = ref(false);
+  const pendingConfirmAction = ref(null);
 
   const meName = computed(() => me.value?.profile?.realName || auth.userId || "未登录");
-  const meMeta = computed(() => auth.userId + (me.value?.role ? ` · ${me.value.role}` : ""));
+  const meMeta = computed(() => me.value?.profile?.bio || "保持联络，保持专注");
   const meAvatar = computed(() => getInitials(meName.value, auth.userId));
   const meAvatarUrl = computed(() => me.value?.profile?.avatarUrl || "");
-
   const selectedConversation = computed(() => conversations.value.find((item) => item.id === selectedId.value) || null);
+  const selectedPeerId = computed(() => createDialogPeerId.value || contacts.value[0]?.id || "");
+  const selectedParticipants = computed(() => contacts.value.filter((user) => createDialogParticipantIds.value.includes(user.id)));
+  const createDialogContacts = computed(() => contacts.value.map((user) => ({
+    id: user.id,
+    name: user.profile?.realName || user.id,
+    bio: user.profile?.bio || "",
+    avatarUrl: user.profile?.avatarUrl || "",
+  })));
   const uploadProgressText = computed(() => {
     if (!uploadingFiles.value) return "";
     if (!uploadFileName.value) return `上传中 ${uploadProgress.value}%`;
@@ -54,28 +119,25 @@ export function useChatStore(auth) {
   const filteredConversations = computed(() => {
     const keyword = conversationKeyword.value.trim().toLowerCase();
     return conversations.value
-      .map((row) => ({
-        ...row,
-        avatarUrl: row.kind === "direct"
-          ? ((row.participants || []).find((item) => item.id !== auth.userId)?.profile?.avatarUrl || "")
-          : "",
-        preview: row.lastMessage
-          ? (
-            row.lastMessage.deletedAt
-              ? "消息已撤回"
-              : row.lastMessage.type === "announcement"
-                ? `【公告】${row.lastMessage.content || ""}`
-                : row.lastMessage.type === "file"
-                  ? (row.lastMessage.content || "[文件消息]")
-                  : (row.lastMessage.content || "[空消息]")
-          )
-          : "暂无消息",
-      }))
+      .map((row) => {
+        const title = buildConversationTitle(row, auth.userId);
+        const subtitle = buildConversationSubtitle(row, auth.userId);
+        const peer = row.kind === "direct"
+          ? (row.participants || []).find((item) => item.id !== auth.userId)
+          : null;
+
+        return {
+          ...row,
+          displayTitle: title,
+          displaySubtitle: subtitle,
+          avatarUrl: row.kind === "direct" ? (peer?.profile?.avatarUrl || "") : "",
+          preview: buildPreview(row),
+        };
+      })
       .filter((row) => {
         if (!keyword) return true;
-        const title = String(row.title || row.roomKey || "").toLowerCase();
-        const preview = String(row.preview || "").toLowerCase();
-        return title.includes(keyword) || preview.includes(keyword);
+        return [row.displayTitle, row.displaySubtitle, row.preview]
+          .some((value) => String(value || "").toLowerCase().includes(keyword));
       })
       .sort((a, b) => {
         const aRank = conversationRank(a);
@@ -87,11 +149,11 @@ export function useChatStore(auth) {
       });
   });
 
-  const chatTitle = computed(() => selectedConversation.value?.title || selectedConversation.value?.roomKey || "请选择会话");
+  const chatTitle = computed(() => buildConversationTitle(selectedConversation.value, auth.userId) || "请选择会话");
   const chatSubtitle = computed(() => (
     selectedConversation.value
-      ? `${selectedConversation.value.kind || "group"} · ${selectedConversation.value.roomKey || ""}`
-      : "登录后可查看你已加入的会话。"
+      ? buildConversationSubtitle(selectedConversation.value, auth.userId)
+      : "选择一个会话开始聊天"
   ));
 
   const renderedMessages = computed(() => messages.value.map((message) => {
@@ -123,15 +185,9 @@ export function useChatStore(auth) {
             expiryText: formatExpiry(file.expiresAt),
           }))
         : [],
-      replyToText: message.replyTo
-        ? `回复 ${message.replyTo.senderId || ""}：${
-          message.replyTo.content
-          || (Array.isArray(message.replyTo.files) && message.replyTo.files.length
-            ? message.replyTo.files.map((file) => file.name || "附件").join("、")
-            : "")
-        }`
-        : "",
+      replyToText: buildReplyText(message),
       avatarUrl: message.sender?.profile?.avatarUrl || "",
+      avatarText: getInitials(senderName, senderName),
     };
   }));
 
@@ -148,9 +204,86 @@ export function useChatStore(auth) {
     searchKeyword.value ? `搜索结果：${searchKeyword.value}（${messages.value.length} 条）` : ""
   ));
 
+  function pushNotification({ title, message = "", tone = "success", ttl = 3200 }) {
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    notifications.value = [...notifications.value, { id, title, message, tone }];
+    if (ttl > 0) {
+      window.setTimeout(() => {
+        dismissNotification(id);
+      }, ttl);
+    }
+    return id;
+  }
+
+  function dismissNotification(id) {
+    notifications.value = notifications.value.filter((item) => item.id !== id);
+  }
+
   function setComposerHint(message, tone = "") {
     composerHint.value = message || "";
     composerHintTone.value = tone;
+  }
+
+  function setCreateDialogHint(message, tone = "") {
+    createDialogHint.value = message || "";
+    createDialogHintTone.value = tone;
+  }
+
+  function setAnnouncementHint(message, tone = "") {
+    announcementHint.value = message || "";
+    announcementHintTone.value = tone;
+  }
+
+  function openCreateDialog(mode) {
+    createDialogMode.value = mode;
+    createDialogOpen.value = true;
+    createDialogTitle.value = "";
+    createDialogPeerId.value = contacts.value[0]?.id || "";
+    createDialogParticipantIds.value = contacts.value.map((user) => user.id).slice(0, 2);
+    createDialogSubmitting.value = false;
+    setCreateDialogHint("", "");
+  }
+
+  function closeCreateDialog() {
+    createDialogOpen.value = false;
+    createDialogSubmitting.value = false;
+    setCreateDialogHint("", "");
+  }
+
+  function openAnnouncementDialog() {
+    announcementDialogOpen.value = true;
+    announcementSubmitting.value = false;
+    announcementDraft.value = "";
+    setAnnouncementHint("", "");
+  }
+
+  function closeAnnouncementDialog() {
+    announcementDialogOpen.value = false;
+    announcementSubmitting.value = false;
+    setAnnouncementHint("", "");
+  }
+
+  function openConfirmDialog({ title, message, confirmText = "确认", action = null }) {
+    confirmDialogOpen.value = true;
+    confirmDialogTitle.value = title || "请确认";
+    confirmDialogMessage.value = message || "确定继续吗？";
+    confirmDialogConfirmText.value = confirmText;
+    confirmDialogSubmitting.value = false;
+    pendingConfirmAction.value = action;
+  }
+
+  function closeConfirmDialog() {
+    confirmDialogOpen.value = false;
+    confirmDialogSubmitting.value = false;
+    pendingConfirmAction.value = null;
+  }
+
+  function toggleDialogParticipant(userId) {
+    if (createDialogParticipantIds.value.includes(userId)) {
+      createDialogParticipantIds.value = createDialogParticipantIds.value.filter((item) => item !== userId);
+      return;
+    }
+    createDialogParticipantIds.value = [...createDialogParticipantIds.value, userId];
   }
 
   function clearReplyState() {
@@ -210,6 +343,7 @@ export function useChatStore(auth) {
     selectedId,
     participants,
     messages,
+    notifications,
     hasMoreMessages,
     loadingMoreMessages,
     replyTo,
@@ -233,6 +367,28 @@ export function useChatStore(auth) {
     profileBio,
     profileHint,
     profileHintTone,
+    createDialogOpen,
+    createDialogMode,
+    createDialogTitle,
+    createDialogPeerId,
+    createDialogParticipantIds,
+    createDialogHint,
+    createDialogHintTone,
+    createDialogSubmitting,
+    createDialogContacts,
+    selectedPeerId,
+    selectedParticipants,
+    announcementDialogOpen,
+    announcementDraft,
+    announcementHint,
+    announcementHintTone,
+    announcementSubmitting,
+    confirmDialogOpen,
+    confirmDialogTitle,
+    confirmDialogMessage,
+    confirmDialogConfirmText,
+    confirmDialogSubmitting,
+    pendingConfirmAction,
     meName,
     meMeta,
     meAvatar,
@@ -245,7 +401,18 @@ export function useChatStore(auth) {
     showReplyBar,
     replyText,
     searchResultText,
+    pushNotification,
+    dismissNotification,
     setComposerHint,
+    setCreateDialogHint,
+    setAnnouncementHint,
+    openCreateDialog,
+    closeCreateDialog,
+    openAnnouncementDialog,
+    closeAnnouncementDialog,
+    openConfirmDialog,
+    closeConfirmDialog,
+    toggleDialogParticipant,
     clearReplyState,
     collectMentionIds,
     updateMentionState,

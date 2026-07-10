@@ -1,4 +1,4 @@
-import { chatApi } from "../../shared/api-client.js";
+﻿import { chatApi } from "../../shared/api-client.js";
 
 export function useChatActions(store) {
   function buildFileMessageContent(files) {
@@ -119,43 +119,68 @@ export function useChatActions(store) {
     await markConversationReadIfNeeded().catch(() => {});
   }
 
-  async function createDirectConversation() {
+  function createDirectConversation() {
     if (!store.contacts.value.length) {
       store.setComposerHint("当前没有可发起私聊的联系人", "error");
+      store.pushNotification({ title: "无法发起私聊", message: "当前没有可用联系人。", tone: "error" });
       return;
     }
-    const lines = store.contacts.value.map((user) => `${user.id} - ${user.profile.realName || user.id}`).join("\n");
-    const peerId = window.prompt(`输入联系人账号发起私聊：\n${lines}`, store.contacts.value[0].id);
-    if (!peerId) return;
-    const payload = await chatApi.postJson("/api/v1/conversations", {
-      kind: "direct",
-      peerId: peerId.trim(),
-    });
-    store.selectedId.value = payload.data?.id || store.selectedId.value;
-    await refreshAll();
+    store.openCreateDialog("direct");
   }
 
-  async function createGroupConversation() {
+  function createGroupConversation() {
     if (!store.contacts.value.length) {
       store.setComposerHint("当前没有可选联系人", "error");
+      store.pushNotification({ title: "无法创建群聊", message: "当前没有可选成员。", tone: "error" });
       return;
     }
-    const title = window.prompt("输入群聊名称");
-    if (!title) return;
-    const lines = store.contacts.value.map((user) => `${user.id} - ${user.profile.realName || user.id}`).join("\n");
-    const raw = window.prompt(
-      `输入成员账号，多个用英文逗号分隔：\n${lines}`,
-      store.contacts.value.map((user) => user.id).slice(0, 2).join(","),
-    );
-    if (!raw) return;
-    const participantIds = raw.split(",").map((value) => value.trim()).filter(Boolean);
-    const payload = await chatApi.postJson("/api/v1/conversations", {
-      kind: "group",
-      title: title.trim(),
-      participantIds,
-    });
-    store.selectedId.value = payload.data?.id || store.selectedId.value;
-    await refreshAll();
+    store.openCreateDialog("group");
+  }
+
+  async function submitCreateConversation() {
+    store.createDialogSubmitting.value = true;
+    store.setCreateDialogHint("", "");
+
+    try {
+      if (store.createDialogMode.value === "direct") {
+        const peerId = store.selectedPeerId.value.trim();
+        if (!peerId) {
+          store.setCreateDialogHint("请选择一个联系人", "error");
+          return;
+        }
+        const payload = await chatApi.postJson("/api/v1/conversations", {
+          kind: "direct",
+          peerId,
+        });
+        store.selectedId.value = payload.data?.id || store.selectedId.value;
+        store.pushNotification({ title: "私聊已创建", message: "可以开始发送消息了。", tone: "success" });
+      } else {
+        const title = store.createDialogTitle.value.trim();
+        if (!title) {
+          store.setCreateDialogHint("请输入群聊名称", "error");
+          return;
+        }
+        if (store.createDialogParticipantIds.value.length < 2) {
+          store.setCreateDialogHint("至少选择两位成员", "error");
+          return;
+        }
+        const payload = await chatApi.postJson("/api/v1/conversations", {
+          kind: "group",
+          title,
+          participantIds: store.createDialogParticipantIds.value,
+        });
+        store.selectedId.value = payload.data?.id || store.selectedId.value;
+        store.pushNotification({ title: "群聊已创建", message: `“${title}” 已准备就绪。`, tone: "success" });
+      }
+
+      store.closeCreateDialog();
+      await refreshAll();
+    } catch (error) {
+      store.setCreateDialogHint(error?.message || "创建会话失败", "error");
+      store.pushNotification({ title: "创建失败", message: error?.message || "创建会话失败", tone: "error" });
+    } finally {
+      store.createDialogSubmitting.value = false;
+    }
   }
 
   async function searchMessages() {
@@ -163,15 +188,36 @@ export function useChatActions(store) {
     await loadMessages();
   }
 
-  async function sendAnnouncement() {
+  function sendAnnouncement() {
     if (!store.selectedId.value) return;
-    const content = window.prompt("请输入公告内容");
-    if (!content) return;
-    await chatApi.postJson(`/api/v1/conversations/${encodeURIComponent(store.selectedId.value)}/announcements`, { content });
-    store.setComposerHint("", "");
-    store.searchKeyword.value = "";
-    store.messageKeyword.value = "";
-    await refreshAll();
+    store.openAnnouncementDialog();
+  }
+
+  async function submitAnnouncement() {
+    if (!store.selectedId.value) return;
+    const content = store.announcementDraft.value.trim();
+    if (!content) {
+      store.setAnnouncementHint("请输入公告内容", "error");
+      return;
+    }
+
+    store.announcementSubmitting.value = true;
+    store.setAnnouncementHint("", "");
+
+    try {
+      await chatApi.postJson(`/api/v1/conversations/${encodeURIComponent(store.selectedId.value)}/announcements`, { content });
+      store.closeAnnouncementDialog();
+      store.setComposerHint("公告已发布", "success");
+      store.pushNotification({ title: "公告已发布", message: "会话成员将看到最新公告。", tone: "success" });
+      store.searchKeyword.value = "";
+      store.messageKeyword.value = "";
+      await refreshAll();
+    } catch (error) {
+      store.setAnnouncementHint(error?.message || "发布公告失败", "error");
+      store.pushNotification({ title: "公告发布失败", message: error?.message || "请稍后重试", tone: "error" });
+    } finally {
+      store.announcementSubmitting.value = false;
+    }
   }
 
   async function submitComposer() {
@@ -186,6 +232,7 @@ export function useChatActions(store) {
         { content, mentions },
       );
       store.editingMessageId.value = "";
+      store.pushNotification({ title: "消息已更新", message: "刚才的内容已经替换。", tone: "success" });
     } else {
       await chatApi.postJson(`/api/v1/conversations/${encodeURIComponent(store.selectedId.value)}/messages`, {
         content,
@@ -253,11 +300,13 @@ export function useChatActions(store) {
       if (uploadedFiles.length > 0) {
         store.clearReplyState();
         store.setComposerHint(`已上传 ${uploadedFiles.length} 个文件`, "success");
+        store.pushNotification({ title: "文件已发送", message: `成功上传 ${uploadedFiles.length} 个文件。`, tone: "success" });
         await refreshAll();
         await markConversationReadIfNeeded().catch(() => {});
       }
     } catch (error) {
       store.setComposerHint(error?.message || "上传失败", "error");
+      store.pushNotification({ title: "上传失败", message: error?.message || "请稍后重试", tone: "error" });
     } finally {
       store.uploadingFiles.value = false;
       store.uploadProgress.value = 0;
@@ -268,6 +317,7 @@ export function useChatActions(store) {
   async function downloadFile(file) {
     if (!file?.objectKey) {
       store.setComposerHint("附件已过期或下载地址不可用", "error");
+      store.pushNotification({ title: "无法下载", message: "附件已过期或不可用。", tone: "error" });
       return;
     }
     const response = await chatApi.getBlob(`/api/v1/chat/files/download?objectKey=${encodeURIComponent(file.objectKey)}`);
@@ -283,11 +333,23 @@ export function useChatActions(store) {
     window.setTimeout(() => {
       window.URL.revokeObjectURL(objectUrl);
     }, 1000);
+    store.pushNotification({ title: "开始下载", message: file.name || "附件", tone: "success", ttl: 2200 });
   }
 
   async function recallMessage(messageId) {
     await chatApi.postJson(`/api/v1/conversations/${encodeURIComponent(store.selectedId.value)}/messages/${encodeURIComponent(messageId)}/recall`, {});
     await refreshAll();
+  }
+
+  async function submitConfirmDialog() {
+    if (typeof store.pendingConfirmAction.value !== "function") return;
+    store.confirmDialogSubmitting.value = true;
+    try {
+      await store.pendingConfirmAction.value();
+      store.closeConfirmDialog();
+    } finally {
+      store.confirmDialogSubmitting.value = false;
+    }
   }
 
   async function toggleConversationPin() {
@@ -297,11 +359,13 @@ export function useChatActions(store) {
       await chatApi.delete(`/api/v1/conversations/${encodeURIComponent(selected.id)}/pin`);
       patchConversationLocally(selected.id, { pinnedAt: null });
       store.setComposerHint("已取消置顶", "success");
+      store.pushNotification({ title: "已取消置顶", message: "该会话恢复普通排序。", tone: "success" });
       return;
     }
     await chatApi.postJson(`/api/v1/conversations/${encodeURIComponent(selected.id)}/pin`, {});
     patchConversationLocally(selected.id, { pinnedAt: new Date().toISOString() });
     store.setComposerHint("已置顶会话", "success");
+    store.pushNotification({ title: "会话已置顶", message: "这个会话会固定显示在前面。", tone: "success" });
   }
 
   async function toggleConversationPinById(conversationId) {
@@ -316,7 +380,7 @@ export function useChatActions(store) {
     patchConversationLocally(conversationId, { pinnedAt: new Date().toISOString() });
   }
 
-  async function handleMessageAction({ id, action }) {
+  function handleMessageAction({ id, action }) {
     const message = store.messages.value.find((item) => String(item.id) === String(id));
     if (!message) return;
     if (action === "reply") {
@@ -331,11 +395,20 @@ export function useChatActions(store) {
       return;
     }
     if (action === "recall") {
-      try {
-        await recallMessage(message.id);
-      } catch (error) {
-        store.setComposerHint(error?.message || "撤回失败", "error");
-      }
+      store.openConfirmDialog({
+        title: "撤回消息",
+        message: "撤回后，这条消息会在当前会话中显示为已撤回。",
+        confirmText: "确认撤回",
+        action: async () => {
+          try {
+            await recallMessage(message.id);
+            store.pushNotification({ title: "消息已撤回", message: "这条内容已从会话中收回。", tone: "success" });
+          } catch (error) {
+            store.setComposerHint(error?.message || "撤回失败", "error");
+            store.pushNotification({ title: "撤回失败", message: error?.message || "请稍后重试", tone: "error" });
+          }
+        },
+      });
     }
   }
 
@@ -350,6 +423,7 @@ export function useChatActions(store) {
       unreadMentionCount: 0,
       lastReadAt: new Date().toISOString(),
     });
+    store.pushNotification({ title: "已标记已读", message: "当前会话未读状态已清除。", tone: "success", ttl: 2200 });
   }
 
   async function saveProfile() {
@@ -361,10 +435,12 @@ export function useChatActions(store) {
       store.profileName.value = payload.data.realName || store.profileName.value.trim();
       store.profileHint.value = "资料已保存";
       store.profileHintTone.value = "success";
+      store.pushNotification({ title: "资料已保存", message: "新的昵称和签名已经生效。", tone: "success" });
       await refreshAll();
     } catch (error) {
       store.profileHint.value = error?.message || "保存失败";
       store.profileHintTone.value = "error";
+      store.pushNotification({ title: "保存失败", message: error?.message || "请稍后重试", tone: "error" });
     }
   }
 
@@ -383,6 +459,7 @@ export function useChatActions(store) {
     };
     store.profileHint.value = "头像已上传";
     store.profileHintTone.value = "success";
+    store.pushNotification({ title: "头像已更新", message: "新的头像已经显示在客户端中。", tone: "success" });
     await refreshAll();
   }
 
@@ -398,12 +475,15 @@ export function useChatActions(store) {
     selectConversation,
     createDirectConversation,
     createGroupConversation,
+    submitCreateConversation,
     searchMessages,
     sendAnnouncement,
+    submitAnnouncement,
     submitComposer,
     uploadFiles,
     downloadFile,
     handleMessageAction,
+    submitConfirmDialog,
     markSelectedConversationRead,
     toggleConversationPin,
     toggleConversationPinById,
