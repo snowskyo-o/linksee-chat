@@ -9,8 +9,6 @@ services:
       MYSQL_DATABASE: linksee_chat
       MYSQL_USER: linksee
       MYSQL_PASSWORD: linksee123
-    ports:
-      - "3306:3306"
     command:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
@@ -25,8 +23,6 @@ services:
   redis:
     image: redis:7.4-alpine
     restart: unless-stopped
-    ports:
-      - "6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -40,9 +36,6 @@ services:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
     command: server /data --console-address ":9001"
-    ports:
-      - "9000:9000"
-      - "9001:9001"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://127.0.0.1:9000/minio/health/live"]
       interval: 10s
@@ -80,8 +73,17 @@ services:
         condition: service_completed_successfully
     env_file:
       - .env
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_started
     ports:
-      - "3010:3010"
+      - "80:80"
+    volumes:
+      - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
 
 volumes:
   mysql_data:
