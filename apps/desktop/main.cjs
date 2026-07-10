@@ -1,4 +1,4 @@
-const { app, BrowserWindow } = require("electron");
+﻿const { app, BrowserWindow } = require("electron");
 const fs = require("node:fs");
 const path = require("node:path");
 const http = require("node:http");
@@ -39,7 +39,7 @@ function readRemoteOrigin() {
 const remoteOrigin = readRemoteOrigin();
 const localOrigin = `http://127.0.0.1:${port}`;
 const targetOrigin = remoteOrigin || localOrigin;
-const targetUrl = `${targetOrigin}/chat/login.html`;
+const targetUrl = `${targetOrigin}/login`;
 
 let mainWindow = null;
 

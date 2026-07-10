@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { ref } from "vue";
 import { chatApi } from "../shared/api-client.js";
 
@@ -21,7 +21,7 @@ async function submitLogin() {
     localStorage.setItem("chat_refresh_token", data.refreshToken || "");
     localStorage.setItem("chat_user_id", userId.value.trim());
     localStorage.setItem("chat_role", data.role || "");
-    window.location.href = "./chat.html";
+    window.location.href = "/chat";
   } catch (error) {
     hint.value = error?.message || "登录失败，请稍后重试";
     hintTone.value = "error";

@@ -1,4 +1,4 @@
-import { chatApi } from "./api-client.js";
+﻿import { chatApi } from "./api-client.js";
 
 export function getAuth() {
   return {
@@ -10,7 +10,7 @@ export function getAuth() {
 
 export function requireAuth() {
   if (!getAuth().token) {
-    window.location.href = "./login.html";
+    window.location.href = "/login";
     return false;
   }
   return true;
@@ -26,12 +26,12 @@ export function logout() {
     }).catch(() => {});
   }
   chatApi.clearSession();
-  window.location.href = "./login.html";
+  window.location.href = "/login";
 }
 
 export function bindSessionExpiredRedirect() {
   window.addEventListener("chat:session-expired", () => {
     chatApi.clearSession();
-    window.location.href = "./login.html";
+    window.location.href = "/login";
   });
 }

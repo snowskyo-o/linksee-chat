@@ -1,10 +1,14 @@
-import express from "express";
+﻿import express from "express";
+import path from "node:path";
 import { createChatRouter } from "./routes/chat-routes.mjs";
 import { authRouter } from "./routes/auth-routes.mjs";
 import { profileRouter, publicProfileRouter } from "./routes/profile-routes.mjs";
 import { realtimeRouter } from "./routes/realtime-routes.mjs";
 import { findUserIdByAccessToken } from "./services/session-store.mjs";
 import { webStaticDir } from "../../../infra/paths/index.mjs";
+
+const loginPagePath = path.join(webStaticDir, "login.html");
+const chatPagePath = path.join(webStaticDir, "chat.html");
 
 async function requireAuth(req, res, next) {
   const header = req.header("authorization") || "";
@@ -27,11 +31,21 @@ export function createApp(emitConversationEvent) {
   const app = express();
 
   app.use(express.json());
-  app.use("/chat", express.static(webStaticDir));
 
   app.get("/", (_req, res) => {
-    res.redirect("/chat/login.html");
+    res.redirect("/login");
   });
+
+  app.get("/login", (_req, res) => {
+    res.sendFile(loginPagePath);
+  });
+
+  app.get("/chat", (_req, res) => {
+    res.sendFile(chatPagePath);
+  });
+
+  app.use(express.static(webStaticDir));
+  app.use("/chat", express.static(webStaticDir));
 
   app.get("/health", (_req, res) => {
     res.json({ ok: true, service: "linksee-chat", now: new Date().toISOString() });
