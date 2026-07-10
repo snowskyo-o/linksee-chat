@@ -45,7 +45,13 @@
       "target": [
         "portable"
       ]
-    }
+    },
+    "extraResources": [
+      {
+        "to": "desktop-config.json",
+        "from": "desktop-config.default.json"
+      }
+    ]
   },
   "dependencies": {
     "@prisma/client": "^5.18.0",

@@ -6,3 +6,5 @@ npm-debug.log*
 coverage/
 apps/web/dist/
 prisma/dev.db
+desktop-config.json
+release/
