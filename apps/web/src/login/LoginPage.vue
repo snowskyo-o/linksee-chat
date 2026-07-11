@@ -90,60 +90,43 @@ async function submitLogin() {
   <main class="desktop-page-shell auth-page-shell">
     <DesktopTitlebar app-title="Linksee Chat" view-title="账号登录" view-meta="桌面聊天客户端" />
 
-    <section class="auth-stage">
-      <section class="auth-window">
-        <aside class="auth-showcase">
-          <div class="auth-brand-row">
-            <div class="auth-brand-badge">L</div>
-            <div>
-              <h1>Linksee Chat</h1>
-              <p>简洁、克制、专注沟通</p>
-            </div>
+    <section class="qq-auth-stage">
+      <section class="qq-auth-card">
+        <header class="qq-auth-header">
+          <div class="qq-auth-avatar">
+            <img v-if="previewAvatarUrl" :src="previewAvatarUrl" alt="" />
+            <span v-else>{{ previewInitials }}</span>
           </div>
 
-          <div class="account-preview-card">
-            <div class="account-preview-avatar">
-              <img v-if="previewAvatarUrl" :src="previewAvatarUrl" alt="" />
-              <span v-else>{{ previewInitials }}</span>
-            </div>
-            <div class="account-preview-copy">
-              <strong>{{ previewName }}</strong>
-              <p>{{ previewLoading ? "正在读取账号资料..." : previewBio }}</p>
-            </div>
+          <div class="qq-auth-copy">
+            <h1>{{ previewLoading ? "正在读取资料..." : previewName }}</h1>
+            <p>{{ previewBio }}</p>
           </div>
-        </aside>
+        </header>
 
-        <section class="auth-form-panel">
-          <div class="auth-window-head">
-            <h2>账号登录</h2>
-            <span class="auth-window-tag">客户端模式</span>
-          </div>
+        <form class="qq-auth-form" @submit.prevent="submitLogin">
+          <label class="qq-auth-field">
+            <input v-model="userId" name="userId" placeholder="输入账号" autocomplete="username" />
+          </label>
 
-          <form class="auth-form" @submit.prevent="submitLogin">
-            <label class="field field-quiet">
-              <span>账号</span>
-              <input v-model="userId" name="userId" placeholder="输入账号" autocomplete="username" />
-            </label>
+          <label class="qq-auth-field">
+            <input
+              v-model="password"
+              name="password"
+              type="password"
+              placeholder="输入密码"
+              autocomplete="current-password"
+            />
+          </label>
 
-            <label class="field field-quiet">
-              <span>密码</span>
-              <input
-                v-model="password"
-                name="password"
-                type="password"
-                placeholder="输入密码"
-                autocomplete="current-password"
-              />
-            </label>
+          <button class="primary-btn qq-auth-submit" type="submit" :disabled="submitting">
+            {{ submitting ? "登录中..." : "登录" }}
+          </button>
 
-            <button class="primary-btn auth-submit" type="submit" :disabled="submitting">
-              {{ submitting ? "登录中..." : "登录" }}
-            </button>
-            <div class="hint" :class="hint ? (hintTone === 'error' ? 'is-error' : 'is-success') : ''">
-              {{ hint }}
-            </div>
-          </form>
-        </section>
+          <p class="qq-auth-status" :class="hint ? (hintTone === 'error' ? 'is-error' : 'is-success') : ''">
+            {{ hint || "请输入测试账号登录" }}
+          </p>
+        </form>
       </section>
     </section>
   </main>
