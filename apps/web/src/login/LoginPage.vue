@@ -1,10 +1,11 @@
 <script setup>
 import { computed, ref, watch } from "vue";
 import { chatApi } from "../shared/api-client.js";
-import DesktopTitlebar from "../shared/components/DesktopTitlebar.vue";
+import { useDesktopShell } from "../shared/useDesktopShell.js";
 import { isDesktopRuntime, navigateTo } from "../shared/runtime.js";
 import { getInitials } from "../shared/utils.js";
 
+const shell = useDesktopShell();
 const userId = ref("");
 const password = ref("");
 const hint = ref("");
@@ -91,44 +92,55 @@ async function submitLogin() {
 </script>
 
 <template>
-  <main class="desktop-page-shell auth-page-shell">
-    <DesktopTitlebar app-title="Linksee Chat" view-title="账号登录" view-meta="桌面聊天客户端" />
-
-    <section class="qq-auth-stage">
-      <section class="qq-auth-card">
-        <header class="qq-auth-header">
-          <div class="qq-auth-avatar">
-            <img v-if="previewAvatarUrl" :src="previewAvatarUrl" alt="" />
-            <span v-else>{{ previewInitials }}</span>
+  <main class="compact-auth-shell">
+    <section class="compact-auth-card">
+      <header class="compact-auth-header">
+        <div class="compact-auth-drag">
+          <span class="compact-auth-logo">L</span>
+          <div class="compact-auth-brand">
+            <strong>Linksee Chat</strong>
+            <span>账号登录</span>
           </div>
+        </div>
 
-          <div class="qq-auth-copy">
-            <h1>{{ previewLoading ? "正在读取资料..." : previewName }}</h1>
-            <p>{{ previewBio }}</p>
-          </div>
-        </header>
+        <div v-if="shell.isDesktop" class="compact-auth-window-actions">
+          <button class="compact-auth-window-btn" type="button" aria-label="最小化" @click="shell.minimizeWindow">-</button>
+          <button class="compact-auth-window-btn is-close" type="button" aria-label="关闭" @click="shell.closeWindow">×</button>
+        </div>
+      </header>
 
-        <form class="qq-auth-form" @submit.prevent="submitLogin">
-          <label class="qq-auth-field">
-            <input v-model="userId" name="userId" placeholder="输入账号" autocomplete="username" />
+      <section class="compact-auth-body">
+        <div class="compact-auth-avatar">
+          <img v-if="previewAvatarUrl" :src="previewAvatarUrl" alt="" />
+          <span v-else>{{ previewInitials }}</span>
+        </div>
+
+        <div class="compact-auth-copy">
+          <h1>{{ previewLoading ? "正在读取资料..." : previewName }}</h1>
+          <p>{{ previewBio }}</p>
+        </div>
+
+        <form class="compact-auth-form" @submit.prevent="submitLogin">
+          <label class="compact-auth-field">
+            <input v-model="userId" name="userId" placeholder="QQ号 / 用户账号" autocomplete="username" />
           </label>
 
-          <label class="qq-auth-field">
+          <label class="compact-auth-field">
             <input
               v-model="password"
               name="password"
               type="password"
-              placeholder="输入密码"
+              placeholder="密码"
               autocomplete="current-password"
             />
           </label>
 
-          <button class="primary-btn qq-auth-submit" type="submit" :disabled="submitting">
-            {{ submitting ? "登录中..." : "登录" }}
+          <button class="primary-btn compact-auth-submit" type="submit" :disabled="submitting">
+            {{ submitting ? "登录中..." : "登 录" }}
           </button>
 
-          <p class="qq-auth-status" :class="hint ? (hintTone === 'error' ? 'is-error' : 'is-success') : ''">
-            {{ hint || "请输入测试账号登录" }}
+          <p class="compact-auth-status" :class="hint ? (hintTone === 'error' ? 'is-error' : 'is-success') : ''">
+            {{ hint || "测试账号：1000000001 / Chat1234" }}
           </p>
         </form>
       </section>

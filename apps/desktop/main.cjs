@@ -137,10 +137,10 @@ function createLoginWindow() {
   }
 
   loginWindow = createShellWindow({
-    width: 420,
-    height: 620,
-    minWidth: 420,
-    minHeight: 620,
+    width: 380,
+    height: 540,
+    minWidth: 380,
+    minHeight: 540,
     resizable: false,
     maximizable: false,
     fullscreenable: false,
@@ -164,10 +164,10 @@ function createListWindow() {
   }
 
   listWindow = createShellWindow({
-    width: 360,
-    height: 780,
+    width: 340,
+    height: 760,
     minWidth: 320,
-    minHeight: 640,
+    minHeight: 680,
     maximizable: false,
     title: "Linksee Chat",
     backgroundColor: "#eef3f9",

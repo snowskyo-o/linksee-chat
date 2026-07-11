@@ -1,14 +1,18 @@
 <script setup>
-import { onMounted } from "vue";
-import DesktopTitlebar from "../shared/components/DesktopTitlebar.vue";
+import { computed, onMounted } from "vue";
+import { useDesktopShell } from "../shared/useDesktopShell.js";
 import { getAuth, logout } from "../shared/session.js";
 import ConversationSidebar from "./components/ConversationSidebar.vue";
 import { useChatStore } from "./store/useChatStore.js";
 import { useChatActions } from "./composables/useChatActions.js";
 
+const shell = useDesktopShell();
 const auth = getAuth();
 const store = useChatStore(auth);
 const actions = useChatActions(store);
+const unreadTotal = computed(() => store.filteredConversations.value.reduce((sum, row) => {
+  return sum + Number(row.unreadCount || 0) + Number(row.unreadMentionCount || 0);
+}, 0));
 
 function selectConversation(id) {
   store.selectedId.value = id;
@@ -29,14 +33,51 @@ onMounted(async () => {
 </script>
 
 <template>
-  <main class="desktop-page-shell list-window-shell">
-    <DesktopTitlebar
-      app-title="Linksee Chat"
-      view-title="会话列表"
-      view-meta="双击打开聊天窗口"
-    />
+  <main class="qq-list-shell">
+    <aside class="qq-list-nav">
+      <div class="qq-list-nav-top">
+        <div class="qq-list-drag">
+          <div class="qq-list-avatar">
+            <img v-if="store.meAvatarUrl.value" :src="store.meAvatarUrl.value" alt="" />
+            <span v-else>{{ store.meAvatar.value }}</span>
+          </div>
+        </div>
 
-    <section class="list-window-body">
+        <button class="qq-list-nav-btn is-active" type="button" title="消息">
+          <span>聊</span>
+          <i v-if="unreadTotal" class="qq-list-badge">{{ unreadTotal > 99 ? "99+" : unreadTotal }}</i>
+        </button>
+        <button class="qq-list-nav-btn" type="button" title="联系人">
+          <span>友</span>
+        </button>
+      </div>
+
+      <div class="qq-list-nav-bottom">
+        <button class="qq-list-nav-btn" type="button" title="刷新" @click="actions.loadConversations">
+          <span>刷</span>
+        </button>
+        <button v-if="shell.isDesktop" class="qq-list-nav-btn" type="button" title="最小化" @click="shell.minimizeWindow">
+          <span>一</span>
+        </button>
+        <button class="qq-list-nav-btn is-danger" type="button" title="退出" @click="logout">
+          <span>退</span>
+        </button>
+      </div>
+    </aside>
+
+    <section class="qq-list-panel">
+      <header class="qq-list-header">
+        <div class="qq-list-header-copy">
+          <strong>{{ store.meName.value }}</strong>
+          <span>双击打开会话窗口</span>
+        </div>
+
+        <div v-if="shell.isDesktop" class="qq-list-window-actions">
+          <button class="compact-auth-window-btn" type="button" aria-label="最小化" @click="shell.minimizeWindow">-</button>
+          <button class="compact-auth-window-btn is-close" type="button" aria-label="关闭" @click="shell.closeWindow">×</button>
+        </div>
+      </header>
+
       <ConversationSidebar
         list-only
         :me-name="store.meName.value"
