@@ -28,6 +28,7 @@ export default defineConfig({
     rollupOptions: {
       input: {
         login: path.resolve(__dirname, "login.html"),
+        list: path.resolve(__dirname, "list.html"),
         chat: path.resolve(__dirname, "chat.html"),
       },
     },

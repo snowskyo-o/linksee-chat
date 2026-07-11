@@ -1,5 +1,5 @@
 import { chatApi } from "./api-client.js";
-import { navigateTo } from "./runtime.js";
+import { getDesktopWindowKind, isDesktopRuntime, navigateTo } from "./runtime.js";
 
 export function getAuth() {
   return {
@@ -11,6 +11,14 @@ export function getAuth() {
 
 export function requireAuth() {
   if (!getAuth().token) {
+    if (
+      isDesktopRuntime()
+      && getDesktopWindowKind() !== "login"
+      && typeof window.desktopShell?.logoutToLogin === "function"
+    ) {
+      window.desktopShell.logoutToLogin();
+      return false;
+    }
     navigateTo("login");
     return false;
   }
@@ -27,12 +35,20 @@ export function logout() {
     }).catch(() => {});
   }
   chatApi.clearSession();
+  if (isDesktopRuntime() && typeof window.desktopShell?.logoutToLogin === "function") {
+    window.desktopShell.logoutToLogin();
+    return;
+  }
   navigateTo("login");
 }
 
 export function bindSessionExpiredRedirect() {
   window.addEventListener("chat:session-expired", () => {
     chatApi.clearSession();
+    if (isDesktopRuntime() && typeof window.desktopShell?.logoutToLogin === "function") {
+      window.desktopShell.logoutToLogin();
+      return;
+    }
     navigateTo("login");
   });
 }

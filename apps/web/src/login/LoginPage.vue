@@ -2,7 +2,7 @@
 import { computed, ref, watch } from "vue";
 import { chatApi } from "../shared/api-client.js";
 import DesktopTitlebar from "../shared/components/DesktopTitlebar.vue";
-import { navigateTo } from "../shared/runtime.js";
+import { isDesktopRuntime, navigateTo } from "../shared/runtime.js";
 import { getInitials } from "../shared/utils.js";
 
 const userId = ref("");
@@ -76,6 +76,10 @@ async function submitLogin() {
     localStorage.setItem("chat_refresh_token", data.refreshToken || "");
     localStorage.setItem("chat_user_id", userId.value.trim());
     localStorage.setItem("chat_role", data.role || "");
+    if (isDesktopRuntime() && typeof window.desktopShell?.loginSuccess === "function") {
+      await window.desktopShell.loginSuccess();
+      return;
+    }
     navigateTo("chat");
   } catch (error) {
     hint.value = error?.message || "登录失败，请稍后重试";

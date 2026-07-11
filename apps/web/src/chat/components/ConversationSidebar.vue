@@ -7,11 +7,13 @@ defineProps({
   keyword: { type: String, default: "" },
   conversations: { type: Array, default: () => [] },
   selectedId: { type: String, default: "" },
+  listOnly: { type: Boolean, default: false },
 });
 
 defineEmits([
   "update:keyword",
   "select",
+  "open",
   "refresh",
   "new-direct",
   "new-group",
@@ -41,11 +43,12 @@ defineEmits([
         placeholder="搜索会话"
         @input="$emit('update:keyword', $event.target.value)"
       />
-      <div class="chat-rail-actions">
+      <div v-if="!listOnly" class="chat-rail-actions">
         <button class="ghost-btn compact-btn" type="button" @click="$emit('new-direct')">私聊</button>
         <button class="ghost-btn compact-btn" type="button" @click="$emit('new-group')">群聊</button>
         <button class="ghost-btn compact-btn" type="button" @click="$emit('refresh')">刷新</button>
       </div>
+      <button v-else class="ghost-btn compact-btn" type="button" @click="$emit('refresh')">刷新列表</button>
     </div>
 
     <div class="conversation-list desktop-conversation-list">
@@ -56,6 +59,7 @@ defineEmits([
         class="conversation-item desktop-conversation-item"
         :class="{ 'is-active': row.id === selectedId }"
         @click="$emit('select', row.id)"
+        @dblclick="$emit('open', row.id)"
       >
         <div class="conversation-avatar">
           <img v-if="row.avatarUrl" :src="row.avatarUrl" alt="" />

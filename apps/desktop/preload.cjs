@@ -1,14 +1,17 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
-function readServerOrigin() {
-  const arg = process.argv.find((item) => String(item).startsWith("--remote-origin="));
-  return arg ? String(arg).slice("--remote-origin=".length) : "";
+function readArgument(name) {
+  const prefix = `--${name}=`;
+  const arg = process.argv.find((item) => String(item).startsWith(prefix));
+  return arg ? String(arg).slice(prefix.length) : "";
 }
 
 contextBridge.exposeInMainWorld("desktopShell", {
   isDesktop: true,
   platform: process.platform,
-  serverOrigin: readServerOrigin(),
+  serverOrigin: readArgument("remote-origin"),
+  windowKind: readArgument("window-kind"),
+  conversationId: readArgument("conversation-id"),
   versions: {
     chrome: process.versions.chrome,
     electron: process.versions.electron,
@@ -19,6 +22,9 @@ contextBridge.exposeInMainWorld("desktopShell", {
   minimize: () => ipcRenderer.invoke("desktop:minimize"),
   toggleMaximize: () => ipcRenderer.invoke("desktop:toggle-maximize"),
   close: () => ipcRenderer.invoke("desktop:close"),
+  loginSuccess: () => ipcRenderer.invoke("desktop:login-success"),
+  openChatWindow: (conversationId) => ipcRenderer.invoke("desktop:open-chat-window", conversationId),
+  logoutToLogin: () => ipcRenderer.invoke("desktop:logout"),
   onWindowState(callback) {
     if (typeof callback !== "function") {
       return () => {};

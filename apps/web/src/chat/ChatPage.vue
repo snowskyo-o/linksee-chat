@@ -1,5 +1,5 @@
-﻿<script setup>
-import { onMounted } from "vue";
+<script setup>
+import { computed, onMounted } from "vue";
 import AnnouncementDialog from "./components/AnnouncementDialog.vue";
 import ConfirmDialog from "./components/ConfirmDialog.vue";
 import ConversationSidebar from "./components/ConversationSidebar.vue";
@@ -9,6 +9,7 @@ import InfoSidebar from "./components/InfoSidebar.vue";
 import ToastStack from "./components/ToastStack.vue";
 import DesktopTitlebar from "../shared/components/DesktopTitlebar.vue";
 import { getAuth, logout } from "../shared/session.js";
+import { getDesktopConversationId, getDesktopWindowKind, isDesktopRuntime } from "../shared/runtime.js";
 import { useChatStore } from "./store/useChatStore.js";
 import { useChatActions } from "./composables/useChatActions.js";
 import { useChatRealtime } from "./composables/useChatRealtime.js";
@@ -17,6 +18,11 @@ const auth = getAuth();
 const store = useChatStore(auth);
 const actions = useChatActions(store);
 const realtime = useChatRealtime(auth, store.selectedId, store.conversations, store.socketOnline, actions.refreshAll);
+const queryConversationId = new URLSearchParams(window.location.search).get("conversationId") || "";
+const desktopConversationId = getDesktopConversationId() || queryConversationId;
+const standaloneConversationMode = computed(() => (
+  isDesktopRuntime() && getDesktopWindowKind() === "chat"
+));
 
 function handleComposerKeydown(event) {
   if (event.key === "Escape") {
@@ -71,7 +77,11 @@ onMounted(async () => {
     await actions.loadProfile(auth);
     await actions.loadContacts();
     await actions.loadConversations();
-    await actions.refreshSelectedConversation();
+    if (standaloneConversationMode.value && desktopConversationId) {
+      await actions.selectConversation(desktopConversationId);
+    } else {
+      await actions.refreshSelectedConversation();
+    }
     realtime.connect();
   } catch (error) {
     store.setComposerHint(error?.message || "聊天初始化失败", "error");
@@ -84,11 +94,12 @@ onMounted(async () => {
     <DesktopTitlebar
       app-title="Linksee Chat"
       :view-title="store.chatTitle.value || '消息'"
-      :view-meta="store.socketOnline.value ? '实时连接已建立' : '正在连接服务端'"
+      :view-meta="standaloneConversationMode ? '独立聊天窗口' : (store.socketOnline.value ? '实时连接已建立' : '正在连接服务端')"
     />
 
-    <section class="qq-shell">
+    <section class="qq-shell" :class="{ 'is-conversation-window': standaloneConversationMode }">
       <ConversationSidebar
+        v-if="!standaloneConversationMode"
         :me-name="store.meName.value"
         :me-meta="store.meMeta.value"
         :me-avatar="store.meAvatar.value"
@@ -143,6 +154,7 @@ onMounted(async () => {
       />
 
       <InfoSidebar
+        v-if="!standaloneConversationMode"
         :me-avatar-url="store.meAvatarUrl.value"
         :profile-name="store.profileName.value"
         :profile-bio="store.profileBio.value"
@@ -159,6 +171,7 @@ onMounted(async () => {
     <ToastStack :notifications="store.notifications.value" @dismiss="store.dismissNotification" />
 
     <CreateConversationDialog
+      v-if="!standaloneConversationMode"
       :open="store.createDialogOpen.value"
       :mode="store.createDialogMode.value"
       :title="store.createDialogTitle.value"
