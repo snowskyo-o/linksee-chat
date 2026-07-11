@@ -1,4 +1,4 @@
-﻿import express from "express";
+import express from "express";
 import path from "node:path";
 import { createChatRouter } from "./routes/chat-routes.mjs";
 import { authRouter } from "./routes/auth-routes.mjs";
@@ -9,6 +9,14 @@ import { webStaticDir } from "../../../infra/paths/index.mjs";
 
 const loginPagePath = path.join(webStaticDir, "login.html");
 const chatPagePath = path.join(webStaticDir, "chat.html");
+
+function applyCors(req, res) {
+  const origin = req.header("origin");
+  res.header("Access-Control-Allow-Origin", origin || "*");
+  res.header("Vary", "Origin");
+  res.header("Access-Control-Allow-Methods", "GET,POST,PATCH,DELETE,OPTIONS");
+  res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+}
 
 async function requireAuth(req, res, next) {
   const header = req.header("authorization") || "";
@@ -29,6 +37,14 @@ async function requireAuth(req, res, next) {
 
 export function createApp(emitConversationEvent) {
   const app = express();
+
+  app.use((req, res, next) => {
+    applyCors(req, res);
+    if (req.method === "OPTIONS") {
+      return res.sendStatus(204);
+    }
+    next();
+  });
 
   app.use(express.json());
 

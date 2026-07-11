@@ -1,13 +1,15 @@
-﻿<script setup>
+<script setup>
 import { computed, ref, watch } from "vue";
 import { chatApi } from "../shared/api-client.js";
 import DesktopTitlebar from "../shared/components/DesktopTitlebar.vue";
+import { navigateTo } from "../shared/runtime.js";
 import { getInitials } from "../shared/utils.js";
 
 const userId = ref("");
 const password = ref("");
 const hint = ref("");
 const hintTone = ref("");
+const submitting = ref(false);
 const previewLoading = ref(false);
 const previewName = ref("欢迎回来");
 const previewBio = ref("输入账号以查看头像和昵称");
@@ -35,9 +37,11 @@ async function loadPreview(nextUserId) {
     previewName.value = profile.realName || account;
     previewBio.value = profile.bio || "准备开始新的会话";
     previewAvatarUrl.value = profile.avatarUrl || "";
-  } catch {
+  } catch (error) {
     previewName.value = account;
-    previewBio.value = "未找到资料，确认账号后可直接登录";
+    previewBio.value = error?.code === "NETWORK_ERROR"
+      ? "暂时无法连接服务器，联网后可自动读取资料"
+      : "未找到资料，确认账号后可直接登录";
     previewAvatarUrl.value = "";
   } finally {
     previewLoading.value = false;
@@ -52,6 +56,13 @@ watch(userId, (value) => {
 });
 
 async function submitLogin() {
+  if (!userId.value.trim() || !password.value) {
+    hint.value = "请输入账号和密码";
+    hintTone.value = "error";
+    return;
+  }
+
+  submitting.value = true;
   hint.value = "正在登录...";
   hintTone.value = "success";
 
@@ -65,10 +76,12 @@ async function submitLogin() {
     localStorage.setItem("chat_refresh_token", data.refreshToken || "");
     localStorage.setItem("chat_user_id", userId.value.trim());
     localStorage.setItem("chat_role", data.role || "");
-    window.location.href = "/chat";
+    navigateTo("chat");
   } catch (error) {
     hint.value = error?.message || "登录失败，请稍后重试";
     hintTone.value = "error";
+  } finally {
+    submitting.value = false;
   }
 }
 </script>
@@ -123,7 +136,9 @@ async function submitLogin() {
               />
             </label>
 
-            <button class="primary-btn auth-submit" type="submit">登录</button>
+            <button class="primary-btn auth-submit" type="submit" :disabled="submitting">
+              {{ submitting ? "登录中..." : "登录" }}
+            </button>
             <div class="hint" :class="hint ? (hintTone === 'error' ? 'is-error' : 'is-success') : ''">
               {{ hint }}
             </div>

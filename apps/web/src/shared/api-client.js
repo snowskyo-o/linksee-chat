@@ -1,19 +1,31 @@
+import { getServerOrigin } from "./runtime.js";
+
 const UNAUTH_CODE = "UNAUTHENTICATED";
+const NETWORK_ERROR_CODE = "NETWORK_ERROR";
 let refreshPromise = null;
 
 export function getApiBaseUrl() {
-  const runtimeOrigin = window.location.origin && window.location.origin !== "null"
-    ? window.location.origin.replace(/\/$/, "")
-    : "";
-  return runtimeOrigin || "http://localhost:3010";
+  return getServerOrigin();
 }
 
 function buildUrl(path) {
   return getApiBaseUrl() + path;
 }
 
+function buildNetworkError(error) {
+  const nextError = new Error("网络不可用或服务器未启动，请检查连接后重试");
+  nextError.code = NETWORK_ERROR_CODE;
+  nextError.cause = error;
+  return nextError;
+}
+
 async function rawRequest(path, options) {
-  const response = await fetch(buildUrl(path), options);
+  let response;
+  try {
+    response = await fetch(buildUrl(path), options);
+  } catch (error) {
+    throw buildNetworkError(error);
+  }
   const payload = await response.json().catch(() => ({}));
   return { response, payload };
 }
@@ -103,13 +115,22 @@ export async function request(path, options) {
 }
 
 async function requestBlob(path, options) {
-  let response = await fetch(buildUrl(path), options);
+  let response;
+  try {
+    response = await fetch(buildUrl(path), options);
+  } catch (error) {
+    throw buildNetworkError(error);
+  }
 
   if (response.status === 401 && path !== "/api/v1/auth/refresh") {
     await refreshAccessToken();
-    response = await fetch(buildUrl(path), Object.assign({}, options || {}, {
-      headers: authHeaders(options && options.headers ? options.headers : {}),
-    }));
+    try {
+      response = await fetch(buildUrl(path), Object.assign({}, options || {}, {
+        headers: authHeaders(options && options.headers ? options.headers : {}),
+      }));
+    } catch (error) {
+      throw buildNetworkError(error);
+    }
   }
 
   if (!response.ok) {
@@ -144,7 +165,7 @@ function putExternal(url, body, headers = {}, onProgress) {
       }
       reject(new Error(xhr.responseText || "上传失败"));
     };
-    xhr.onerror = () => reject(new Error("上传失败"));
+    xhr.onerror = () => reject(buildNetworkError(new Error("XMLHttpRequest failed")));
     xhr.send(body);
   });
 }
