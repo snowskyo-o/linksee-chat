@@ -1,5 +1,8 @@
-﻿<script setup>
+<script setup>
+import { useDesktopShell } from "../../shared/useDesktopShell.js";
 import MessageBubble from "./MessageBubble.vue";
+
+const shell = useDesktopShell();
 
 defineProps({
   chatTitle: { type: String, default: "请选择会话" },
@@ -21,6 +24,7 @@ defineProps({
   isPinned: { type: Boolean, default: false },
   hasMoreMessages: { type: Boolean, default: false },
   loadingMoreMessages: { type: Boolean, default: false },
+  standaloneMode: { type: Boolean, default: false },
 });
 
 defineEmits([
@@ -44,8 +48,21 @@ defineEmits([
 
 <template>
   <section class="chat-workspace">
-    <header class="chat-workspace-head">
+    <header class="chat-workspace-head" :class="{ 'is-standalone': standaloneMode }">
       <div class="chat-title-block">
+        <div v-if="standaloneMode" class="chat-window-chrome">
+          <div class="chat-window-drag">
+            <span class="chat-window-mark">L</span>
+            <span class="chat-window-app">Linksee Chat</span>
+          </div>
+          <div v-if="shell.isDesktop" class="chat-window-actions">
+            <button class="desktop-window-btn" type="button" aria-label="最小化" @click="shell.minimizeWindow">-</button>
+            <button class="desktop-window-btn" type="button" aria-label="最大化" @click="shell.toggleMaximizeWindow">
+              {{ shell.isMaximized ? "❐" : "□" }}
+            </button>
+            <button class="desktop-window-btn is-close" type="button" aria-label="关闭" @click="shell.closeWindow">×</button>
+          </div>
+        </div>
         <h2>{{ chatTitle }}</h2>
         <p class="muted">{{ chatSubtitle }}</p>
       </div>

@@ -15,7 +15,7 @@ defineEmits(["update:profileName", "update:profileBio", "save-profile", "upload-
   <aside class="chat-detail-panel">
     <section class="detail-card profile-edit-card qq-side-card">
       <div class="detail-card-head">
-        <h3>会话资料</h3>
+        <h3>我的资料</h3>
       </div>
       <form class="profile-form" @submit.prevent="$emit('save-profile')">
         <div class="profile-avatar-block desktop-profile-block">
@@ -50,7 +50,7 @@ defineEmits(["update:profileName", "update:profileBio", "save-profile", "upload-
 
     <section class="detail-card qq-side-card">
       <div class="detail-card-head">
-        <h3>群聊成员</h3>
+        <h3>成员</h3>
         <span class="muted">{{ participants.length }} 人</span>
       </div>
       <div class="participant-list desktop-participant-list">

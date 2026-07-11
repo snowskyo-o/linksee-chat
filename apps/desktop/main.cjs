@@ -137,15 +137,15 @@ function createLoginWindow() {
   }
 
   loginWindow = createShellWindow({
-    width: 380,
-    height: 540,
-    minWidth: 380,
-    minHeight: 540,
+    width: 360,
+    height: 500,
+    minWidth: 360,
+    minHeight: 500,
     resizable: false,
     maximizable: false,
     fullscreenable: false,
     title: "Linksee Chat 登录",
-    backgroundColor: "#f7faff",
+    backgroundColor: "#edf3fb",
     pagePath: loginPagePath,
     kind: "login",
   });
@@ -164,9 +164,9 @@ function createListWindow() {
   }
 
   listWindow = createShellWindow({
-    width: 340,
+    width: 320,
     height: 760,
-    minWidth: 320,
+    minWidth: 300,
     minHeight: 680,
     maximizable: false,
     title: "Linksee Chat",

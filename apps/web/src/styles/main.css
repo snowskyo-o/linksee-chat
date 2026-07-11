@@ -128,6 +128,7 @@ html body .desktop-page-shell { min-height: 100vh; }
 .chat-auth-body {
   min-height: 100vh;
   display: block;
+  background: #edf3fb;
 }
 
 .auth-page-shell,
@@ -139,33 +140,31 @@ html body .desktop-page-shell { min-height: 100vh; }
 
 .compact-auth-shell {
   min-height: 100vh;
-  display: grid;
-  place-items: center;
-  padding: 12px;
-  background: linear-gradient(180deg, #f5f8fd 0%, #edf3fb 100%);
+  padding: 0;
+  background: #edf3fb;
 }
 
 .compact-auth-card {
-  width: min(360px, calc(100vw - 24px));
-  min-height: 500px;
+  width: 100%;
+  min-height: 100vh;
   display: grid;
-  grid-template-rows: auto 1fr;
-  border-radius: 24px;
-  border: 1px solid rgba(220, 228, 239, 0.96);
-  background: rgba(255, 255, 255, 0.995);
-  box-shadow:
-    0 22px 60px rgba(15, 23, 42, 0.14),
-    0 6px 20px rgba(47, 107, 255, 0.06);
+  grid-template-rows: auto 154px 1fr;
+  overflow: hidden;
+  background: #ffffff;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .compact-auth-header {
-  min-height: 52px;
+  min-height: 48px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 0 10px 0 14px;
-  border-bottom: 1px solid rgba(232, 236, 243, 0.96);
+  padding: 0 10px 0 12px;
+  border-bottom: 1px solid rgba(232, 236, 243, 0.86);
+  background: rgba(255, 255, 255, 0.96);
 }
 
 .compact-auth-drag {
@@ -206,6 +205,15 @@ html body .desktop-page-shell { min-height: 100vh; }
   font-size: 12px;
 }
 
+.compact-auth-hero {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 12px;
+  padding: 20px 26px 18px;
+  background: linear-gradient(180deg, #4b6fcb 0%, #6582d8 100%);
+}
+
 .compact-auth-window-actions,
 .qq-list-window-actions {
   display: flex;
@@ -216,24 +224,24 @@ html body .desktop-page-shell { min-height: 100vh; }
 
 .compact-auth-body {
   display: grid;
-  align-content: center;
-  justify-items: center;
-  gap: 18px;
-  padding: 28px 30px 24px;
+  align-content: start;
+  justify-items: stretch;
+  gap: 16px;
+  padding: 22px 22px 20px;
 }
 
 .compact-auth-avatar {
-  width: 88px;
-  height: 88px;
-  border-radius: 26px;
+  width: 78px;
+  height: 78px;
+  border-radius: 24px;
   overflow: hidden;
   display: grid;
   place-items: center;
-  background: linear-gradient(135deg, var(--brand), #7eabff);
+  background: rgba(255, 255, 255, 0.18);
   color: #fff;
-  font-size: 32px;
+  font-size: 28px;
   font-weight: 800;
-  box-shadow: 0 16px 34px rgba(47, 107, 255, 0.28);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
 }
 
 .compact-auth-avatar img {
@@ -244,8 +252,9 @@ html body .desktop-page-shell { min-height: 100vh; }
 
 .compact-auth-copy {
   display: grid;
-  gap: 6px;
+  gap: 4px;
   text-align: center;
+  color: #fff;
 }
 
 .compact-auth-copy h1,
@@ -289,19 +298,26 @@ html body .desktop-page-shell { min-height: 100vh; }
 .compact-auth-form {
   width: 100%;
   display: grid;
-  gap: 12px;
+  gap: 14px;
 }
 
 .compact-auth-field { display: block; }
+.compact-auth-field span {
+  display: block;
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+}
 .compact-auth-field input {
   width: 100%;
-  height: 48px;
+  height: 44px;
   border: 1px solid rgba(215, 223, 234, 0.98);
-  border-radius: 12px;
+  border-radius: 10px;
   padding: 0 16px;
   color: var(--text);
   background: #fbfcff;
-  font-size: 15px;
+  font-size: 14px;
 }
 
 .compact-auth-field input:focus {
@@ -312,11 +328,11 @@ html body .desktop-page-shell { min-height: 100vh; }
 }
 
 .compact-auth-submit {
-  margin-top: 4px;
-  height: 46px;
-  border-radius: 12px;
-  font-size: 18px;
-  letter-spacing: 2px;
+  margin-top: 6px;
+  height: 44px;
+  border-radius: 10px;
+  font-size: 17px;
+  letter-spacing: 1px;
 }
 
 .compact-auth-status {
@@ -480,18 +496,19 @@ html body .desktop-page-shell { min-height: 100vh; }
 .qq-list-panel {
   min-width: 0;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
+  background: #ffffff;
 }
 
 .qq-list-topbar {
-  min-height: 52px;
+  min-height: 44px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 0 12px 0 14px;
-  border-bottom: 1px solid rgba(221, 228, 238, 0.98);
-  background: rgba(255, 255, 255, 0.78);
+  padding: 0 10px 0 12px;
+  border-bottom: 1px solid rgba(229, 234, 241, 0.96);
+  background: #f8fbff;
 }
 
 .qq-list-header-copy {
@@ -514,7 +531,7 @@ html body .desktop-page-shell { min-height: 100vh; }
   border: 0;
   box-shadow: none;
   background: transparent;
-  padding: 10px 12px 12px;
+  padding: 0;
 }
 
 .qq-list-panel .chat-rail-header {
@@ -527,7 +544,7 @@ html body .desktop-page-shell { min-height: 100vh; }
 }
 
 .qq-list-overview {
-  padding: 16px 14px 14px;
+  padding: 14px 12px 12px;
   background: linear-gradient(180deg, #2ea1ef 0%, #3097eb 100%);
   color: #fff;
 }
@@ -576,7 +593,7 @@ html body .desktop-page-shell { min-height: 100vh; }
 }
 
 .qq-list-search-row {
-  margin-top: 14px;
+  margin-top: 12px;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 44px;
   gap: 10px;
@@ -687,21 +704,22 @@ html body .desktop-page-shell { min-height: 100vh; }
   display: grid;
   grid-template-columns: 46px minmax(0, 1fr);
   gap: 12px;
-  padding: 12px 14px;
-  border-radius: 14px;
+  padding: 12px 12px;
+  border-radius: 0;
   cursor: pointer;
-  transition: all .18s ease;
+  transition: background-color .16s ease;
+  border: 0;
+  border-bottom: 1px solid rgba(237, 241, 246, 0.98);
+  box-shadow: none;
 }
 
 .desktop-conversation-item:hover {
-  transform: translateY(-1px);
-  border-color: rgba(47, 107, 255, 0.24);
-  box-shadow: 0 12px 22px rgba(47, 107, 255, 0.08);
+  transform: none;
+  background: #f5f9ff;
 }
 
 .desktop-conversation-item.is-active {
   background: linear-gradient(180deg, #f5f9ff 0%, #eaf1ff 100%);
-  border-color: rgba(47, 107, 255, 0.42);
 }
 
 .conversation-avatar,
@@ -726,13 +744,26 @@ html body .desktop-page-shell { min-height: 100vh; }
 .conversation-subtitle,
 .conversation-preview,
 .participant-copy p { color: var(--muted); font-size: 13px; }
+.conversation-time {
+  color: #97a2b3;
+  font-size: 12px;
+  white-space: nowrap;
+}
 .conversation-preview {
   display: -webkit-box;
   -webkit-line-clamp: 1;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
-.pin-action { position: absolute; top: 14px; right: 14px; font-size: 12px; }
+.conversation-pin-dot {
+  position: absolute;
+  top: 14px;
+  right: 8px;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--brand);
+}
 
 .badge {
   min-width: 24px;
@@ -762,11 +793,53 @@ html body .desktop-page-shell { min-height: 100vh; }
   border-bottom: 1px solid rgba(224, 230, 238, 0.92);
 }
 
+.chat-workspace-head.is-standalone {
+  padding-top: 4px;
+}
+
 .chat-title-block { min-width: 0; display: grid; gap: 6px; }
+.chat-window-chrome {
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: -10px -6px 2px 0;
+}
+.chat-window-drag {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  -webkit-app-region: drag;
+}
+.chat-window-mark {
+  width: 22px;
+  height: 22px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, var(--brand), #7ea6ff);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+}
+.chat-window-app {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+.chat-window-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  -webkit-app-region: no-drag;
+}
 .qq-search-inline { width: 220px; }
 .head-actions { flex-wrap: wrap; }
 .qq-chat-head-actions {
   gap: 8px;
+  justify-content: flex-end;
 }
 .qq-chat-icon-btn {
   width: 34px;
@@ -928,15 +1001,11 @@ html body .desktop-page-shell { min-height: 100vh; }
   .qq-shell { grid-template-columns: 1fr; }
   .qq-shell { padding: 10px; }
   .chat-workspace-head { align-items: flex-start; flex-direction: column; }
+  .chat-window-chrome {
+    width: 100%;
+    margin-right: 0;
+  }
   .message-bubble-stack { max-width: 100%; }
-  .compact-auth-card {
-    width: min(360px, calc(100vw - 16px));
-  }
-  .compact-auth-avatar {
-    width: 80px;
-    height: 80px;
-    border-radius: 24px;
-  }
 }
 
 .dialog-backdrop {

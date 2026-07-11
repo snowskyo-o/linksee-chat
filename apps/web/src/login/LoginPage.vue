@@ -109,7 +109,7 @@ async function submitLogin() {
         </div>
       </header>
 
-      <section class="compact-auth-body">
+      <section class="compact-auth-hero">
         <div class="compact-auth-avatar">
           <img v-if="previewAvatarUrl" :src="previewAvatarUrl" alt="" />
           <span v-else>{{ previewInitials }}</span>
@@ -119,24 +119,28 @@ async function submitLogin() {
           <h1>{{ previewLoading ? "正在读取资料..." : previewName }}</h1>
           <p>{{ previewBio }}</p>
         </div>
+      </section>
 
+      <section class="compact-auth-body">
         <form class="compact-auth-form" @submit.prevent="submitLogin">
           <label class="compact-auth-field">
-            <input v-model="userId" name="userId" placeholder="QQ号 / 用户账号" autocomplete="username" />
+            <span>账号</span>
+            <input v-model="userId" name="userId" placeholder="输入账号" autocomplete="username" />
           </label>
 
           <label class="compact-auth-field">
+            <span>密码</span>
             <input
               v-model="password"
               name="password"
               type="password"
-              placeholder="密码"
+              placeholder="输入密码"
               autocomplete="current-password"
             />
           </label>
 
           <button class="primary-btn compact-auth-submit" type="submit" :disabled="submitting">
-            {{ submitting ? "登录中..." : "登 录" }}
+            {{ submitting ? "登录中..." : "登录" }}
           </button>
 
           <p class="compact-auth-status" :class="hint ? (hintTone === 'error' ? 'is-error' : 'is-success') : ''">

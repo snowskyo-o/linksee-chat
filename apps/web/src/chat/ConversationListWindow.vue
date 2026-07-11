@@ -68,8 +68,8 @@ onMounted(async () => {
     <section class="qq-list-panel">
       <header class="qq-list-topbar">
         <div class="qq-list-header-copy">
-          <strong>消息</strong>
-          <span>{{ unreadTotal ? `未读 ${unreadTotal}` : "双击打开会话窗口" }}</span>
+          <strong>{{ store.meName.value }}</strong>
+          <span>{{ unreadTotal ? `未读 ${unreadTotal}` : "双击任意会话打开聊天窗口" }}</span>
         </div>
 
         <div v-if="shell.isDesktop" class="qq-list-window-actions">
@@ -85,7 +85,7 @@ onMounted(async () => {
             <span v-else>{{ store.meAvatar.value }}</span>
           </div>
           <div class="qq-list-profile-copy">
-            <strong>{{ store.meName.value }}</strong>
+            <strong>消息</strong>
             <p>{{ store.meMeta.value }}</p>
           </div>
         </div>
@@ -94,10 +94,10 @@ onMounted(async () => {
           <input
             :value="store.conversationKeyword.value"
             class="qq-list-search"
-            placeholder="搜索"
+            placeholder="搜索会话"
             @input="store.conversationKeyword.value = $event.target.value"
           />
-          <button class="qq-list-add-btn" type="button" @click="actions.loadConversations">+</button>
+          <button class="qq-list-add-btn" type="button" title="刷新列表" @click="actions.loadConversations">+</button>
         </div>
       </section>
 

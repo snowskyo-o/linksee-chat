@@ -1,4 +1,15 @@
-﻿<script setup>
+<script setup>
+function formatConversationTime(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const now = new Date();
+  if (date.toDateString() === now.toDateString()) {
+    return date.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
+  }
+  return date.toLocaleDateString("zh-CN", { month: "2-digit", day: "2-digit" });
+}
+
 defineProps({
   meName: { type: String, default: "未登录" },
   meMeta: { type: String, default: "" },
@@ -69,20 +80,15 @@ defineEmits([
           <div class="conversation-item-head">
             <strong>{{ row.displayTitle }}</strong>
             <div class="conversation-item-meta">
+              <span class="conversation-time">{{ formatConversationTime(row.updatedAt || row.lastMessage?.createdAt) }}</span>
               <span v-if="row.unreadMentionCount" class="badge mention-badge">@{{ row.unreadMentionCount }}</span>
               <span v-else-if="row.unreadCount" class="badge">{{ row.unreadCount }}</span>
             </div>
           </div>
-          <p class="conversation-subtitle">{{ row.displaySubtitle }}</p>
+          <p v-if="!listOnly" class="conversation-subtitle">{{ row.displaySubtitle }}</p>
           <p class="conversation-preview">{{ row.preview }}</p>
         </div>
-        <button
-          class="message-link pin-action"
-          type="button"
-          @click.stop="$emit('toggle-pin', row.id)"
-        >
-          {{ row.pinnedAt ? "取消置顶" : "置顶" }}
-        </button>
+        <span v-if="row.pinnedAt" class="conversation-pin-dot" aria-hidden="true"></span>
       </article>
     </div>
   </aside>

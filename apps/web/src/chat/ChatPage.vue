@@ -92,6 +92,7 @@ onMounted(async () => {
 <template>
   <main class="desktop-page-shell chat-page-shell">
     <DesktopTitlebar
+      v-if="!standaloneConversationMode"
       app-title="Linksee Chat"
       :view-title="store.chatTitle.value || '消息'"
       :view-meta="standaloneConversationMode ? '独立聊天窗口' : (store.socketOnline.value ? '实时连接已建立' : '正在连接服务端')"
@@ -136,6 +137,7 @@ onMounted(async () => {
         :is-pinned="Boolean(store.selectedConversation.value?.pinnedAt)"
         :has-more-messages="store.hasMoreMessages.value"
         :loading-more-messages="store.loadingMoreMessages.value"
+        :standalone-mode="standaloneConversationMode"
         @update:message-keyword="store.messageKeyword.value = $event"
         @search="actions.searchMessages"
         @announcement="actions.sendAnnouncement"
