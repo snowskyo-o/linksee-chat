@@ -3,11 +3,15 @@ defineProps({
   message: { type: Object, required: true },
 });
 
-defineEmits(["action", "download-file"]);
+defineEmits(["download-file", "open-menu"]);
 </script>
 
 <template>
-  <article class="message-row" :class="{ 'is-me': message.isMe, deleted: message.deletedAt }">
+  <article
+    class="message-row"
+    :class="{ 'is-me': message.isMe, deleted: message.deletedAt }"
+    @contextmenu.prevent="$emit('open-menu', { event: $event, message })"
+  >
     <div v-if="!message.isMe" class="message-avatar desktop-message-avatar">
       <img v-if="message.avatarUrl" :src="message.avatarUrl" alt="" />
       <span v-else>{{ message.avatarText }}</span>
@@ -23,46 +27,22 @@ defineEmits(["action", "download-file"]);
         <div class="message-content" v-html="message.html"></div>
 
         <div v-if="message.isFileMessage" class="file-list">
-          <div v-for="file in message.files" :key="file.objectKey" class="file-card" :class="{ expired: file.expired }">
+          <button
+            v-for="file in message.files"
+            :key="file.objectKey"
+            class="file-card"
+            :class="{ expired: file.expired, clickable: !file.expired }"
+            type="button"
+            :disabled="file.expired"
+            @click="$emit('download-file', file)"
+          >
             <div class="file-card-main">
               <strong>{{ file.name }}</strong>
               <span class="muted">{{ file.metaText }}</span>
             </div>
             <span class="file-expiry" :class="{ expired: file.expired }">{{ file.expiryText }}</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="message-actions" :class="{ 'message-actions-me': message.isMe }">
-        <button class="message-link" type="button" @click="$emit('action', { id: message.id, action: 'reply' })">回复</button>
-        <button
-          v-if="message.canEdit"
-          class="message-link"
-          type="button"
-          @click="$emit('action', { id: message.id, action: 'edit' })"
-        >
-          编辑
-        </button>
-        <button
-          v-if="message.canRecall"
-          class="message-link"
-          type="button"
-          @click="$emit('action', { id: message.id, action: 'recall' })"
-        >
-          撤回
-        </button>
-        <template v-if="message.isFileMessage">
-          <button
-            v-for="file in message.files"
-            :key="file.objectKey"
-            class="message-link"
-            type="button"
-            :disabled="file.expired || !file.downloadPath"
-            @click="$emit('download-file', file)"
-          >
-            {{ file.expired ? `${file.name} 已过期` : `下载 ${file.name}` }}
           </button>
-        </template>
+        </div>
       </div>
     </div>
 

@@ -6,14 +6,15 @@ defineProps({
   profileHint: { type: String, default: "" },
   profileHintTone: { type: String, default: "" },
   participants: { type: Array, default: () => [] },
+  standaloneMode: { type: Boolean, default: false },
 });
 
 defineEmits(["update:profileName", "update:profileBio", "save-profile", "upload-avatar"]);
 </script>
 
 <template>
-  <aside class="chat-detail-panel">
-    <section class="detail-card profile-edit-card qq-side-card">
+  <aside class="chat-detail-panel" :class="{ 'is-standalone': standaloneMode }">
+    <section class="detail-card profile-edit-card qq-side-card" :class="{ 'is-standalone': standaloneMode }">
       <div class="detail-card-head">
         <h3>我的资料</h3>
       </div>
@@ -48,7 +49,7 @@ defineEmits(["update:profileName", "update:profileBio", "save-profile", "upload-
       </form>
     </section>
 
-    <section class="detail-card qq-side-card">
+    <section class="detail-card qq-side-card" :class="{ 'is-standalone': standaloneMode }">
       <div class="detail-card-head">
         <h3>成员</h3>
         <span class="muted">{{ participants.length }} 人</span>

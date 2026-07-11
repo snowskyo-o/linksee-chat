@@ -41,7 +41,7 @@ async function loadPreview(nextUserId) {
   } catch (error) {
     previewName.value = account;
     previewBio.value = error?.code === "NETWORK_ERROR"
-      ? "暂时无法连接服务器，联网后可自动读取资料"
+      ? `暂时无法连接 ${chatApi.getApiBaseUrl()}`
       : "未找到资料，确认账号后可直接登录";
     previewAvatarUrl.value = "";
   } finally {
@@ -83,7 +83,9 @@ async function submitLogin() {
     }
     navigateTo("chat");
   } catch (error) {
-    hint.value = error?.message || "登录失败，请稍后重试";
+    hint.value = error?.code === "NETWORK_ERROR"
+      ? `${error.message}（当前地址：${chatApi.getApiBaseUrl()}）`
+      : (error?.message || "登录失败，请稍后重试");
     hintTone.value = "error";
   } finally {
     submitting.value = false;
@@ -92,8 +94,8 @@ async function submitLogin() {
 </script>
 
 <template>
-  <main class="compact-auth-shell">
-    <section class="compact-auth-card">
+  <main class="compact-auth-shell" :class="{ 'is-desktop': shell.isDesktop }">
+    <section class="compact-auth-card" :class="{ 'is-desktop': shell.isDesktop }">
       <header class="compact-auth-header">
         <div class="compact-auth-drag">
           <span class="compact-auth-logo">L</span>
@@ -104,49 +106,64 @@ async function submitLogin() {
         </div>
 
         <div v-if="shell.isDesktop" class="compact-auth-window-actions">
-          <button class="compact-auth-window-btn compact-auth-window-btn-light" type="button" aria-label="最小化" @click="shell.minimizeWindow">-</button>
+          <button class="compact-auth-window-btn compact-auth-window-btn-light" type="button" aria-label="最小化" @click="shell.minimizeWindow">─</button>
           <button class="compact-auth-window-btn compact-auth-window-btn-light is-close" type="button" aria-label="关闭" @click="shell.closeWindow">×</button>
         </div>
       </header>
 
-      <section class="compact-auth-hero">
-        <div class="compact-auth-avatar">
-          <img v-if="previewAvatarUrl" :src="previewAvatarUrl" alt="" />
-          <span v-else>{{ previewInitials }}</span>
-        </div>
+      <section class="compact-auth-content">
+        <section class="compact-auth-hero">
+          <div class="compact-auth-hero-brand">
+            <strong>Linksee Chat</strong>
+            <span>简洁、克制、专注沟通</span>
+          </div>
 
-        <div class="compact-auth-copy">
-          <h1>{{ previewLoading ? "正在读取资料..." : previewName }}</h1>
-          <p>{{ previewBio }}</p>
-        </div>
-      </section>
+          <div class="compact-auth-preview-card">
+            <div class="compact-auth-avatar">
+              <img v-if="previewAvatarUrl" :src="previewAvatarUrl" alt="" />
+              <span v-else>{{ previewInitials }}</span>
+            </div>
 
-      <section class="compact-auth-body">
-        <form class="compact-auth-form" @submit.prevent="submitLogin">
-          <label class="compact-auth-field">
-            <span>账号</span>
-            <input v-model="userId" name="userId" placeholder="输入账号" autocomplete="username" />
-          </label>
+            <div class="compact-auth-copy">
+              <h1>{{ previewLoading ? "正在读取资料..." : previewName }}</h1>
+              <strong class="compact-auth-preview-id">{{ userId || "准备登录" }}</strong>
+              <p>{{ previewBio }}</p>
+            </div>
+          </div>
+        </section>
 
-          <label class="compact-auth-field">
-            <span>密码</span>
-            <input
-              v-model="password"
-              name="password"
-              type="password"
-              placeholder="输入密码"
-              autocomplete="current-password"
-            />
-          </label>
+        <section class="compact-auth-body">
+          <div class="compact-auth-form-head">
+            <strong>账号登录</strong>
+            <span>输入账号后自动显示头像与昵称</span>
+          </div>
 
-          <button class="primary-btn compact-auth-submit" type="submit" :disabled="submitting">
-            {{ submitting ? "登录中..." : "登录" }}
-          </button>
+          <form class="compact-auth-form" @submit.prevent="submitLogin">
+            <label class="compact-auth-field">
+              <span>账号</span>
+              <input v-model="userId" name="userId" placeholder="输入账号" autocomplete="username" />
+            </label>
 
-          <p class="compact-auth-status" :class="hint ? (hintTone === 'error' ? 'is-error' : 'is-success') : ''">
-            {{ hint || "测试账号：1000000001 / Chat1234" }}
-          </p>
-        </form>
+            <label class="compact-auth-field">
+              <span>密码</span>
+              <input
+                v-model="password"
+                name="password"
+                type="password"
+                placeholder="输入密码"
+                autocomplete="current-password"
+              />
+            </label>
+
+            <button class="primary-btn compact-auth-submit" type="submit" :disabled="submitting">
+              {{ submitting ? "登录中..." : "登录" }}
+            </button>
+
+            <p class="compact-auth-status" :class="hint ? (hintTone === 'error' ? 'is-error' : 'is-success') : ''">
+              {{ hint || "测试账号：1000000001 / Chat1234" }}
+            </p>
+          </form>
+        </section>
       </section>
     </section>
   </main>

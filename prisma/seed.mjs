@@ -8,9 +8,11 @@ function hashPassword(password) {
 }
 
 async function upsertUser({ id, password, role, realName, bio, avatarUrl = "" }) {
+  const passwordHash = hashPassword(password);
   await prisma.user.upsert({
     where: { id },
     update: {
+      passwordHash,
       role,
       isActive: true,
       profile: {
@@ -22,7 +24,7 @@ async function upsertUser({ id, password, role, realName, bio, avatarUrl = "" })
     },
     create: {
       id,
-      passwordHash: hashPassword(password),
+      passwordHash,
       role,
       profile: {
         create: { realName, bio, avatarUrl },

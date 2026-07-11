@@ -23,6 +23,9 @@ const desktopConversationId = getDesktopConversationId() || queryConversationId;
 const standaloneConversationMode = computed(() => (
   isDesktopRuntime() && getDesktopWindowKind() === "chat"
 ));
+const showStandaloneInfoSidebar = computed(() => (
+  standaloneConversationMode.value && Boolean(store.selectedConversation.value)
+));
 
 function handleComposerKeydown(event) {
   if (event.key === "Escape") {
@@ -98,7 +101,13 @@ onMounted(async () => {
       :view-meta="standaloneConversationMode ? '独立聊天窗口' : (store.socketOnline.value ? '实时连接已建立' : '正在连接服务端')"
     />
 
-    <section class="qq-shell" :class="{ 'is-conversation-window': standaloneConversationMode }">
+    <section
+      class="qq-shell"
+      :class="{
+        'is-conversation-window': standaloneConversationMode,
+        'has-standalone-sidebar': showStandaloneInfoSidebar,
+      }"
+    >
       <ConversationSidebar
         v-if="!standaloneConversationMode"
         :me-name="store.meName.value"
@@ -156,13 +165,14 @@ onMounted(async () => {
       />
 
       <InfoSidebar
-        v-if="!standaloneConversationMode"
+        v-if="!standaloneConversationMode || showStandaloneInfoSidebar"
         :me-avatar-url="store.meAvatarUrl.value"
         :profile-name="store.profileName.value"
         :profile-bio="store.profileBio.value"
         :profile-hint="store.profileHint.value"
         :profile-hint-tone="store.profileHintTone.value"
         :participants="store.participants.value"
+        :standalone-mode="standaloneConversationMode"
         @update:profile-name="store.profileName.value = $event"
         @update:profile-bio="store.profileBio.value = $event"
         @save-profile="actions.saveProfile"

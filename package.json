@@ -12,6 +12,7 @@
                     "build:web":  "vite build --config ./apps/web/vite.config.mjs",
                     "preview:web":  "vite preview --config ./apps/web/vite.config.mjs",
                     "check":  "node --check ./apps/api/src/server/index.mjs \u0026\u0026 node --check ./apps/api/src/app.mjs \u0026\u0026 npm run build:web",
+                    "pack:desktop:manual":  "npm run build:web \u0026\u0026 powershell -ExecutionPolicy Bypass -File ./scripts/package-desktop-manual.ps1",
                     "test":  "npm run test:unit",
                     "test:unit":  "node ./tests/unit/run-unit.mjs",
                     "test:integration":  "node ./tests/integration/run-integration.mjs",
@@ -30,13 +31,9 @@
                                       "output":  "release"
                                   },
                   "files":  [
-                                "apps/**/*",
-                                "dist/**/*",
-                                "infra/**/*",
-                                "prisma/**/*",
-                                "scripts/**/*",
-                                "package.json",
-                                "node_modules/**/*"
+                                "apps/desktop/**/*",
+                                "apps/web/dist/**/*",
+                                "package.json"
                             ],
                   "extraMetadata":  {
                                         "main":  "apps/desktop/main.cjs"
