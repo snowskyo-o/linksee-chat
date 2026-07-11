@@ -177,10 +177,11 @@ export function useChatStore(auth) {
       systemText: String(message.senderId) === String(auth.userId)
         ? "你撤回了一条消息"
         : `${senderName} 撤回了一条消息`,
+      operationState: message.operationState || "",
       isFileMessage,
       isMe: String(message.senderId) === String(auth.userId),
-      canEdit: String(message.senderId) === String(auth.userId) && !deleted && message.type === "text" && !isFileMessage,
-      canRecall: String(message.senderId) === String(auth.userId) && !deleted,
+      canEdit: String(message.senderId) === String(auth.userId) && !deleted && message.type === "text" && !isFileMessage && !message.operationState,
+      canRecall: String(message.senderId) === String(auth.userId) && !deleted && !message.operationState,
       timeText: formatDateTime(message.createdAt),
       html,
       files: isFileMessage

@@ -161,12 +161,6 @@ function destroyTray() {
   tray = null;
 }
 
-function destroyWindow(window) {
-  if (!window || window.isDestroyed()) return;
-  window.removeAllListeners("close");
-  window.destroy();
-}
-
 function hideAllChatWindows() {
   for (const window of chatWindows.values()) {
     if (!window || window.isDestroyed()) continue;
@@ -225,13 +219,16 @@ function quitDesktopApp() {
   isQuitting = true;
   destroyTray();
   for (const window of chatWindows.values()) {
-    destroyWindow(window);
+    if (window && !window.isDestroyed()) {
+      window.close();
+    }
   }
-  chatWindows.clear();
-  destroyWindow(listWindow);
-  destroyWindow(loginWindow);
-  listWindow = null;
-  loginWindow = null;
+  if (listWindow && !listWindow.isDestroyed()) {
+    listWindow.close();
+  }
+  if (loginWindow && !loginWindow.isDestroyed()) {
+    loginWindow.close();
+  }
   app.quit();
 }
 
@@ -398,6 +395,12 @@ app.on("before-quit", () => {
   destroyTray();
 });
 
+app.on("will-quit", () => {
+  chatWindows.clear();
+  listWindow = null;
+  loginWindow = null;
+});
+
 app.whenReady().then(async () => {
   ensureTray();
   createLoginWindow();
@@ -414,7 +417,5 @@ app.whenReady().then(async () => {
 });
 
 app.on("window-all-closed", () => {
-  if (isQuitting || process.platform !== "darwin") {
-    app.exit(0);
-  }
+  if (process.platform === "darwin") return;
 });

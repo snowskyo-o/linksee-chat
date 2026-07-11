@@ -97,6 +97,11 @@ export function useChatActions(store) {
     };
   }
 
+  function isMessageBusy(messageId) {
+    const message = store.messages.value.find((item) => String(item.id) === String(messageId));
+    return Boolean(message?.operationState);
+  }
+
   async function loadProfile(auth) {
     const payload = await chatApi.getJson("/api/v1/users/me");
     store.me.value = normalizeUser(payload.data || {});
@@ -310,7 +315,12 @@ export function useChatActions(store) {
     if (store.editingMessageId.value) {
       const editingId = store.editingMessageId.value;
       const previous = store.messages.value.find((item) => String(item.id) === String(editingId));
-      patchMessageLocally(editingId, { content, mentions, editedAt: new Date().toISOString() });
+      patchMessageLocally(editingId, {
+        content,
+        mentions,
+        editedAt: new Date().toISOString(),
+        operationState: "editing",
+      });
       syncConversationPreview(store.selectedId.value, {
         content,
         type: "text",
@@ -340,6 +350,7 @@ export function useChatActions(store) {
     } else {
       const replyTo = store.replyTo.value ? { ...store.replyTo.value } : null;
       const optimisticMessage = buildOptimisticTextMessage(content, mentions, replyTo);
+      optimisticMessage.operationState = "sending";
       store.messages.value = [...store.messages.value, optimisticMessage];
       syncConversationPreview(store.selectedId.value, optimisticMessage);
       store.clearReplyState();
@@ -458,11 +469,13 @@ export function useChatActions(store) {
   }
 
   async function recallMessage(messageId) {
+    if (isMessageBusy(messageId)) return;
     patchMessageLocally(messageId, {
       content: "",
       files: [],
       mentions: [],
       deletedAt: new Date().toISOString(),
+      operationState: "recalling",
     });
     const payload = await chatApi.postJson(`/api/v1/conversations/${encodeURIComponent(store.selectedId.value)}/messages/${encodeURIComponent(messageId)}/recall`, {});
     if (payload.data) {
@@ -513,7 +526,7 @@ export function useChatActions(store) {
 
   function handleMessageAction({ id, action }) {
     const message = store.messages.value.find((item) => String(item.id) === String(id));
-    if (!message) return;
+    if (!message || message.operationState) return;
     if (action === "reply") {
       store.replyTo.value = message;
       store.editingMessageId.value = "";

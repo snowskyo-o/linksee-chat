@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted } from "vue";
+import { computed, onBeforeUnmount, onMounted } from "vue";
 import AnnouncementDialog from "./components/AnnouncementDialog.vue";
 import ConfirmDialog from "./components/ConfirmDialog.vue";
 import ConversationSidebar from "./components/ConversationSidebar.vue";
@@ -26,13 +26,32 @@ const showStandaloneInfoSidebar = computed(() => (
   standaloneConversationMode.value && Boolean(store.selectedConversation.value)
 ));
 
+let conversationsRefreshTimer = null;
+let selectedRefreshTimer = null;
+
+function scheduleConversationsRefresh() {
+  if (conversationsRefreshTimer) window.clearTimeout(conversationsRefreshTimer);
+  conversationsRefreshTimer = window.setTimeout(() => {
+    actions.loadConversations().catch(() => {});
+    conversationsRefreshTimer = null;
+  }, 120);
+}
+
+function scheduleSelectedRefresh() {
+  if (selectedRefreshTimer) window.clearTimeout(selectedRefreshTimer);
+  selectedRefreshTimer = window.setTimeout(() => {
+    actions.refreshSelectedConversation().catch(() => {});
+    selectedRefreshTimer = null;
+  }, 120);
+}
+
 async function handleRealtimeEvent(event) {
   const topic = String(event?.topic || "");
   const conversationId = String(event?.payload?.conversationId || "");
   if (!topic || topic === "socket.ready") return;
-  await actions.loadConversations();
+  scheduleConversationsRefresh();
   if (conversationId && String(store.selectedId.value) === conversationId) {
-    await actions.refreshSelectedConversation();
+    scheduleSelectedRefresh();
   }
 }
 
@@ -100,6 +119,11 @@ onMounted(async () => {
   } catch (error) {
     store.setComposerHint(error?.message || "聊天初始化失败", "error");
   }
+});
+
+onBeforeUnmount(() => {
+  if (conversationsRefreshTimer) window.clearTimeout(conversationsRefreshTimer);
+  if (selectedRefreshTimer) window.clearTimeout(selectedRefreshTimer);
 });
 </script>
 
