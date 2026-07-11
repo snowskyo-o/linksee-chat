@@ -1,7 +1,8 @@
-﻿import { chatApi } from "../../shared/api-client.js";
+import { chatApi } from "../../shared/api-client.js";
+import { resolveMediaUrl } from "../../shared/media.js";
 
 export function useChatActions(store) {
-  function buildOptimisticTextMessage(content, mentions = []) {
+  function buildOptimisticTextMessage(content, mentions = [], replyTo = null) {
     const now = new Date().toISOString();
     const me = store.me.value || {};
     return {
@@ -17,7 +18,7 @@ export function useChatActions(store) {
       updatedAt: now,
       editedAt: null,
       deletedAt: null,
-      replyTo: store.replyTo.value || null,
+      replyTo,
     };
   }
 
@@ -54,9 +55,51 @@ export function useChatActions(store) {
     ));
   }
 
+  function patchMessageLocally(messageId, patch) {
+    store.messages.value = store.messages.value.map((item) => (
+      String(item.id) === String(messageId)
+        ? { ...item, ...(typeof patch === "function" ? patch(item) : patch) }
+        : item
+    ));
+  }
+
+  function replaceMessageLocally(messageId, nextMessage) {
+    store.messages.value = store.messages.value.map((item) => (
+      String(item.id) === String(messageId) ? nextMessage : item
+    ));
+  }
+
+  function removeMessageLocally(messageId) {
+    store.messages.value = store.messages.value.filter((item) => String(item.id) !== String(messageId));
+  }
+
+  function normalizeUser(user) {
+    return {
+      ...user,
+      profile: {
+        ...(user?.profile || {}),
+        avatarUrl: resolveMediaUrl(user?.profile?.avatarUrl || ""),
+      },
+    };
+  }
+
+  function normalizeMessage(message) {
+    if (!message) return message;
+    return {
+      ...message,
+      sender: message.sender ? normalizeUser(message.sender) : message.sender,
+      replyTo: message.replyTo
+        ? {
+            ...message.replyTo,
+            sender: message.replyTo.sender ? normalizeUser(message.replyTo.sender) : message.replyTo.sender,
+          }
+        : message.replyTo,
+    };
+  }
+
   async function loadProfile(auth) {
     const payload = await chatApi.getJson("/api/v1/users/me");
-    store.me.value = payload.data || {};
+    store.me.value = normalizeUser(payload.data || {});
     store.profileName.value = store.me.value.profile?.realName || auth.userId;
     store.profileBio.value = store.me.value.profile?.bio || "";
     document.title = `Linksee Chat · ${store.profileName.value}`;
@@ -64,7 +107,7 @@ export function useChatActions(store) {
 
   async function loadContacts() {
     const payload = await chatApi.getJson("/api/v1/contacts");
-    store.contacts.value = Array.isArray(payload.data) ? payload.data : [];
+    store.contacts.value = (Array.isArray(payload.data) ? payload.data : []).map(normalizeUser);
   }
 
   async function loadConversations() {
@@ -84,7 +127,7 @@ export function useChatActions(store) {
       return;
     }
     const payload = await chatApi.getJson(`/api/v1/conversations/${encodeURIComponent(store.selectedId.value)}/participants`);
-    store.participants.value = Array.isArray(payload.data) ? payload.data : [];
+    store.participants.value = (Array.isArray(payload.data) ? payload.data : []).map(normalizeUser);
   }
 
   async function loadMessages() {
@@ -95,12 +138,12 @@ export function useChatActions(store) {
     }
     if (store.searchKeyword.value) {
       const payload = await chatApi.getJson(`/api/v1/conversations/${encodeURIComponent(store.selectedId.value)}/messages/search?q=${encodeURIComponent(store.searchKeyword.value)}`);
-      store.messages.value = Array.isArray(payload.data) ? payload.data : [];
+      store.messages.value = (Array.isArray(payload.data) ? payload.data : []).map(normalizeMessage);
       store.hasMoreMessages.value = false;
       return;
     }
     const payload = await chatApi.getJson(`/api/v1/conversations/${encodeURIComponent(store.selectedId.value)}/messages?limit=50`);
-    store.messages.value = Array.isArray(payload.data) ? payload.data : [];
+    store.messages.value = (Array.isArray(payload.data) ? payload.data : []).map(normalizeMessage);
     store.hasMoreMessages.value = store.messages.value.length >= 50;
   }
 
@@ -113,7 +156,7 @@ export function useChatActions(store) {
       const payload = await chatApi.getJson(
         `/api/v1/conversations/${encodeURIComponent(store.selectedId.value)}/messages?beforeId=${encodeURIComponent(oldest.id)}&limit=50`,
       );
-      const older = Array.isArray(payload.data) ? payload.data : [];
+      const older = (Array.isArray(payload.data) ? payload.data : []).map(normalizeMessage);
       store.messages.value = [...older, ...store.messages.value];
       store.hasMoreMessages.value = older.length >= 50;
     } finally {
@@ -265,37 +308,62 @@ export function useChatActions(store) {
 
     const mentions = store.collectMentionIds(content);
     if (store.editingMessageId.value) {
-      await chatApi.patchJson(
-        `/api/v1/conversations/${encodeURIComponent(store.selectedId.value)}/messages/${encodeURIComponent(store.editingMessageId.value)}`,
-        { content, mentions },
-      );
-      store.messages.value = store.messages.value.map((item) => (
-        String(item.id) === String(store.editingMessageId.value)
-          ? { ...item, content, mentions, editedAt: new Date().toISOString() }
-          : item
-      ));
+      const editingId = store.editingMessageId.value;
+      const previous = store.messages.value.find((item) => String(item.id) === String(editingId));
+      patchMessageLocally(editingId, { content, mentions, editedAt: new Date().toISOString() });
       syncConversationPreview(store.selectedId.value, {
         content,
         type: "text",
-        createdAt: new Date().toISOString(),
+        createdAt: previous?.createdAt || new Date().toISOString(),
       });
-      store.editingMessageId.value = "";
-      store.pushNotification({ title: "消息已更新", message: "刚才的内容已经替换。", tone: "success" });
+      store.clearReplyState();
+      store.resetComposer();
+      try {
+        const payload = await chatApi.patchJson(
+          `/api/v1/conversations/${encodeURIComponent(store.selectedId.value)}/messages/${encodeURIComponent(editingId)}`,
+          { content, mentions },
+        );
+        if (payload.data) {
+          const normalized = normalizeMessage(payload.data);
+          replaceMessageLocally(editingId, normalized);
+          syncConversationPreview(store.selectedId.value, normalized);
+        }
+      } catch (error) {
+        if (previous) {
+          replaceMessageLocally(editingId, previous);
+          syncConversationPreview(store.selectedId.value, previous);
+        }
+        store.messageInput.value = content;
+        store.editingMessageId.value = editingId;
+        throw error;
+      }
     } else {
-      const optimisticMessage = buildOptimisticTextMessage(content, mentions);
+      const replyTo = store.replyTo.value ? { ...store.replyTo.value } : null;
+      const optimisticMessage = buildOptimisticTextMessage(content, mentions, replyTo);
       store.messages.value = [...store.messages.value, optimisticMessage];
       syncConversationPreview(store.selectedId.value, optimisticMessage);
-      await chatApi.postJson(`/api/v1/conversations/${encodeURIComponent(store.selectedId.value)}/messages`, {
-        content,
-        mentions,
-        replyToId: store.replyTo.value ? store.replyTo.value.id : null,
-      });
-      store.replyTo.value = null;
+      store.clearReplyState();
+      store.resetComposer();
+      try {
+        const payload = await chatApi.postJson(`/api/v1/conversations/${encodeURIComponent(store.selectedId.value)}/messages`, {
+          content,
+          mentions,
+          replyToId: replyTo ? replyTo.id : null,
+        });
+        if (payload.data) {
+          const normalized = normalizeMessage(payload.data);
+          replaceMessageLocally(optimisticMessage.id, normalized);
+          syncConversationPreview(store.selectedId.value, normalized);
+        }
+      } catch (error) {
+        removeMessageLocally(optimisticMessage.id);
+        store.messageInput.value = content;
+        store.replyTo.value = replyTo;
+        throw error;
+      }
     }
 
-    store.resetComposer();
     loadConversations().catch(() => {});
-    loadMessages().catch(() => {});
     markConversationReadIfNeeded().catch(() => {});
   }
 
@@ -353,7 +421,8 @@ export function useChatActions(store) {
         store.clearReplyState();
         store.setComposerHint(`已上传 ${uploadedFiles.length} 个文件`, "success");
         store.pushNotification({ title: "文件已发送", message: `成功上传 ${uploadedFiles.length} 个文件。`, tone: "success" });
-        await refreshAll();
+        await refreshSelectedConversation();
+        await loadConversations();
         await markConversationReadIfNeeded().catch(() => {});
       }
     } catch (error) {
@@ -389,8 +458,18 @@ export function useChatActions(store) {
   }
 
   async function recallMessage(messageId) {
-    await chatApi.postJson(`/api/v1/conversations/${encodeURIComponent(store.selectedId.value)}/messages/${encodeURIComponent(messageId)}/recall`, {});
-    await refreshAll();
+    patchMessageLocally(messageId, {
+      content: "",
+      files: [],
+      mentions: [],
+      deletedAt: new Date().toISOString(),
+    });
+    const payload = await chatApi.postJson(`/api/v1/conversations/${encodeURIComponent(store.selectedId.value)}/messages/${encodeURIComponent(messageId)}/recall`, {});
+    if (payload.data) {
+      const normalized = normalizeMessage(payload.data);
+      replaceMessageLocally(messageId, normalized);
+      syncConversationPreview(store.selectedId.value, normalized);
+    }
   }
 
   async function submitConfirmDialog() {
@@ -447,19 +526,9 @@ export function useChatActions(store) {
       return;
     }
     if (action === "recall") {
-      store.openConfirmDialog({
-        title: "撤回消息",
-        message: "撤回后，这条消息会在当前会话中显示为已撤回。",
-        confirmText: "确认撤回",
-        action: async () => {
-          try {
-            await recallMessage(message.id);
-            store.pushNotification({ title: "消息已撤回", message: "这条内容已从会话中收回。", tone: "success" });
-          } catch (error) {
-            store.setComposerHint(error?.message || "撤回失败", "error");
-            store.pushNotification({ title: "撤回失败", message: error?.message || "请稍后重试", tone: "error" });
-          }
-        },
+      recallMessage(message.id).catch((error) => {
+        store.setComposerHint(error?.message || "撤回失败", "error");
+        refreshSelectedConversation().catch(() => {});
       });
     }
   }
@@ -506,13 +575,15 @@ export function useChatActions(store) {
       ...(store.me.value || {}),
       profile: {
         ...(store.me.value?.profile || {}),
-        avatarUrl: payload.data?.avatarUrl || "",
+        avatarUrl: resolveMediaUrl(payload.data?.avatarUrl || ""),
       },
     };
     store.profileHint.value = "头像已上传";
     store.profileHintTone.value = "success";
-    store.pushNotification({ title: "头像已更新", message: "新的头像已经显示在客户端中。", tone: "success" });
-    await refreshAll();
+    await loadProfile({ userId: store.me.value.id || localStorage.getItem("chat_user_id") || "" });
+    await loadContacts();
+    await loadConversations();
+    await loadParticipants();
   }
 
   return {

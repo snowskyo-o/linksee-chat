@@ -17,12 +17,13 @@ async function streamUserAvatar(req, res) {
     return res.status(404).json({ ok: false, code: "NOT_FOUND", message: "头像不存在" });
   }
   const objectKey = avatarUrl.replace(/^minio:/, "");
+  const stat = await minioClient.statObject(env.minio.bucketAvatars, objectKey).catch(() => null);
   const stream = await minioClient.getObject(env.minio.bucketAvatars, objectKey).catch(() => null);
   if (!stream) {
     return res.status(404).json({ ok: false, code: "NOT_FOUND", message: "头像不存在" });
   }
   res.setHeader("Cache-Control", "public, max-age=300");
-  res.setHeader("Content-Type", "image/*");
+  res.setHeader("Content-Type", stat?.metaData?.["content-type"] || stat?.metaData?.["Content-Type"] || "application/octet-stream");
   stream.pipe(res);
 }
 

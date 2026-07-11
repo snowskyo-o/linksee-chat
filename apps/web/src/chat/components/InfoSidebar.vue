@@ -1,4 +1,6 @@
-﻿<script setup>
+<script setup>
+import AvatarImage from "../../shared/components/AvatarImage.vue";
+
 defineProps({
   meAvatarUrl: { type: String, default: "" },
   profileName: { type: String, default: "" },
@@ -21,8 +23,9 @@ defineEmits(["update:profileName", "update:profileBio", "save-profile", "upload-
       <form class="profile-form" @submit.prevent="$emit('save-profile')">
         <div class="profile-avatar-block desktop-profile-block">
           <div class="profile-avatar-large">
-            <img v-if="meAvatarUrl" :src="meAvatarUrl" alt="" />
-            <span v-else>{{ (profileName || 'ME').slice(0, 2).toUpperCase() }}</span>
+            <AvatarImage :src="meAvatarUrl" alt="">
+              <span>{{ (profileName || "ME").slice(0, 2).toUpperCase() }}</span>
+            </AvatarImage>
           </div>
           <label class="ghost-btn profile-avatar-upload compact-btn">
             更换头像
@@ -59,8 +62,9 @@ defineEmits(["update:profileName", "update:profileBio", "save-profile", "upload-
         <article v-for="user in participants" :key="user.id" class="participant-item desktop-participant-item">
           <div class="participant-head">
             <div class="participant-avatar">
-              <img v-if="user.profile.avatarUrl" :src="user.profile.avatarUrl" alt="" />
-              <span v-else>{{ (user.profile.realName || user.id).slice(0, 2).toUpperCase() }}</span>
+              <AvatarImage :src="user.profile.avatarUrl" alt="">
+                <span>{{ (user.profile.realName || user.id).slice(0, 2).toUpperCase() }}</span>
+              </AvatarImage>
             </div>
             <div class="participant-copy">
               <div class="participant-line">

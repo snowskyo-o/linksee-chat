@@ -1,4 +1,6 @@
 <script setup>
+import AvatarImage from "../../shared/components/AvatarImage.vue";
+
 function formatConversationTime(value) {
   if (!value) return "";
   const date = new Date(value);
@@ -37,8 +39,9 @@ defineEmits([
   <aside class="chat-rail">
     <div class="chat-rail-header">
       <div class="qq-avatar user-avatar-large">
-        <img v-if="meAvatarUrl" :src="meAvatarUrl" alt="" />
-        <span v-else>{{ meAvatar }}</span>
+        <AvatarImage :src="meAvatarUrl" alt="">
+          <span>{{ meAvatar }}</span>
+        </AvatarImage>
       </div>
       <div class="chat-rail-user-copy">
         <strong>{{ meName }}</strong>
@@ -73,8 +76,9 @@ defineEmits([
         @dblclick="$emit('open', row.id)"
       >
         <div class="conversation-avatar">
-          <img v-if="row.avatarUrl" :src="row.avatarUrl" alt="" />
-          <span v-else>{{ (row.displayTitle || "?").slice(0, 2).toUpperCase() }}</span>
+          <AvatarImage :src="row.avatarUrl" alt="">
+            <span>{{ (row.displayTitle || "?").slice(0, 2).toUpperCase() }}</span>
+          </AvatarImage>
         </div>
         <div class="conversation-copy">
           <div class="conversation-item-head">

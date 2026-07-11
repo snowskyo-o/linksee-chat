@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require("electron");
+const { app, BrowserWindow, ipcMain, Menu, Tray, nativeImage } = require("electron");
 const fs = require("node:fs");
 const path = require("node:path");
 
@@ -45,6 +45,21 @@ const targetOrigin = remoteOrigin || localOrigin;
 let loginWindow = null;
 let listWindow = null;
 const chatWindows = new Map();
+let tray = null;
+let isQuitting = false;
+
+function createTrayIcon() {
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+      <rect x="6" y="6" width="52" height="52" rx="16" fill="#4f7cff"/>
+      <path d="M22 18h8v28h16v8H22V18z" fill="#ffffff"/>
+    </svg>
+  `.trim();
+
+  return nativeImage
+    .createFromDataURL(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`)
+    .resize({ width: 16, height: 16 });
+}
 
 function resolveWindowByEvent(event) {
   return BrowserWindow.fromWebContents(event.sender);
@@ -54,6 +69,7 @@ function buildWindowState(window) {
   if (!window || window.isDestroyed()) {
     return { isMaximized: false };
   }
+
   return {
     isMaximized: window.isMaximized(),
   };
@@ -133,6 +149,92 @@ function focusWindow(window) {
   window.focus();
 }
 
+function hideWindowToTray(window) {
+  if (!window || window.isDestroyed()) return;
+  window.hide();
+}
+
+function destroyTray() {
+  if (!tray) return;
+  tray.removeAllListeners();
+  tray.destroy();
+  tray = null;
+}
+
+function destroyWindow(window) {
+  if (!window || window.isDestroyed()) return;
+  window.removeAllListeners("close");
+  window.destroy();
+}
+
+function hideAllChatWindows() {
+  for (const window of chatWindows.values()) {
+    if (!window || window.isDestroyed()) continue;
+    window.hide();
+  }
+}
+
+function showPrimaryWindowFromTray() {
+  if (listWindow && !listWindow.isDestroyed()) {
+    focusWindow(listWindow);
+    return;
+  }
+
+  if (loginWindow && !loginWindow.isDestroyed()) {
+    focusWindow(loginWindow);
+    return;
+  }
+
+  createLoginWindow();
+}
+
+function ensureTray() {
+  if (tray && !tray.isDestroyed?.()) return tray;
+
+  tray = new Tray(createTrayIcon());
+  tray.setToolTip("Linksee Chat");
+  tray.setContextMenu(Menu.buildFromTemplate([
+    {
+      label: "Open Linksee Chat",
+      click: () => {
+        showPrimaryWindowFromTray();
+      },
+    },
+    {
+      type: "separator",
+    },
+    {
+      label: "Exit",
+      click: () => {
+        quitDesktopApp();
+      },
+    },
+  ]));
+  tray.on("double-click", () => {
+    showPrimaryWindowFromTray();
+  });
+  tray.on("click", () => {
+    showPrimaryWindowFromTray();
+  });
+
+  return tray;
+}
+
+function quitDesktopApp() {
+  if (isQuitting) return;
+  isQuitting = true;
+  destroyTray();
+  for (const window of chatWindows.values()) {
+    destroyWindow(window);
+  }
+  chatWindows.clear();
+  destroyWindow(listWindow);
+  destroyWindow(loginWindow);
+  listWindow = null;
+  loginWindow = null;
+  app.quit();
+}
+
 function createLoginWindow() {
   if (loginWindow && !loginWindow.isDestroyed()) {
     focusWindow(loginWindow);
@@ -148,10 +250,16 @@ function createLoginWindow() {
     resizable: false,
     maximizable: false,
     fullscreenable: false,
-    title: "Linksee Chat 登录",
+    title: "Linksee Chat Login",
     backgroundColor: "#00000000",
     pagePath: loginPagePath,
     kind: "login",
+  });
+
+  loginWindow.on("close", (event) => {
+    if (isQuitting) return;
+    event.preventDefault();
+    hideWindowToTray(loginWindow);
   });
 
   loginWindow.on("closed", () => {
@@ -179,6 +287,13 @@ function createListWindow() {
     kind: "list",
   });
 
+  listWindow.on("close", (event) => {
+    if (isQuitting) return;
+    event.preventDefault();
+    hideWindowToTray(listWindow);
+    hideAllChatWindows();
+  });
+
   listWindow.on("closed", () => {
     listWindow = null;
   });
@@ -201,7 +316,7 @@ function createChatWindow(conversationId) {
     height: 820,
     minWidth: 820,
     minHeight: 620,
-    title: "Linksee Chat 会话",
+    title: "Linksee Chat Conversation",
     backgroundColor: "#f3f6fb",
     pagePath: chatPagePath,
     pageQuery: { conversationId: key, mode: "conversation" },
@@ -267,7 +382,8 @@ function registerIpcHandlers() {
   });
   ipcMain.handle("desktop:logout", () => {
     if (listWindow && !listWindow.isDestroyed()) {
-      listWindow.close();
+      listWindow.destroy();
+      listWindow = null;
     }
     closeAllChatWindows();
     createLoginWindow();
@@ -277,12 +393,20 @@ function registerIpcHandlers() {
 
 registerIpcHandlers();
 
+app.on("before-quit", () => {
+  isQuitting = true;
+  destroyTray();
+});
+
 app.whenReady().then(async () => {
+  ensureTray();
   createLoginWindow();
 
   app.on("activate", async () => {
     if (BrowserWindow.getAllWindows().length === 0) {
-      createLoginWindow();
+      showPrimaryWindowFromTray();
+    } else {
+      showPrimaryWindowFromTray();
     }
   });
 }).catch((error) => {
@@ -290,7 +414,7 @@ app.whenReady().then(async () => {
 });
 
 app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") {
-    app.quit();
+  if (isQuitting || process.platform !== "darwin") {
+    app.exit(0);
   }
 });

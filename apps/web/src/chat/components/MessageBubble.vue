@@ -1,4 +1,6 @@
-﻿<script setup>
+<script setup>
+import AvatarImage from "../../shared/components/AvatarImage.vue";
+
 defineProps({
   message: { type: Object, required: true },
 });
@@ -7,21 +9,30 @@ defineEmits(["download-file", "open-menu"]);
 </script>
 
 <template>
+  <article v-if="message.isSystemNote" class="message-system-row">
+    <span class="message-system-line"></span>
+    <span class="message-system-text">{{ message.systemText }}</span>
+    <span class="message-system-line"></span>
+  </article>
+
   <article
+    v-else
     class="message-row"
-    :class="{ 'is-me': message.isMe, deleted: message.deletedAt }"
+    :class="{ 'is-me': message.isMe }"
     @contextmenu.prevent="$emit('open-menu', { event: $event, message })"
   >
-    <div v-if="!message.isMe" class="message-avatar desktop-message-avatar">
-      <img v-if="message.avatarUrl" :src="message.avatarUrl" alt="" />
-      <span v-else>{{ message.avatarText }}</span>
+    <div class="message-avatar desktop-message-avatar">
+      <AvatarImage :src="message.avatarUrl" alt="">
+        <span>{{ message.avatarText }}</span>
+      </AvatarImage>
     </div>
 
-    <div class="message-bubble-stack">
-      <div class="message-head" :class="{ 'message-head-me': message.isMe }">
-        <strong>{{ message.senderName }}</strong>
-        <span class="muted">{{ message.timeText }}{{ message.editedAt ? " · 已编辑" : "" }}</span>
-      </div>
+    <div class="message-head" :class="{ 'message-head-me': message.isMe }">
+      <strong>{{ message.senderName }}</strong>
+      <span class="muted">{{ message.timeText }}{{ message.editedAt ? " · 已编辑" : "" }}</span>
+    </div>
+
+    <div class="message-bubble-shell" :class="{ 'message-bubble-shell-me': message.isMe }">
       <div class="message-bubble" :class="{ 'message-bubble-me': message.isMe }">
         <div v-if="message.replyToText" class="reply-quote">{{ message.replyToText }}</div>
         <div class="message-content" v-html="message.html"></div>
@@ -44,11 +55,6 @@ defineEmits(["download-file", "open-menu"]);
           </button>
         </div>
       </div>
-    </div>
-
-    <div v-if="message.isMe" class="message-avatar desktop-message-avatar">
-      <img v-if="message.avatarUrl" :src="message.avatarUrl" alt="" />
-      <span v-else>{{ message.avatarText }}</span>
     </div>
   </article>
 </template>

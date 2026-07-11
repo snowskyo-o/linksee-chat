@@ -17,7 +17,6 @@ import { useChatRealtime } from "./composables/useChatRealtime.js";
 const auth = getAuth();
 const store = useChatStore(auth);
 const actions = useChatActions(store);
-const realtime = useChatRealtime(auth, store.selectedId, store.conversations, store.socketOnline, actions.refreshAll);
 const queryConversationId = new URLSearchParams(window.location.search).get("conversationId") || "";
 const desktopConversationId = getDesktopConversationId() || queryConversationId;
 const standaloneConversationMode = computed(() => (
@@ -26,6 +25,18 @@ const standaloneConversationMode = computed(() => (
 const showStandaloneInfoSidebar = computed(() => (
   standaloneConversationMode.value && Boolean(store.selectedConversation.value)
 ));
+
+async function handleRealtimeEvent(event) {
+  const topic = String(event?.topic || "");
+  const conversationId = String(event?.payload?.conversationId || "");
+  if (!topic || topic === "socket.ready") return;
+  await actions.loadConversations();
+  if (conversationId && String(store.selectedId.value) === conversationId) {
+    await actions.refreshSelectedConversation();
+  }
+}
+
+const realtime = useChatRealtime(auth, store.selectedId, store.conversations, store.socketOnline, handleRealtimeEvent);
 
 function handleComposerKeydown(event) {
   if (event.key === "Escape") {

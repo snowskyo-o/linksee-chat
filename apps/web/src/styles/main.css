@@ -402,6 +402,7 @@ html body .desktop-page-shell { min-height: 100vh; }
   width: 100%;
   height: 100%;
   object-fit: cover;
+  display: block;
 }
 
 .compact-auth-copy {
@@ -1267,12 +1268,52 @@ html body .desktop-page-shell { min-height: 100vh; }
   overflow-x: hidden;
   scrollbar-gutter: stable;
 }
-.message-row { display: flex; gap: 12px; align-items: center; max-width: 100%; }
-.message-row.is-me { justify-content: flex-end; }
-.message-bubble-stack { max-width: min(720px, 82%); display: grid; gap: 6px; }
-.message-head { padding: 0 4px; }
+.message-row {
+  display: grid;
+  grid-template-columns: 46px minmax(0, min(720px, 82%));
+  grid-template-areas:
+    "avatar head"
+    "avatar bubble";
+  column-gap: 12px;
+  row-gap: 6px;
+  width: 100%;
+  justify-content: start;
+}
+.message-row.is-me {
+  justify-content: end;
+  grid-template-columns: minmax(0, min(720px, 82%)) 46px;
+  grid-template-areas:
+    "head avatar"
+    "bubble avatar";
+}
+.message-avatar {
+  grid-area: avatar;
+  align-self: center;
+}
+.message-head {
+  grid-area: head;
+  min-height: 46px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 0 4px;
+}
 .message-head-me { justify-content: flex-end; }
+.message-bubble-shell {
+  grid-area: bubble;
+  display: flex;
+  justify-content: flex-start;
+  min-width: 0;
+}
+.message-bubble-shell-me {
+  justify-content: flex-end;
+}
 .message-bubble {
+  display: inline-block;
+  width: fit-content;
+  min-width: min-content;
+  max-width: min(100%, 640px);
   padding: 14px 16px;
   border-radius: 6px 18px 18px 18px;
   background: #fff;
@@ -1283,9 +1324,25 @@ html body .desktop-page-shell { min-height: 100vh; }
   background: linear-gradient(180deg, #d8ebff 0%, #cfe5ff 100%);
   border-radius: 18px 6px 18px 18px;
 }
-.message-row.deleted { opacity: .72; }
 .message-content { white-space: pre-wrap; line-height: 1.65; word-break: break-word; }
 .message-content .mention { color: var(--brand); font-weight: 700; }
+.message-system-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  color: #9ba8b8;
+  font-size: 12px;
+}
+.message-system-line {
+  flex: 1;
+  height: 1px;
+  background: rgba(203, 213, 225, 0.9);
+}
+.message-system-text {
+  flex: none;
+  white-space: nowrap;
+}
 .reply-quote {
   margin-bottom: 10px;
   padding: 10px 12px;

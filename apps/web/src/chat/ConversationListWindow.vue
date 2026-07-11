@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onMounted } from "vue";
+import AvatarImage from "../shared/components/AvatarImage.vue";
 import { useDesktopShell } from "../shared/useDesktopShell.js";
 import { getAuth, logout } from "../shared/session.js";
 import { useChatStore } from "./store/useChatStore.js";
@@ -48,8 +49,9 @@ onMounted(async () => {
       <div class="qq-list-nav-top">
         <div class="qq-list-drag">
           <div class="qq-list-avatar">
-            <img v-if="store.meAvatarUrl.value" :src="store.meAvatarUrl.value" alt="" />
-            <span v-else>{{ store.meAvatar.value }}</span>
+            <AvatarImage :src="store.meAvatarUrl.value" alt="">
+              <span>{{ store.meAvatar.value }}</span>
+            </AvatarImage>
           </div>
         </div>
 
@@ -116,8 +118,9 @@ onMounted(async () => {
             @dblclick="openConversation(row.id)"
           >
             <div class="qq-thread-avatar">
-              <img v-if="row.avatarUrl" :src="row.avatarUrl" alt="" />
-              <span v-else>{{ (row.displayTitle || "?").slice(0, 2).toUpperCase() }}</span>
+              <AvatarImage :src="row.avatarUrl" alt="">
+                <span>{{ (row.displayTitle || "?").slice(0, 2).toUpperCase() }}</span>
+              </AvatarImage>
             </div>
 
             <div class="qq-thread-copy">

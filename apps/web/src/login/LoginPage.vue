@@ -1,6 +1,8 @@
 <script setup>
-import { computed, ref, watch } from "vue";
+import { computed, ref } from "vue";
 import { chatApi } from "../shared/api-client.js";
+import AvatarImage from "../shared/components/AvatarImage.vue";
+import { resolveMediaUrl } from "../shared/media.js";
 import { useDesktopShell } from "../shared/useDesktopShell.js";
 import { isDesktopRuntime, navigateTo } from "../shared/runtime.js";
 import { getInitials } from "../shared/utils.js";
@@ -17,8 +19,6 @@ const previewBio = ref("输入账号以查看头像和昵称");
 const previewAvatarUrl = ref("");
 
 const previewInitials = computed(() => getInitials(previewName.value, userId.value || "LC"));
-
-let previewTimer = null;
 
 async function loadPreview(nextUserId) {
   const account = String(nextUserId || "").trim();
@@ -37,7 +37,7 @@ async function loadPreview(nextUserId) {
     const profile = payload.data?.profile || {};
     previewName.value = profile.realName || account;
     previewBio.value = profile.bio || "准备开始新的会话";
-    previewAvatarUrl.value = profile.avatarUrl || "";
+    previewAvatarUrl.value = resolveMediaUrl(profile.avatarUrl || "");
   } catch (error) {
     previewName.value = account;
     previewBio.value = error?.code === "NETWORK_ERROR"
@@ -49,12 +49,9 @@ async function loadPreview(nextUserId) {
   }
 }
 
-watch(userId, (value) => {
-  if (previewTimer) clearTimeout(previewTimer);
-  previewTimer = setTimeout(() => {
-    loadPreview(value);
-  }, 180);
-});
+function handleUserIdBlur() {
+  loadPreview(userId.value);
+}
 
 async function submitLogin() {
   if (!userId.value.trim() || !password.value) {
@@ -115,8 +112,9 @@ async function submitLogin() {
         <div class="compact-auth-login-top">
           <div class="compact-auth-login-avatar-wrap">
             <div class="compact-auth-avatar compact-auth-login-avatar">
-              <img v-if="previewAvatarUrl" :src="previewAvatarUrl" alt="" />
-              <span v-else>{{ previewInitials }}</span>
+              <AvatarImage :src="previewAvatarUrl" alt="">
+                <span>{{ previewInitials }}</span>
+              </AvatarImage>
             </div>
           </div>
 
@@ -135,7 +133,13 @@ async function submitLogin() {
         <form class="compact-auth-form compact-auth-form-login" @submit.prevent="submitLogin">
           <label class="compact-auth-field">
             <span>账号</span>
-            <input v-model="userId" name="userId" placeholder="请输入账号" autocomplete="username" />
+            <input
+              v-model="userId"
+              name="userId"
+              placeholder="请输入账号"
+              autocomplete="username"
+              @blur="handleUserIdBlur"
+            />
           </label>
 
           <label class="compact-auth-field">

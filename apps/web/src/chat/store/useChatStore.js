@@ -1,4 +1,5 @@
-﻿import { computed, ref } from "vue";
+import { computed, ref } from "vue";
+import { resolveMediaUrl } from "../../shared/media.js";
 import { escapeHtml, formatDateTime, formatExpiry, formatFileSize, getInitials } from "../../shared/utils.js";
 
 function conversationRank(row) {
@@ -100,7 +101,7 @@ export function useChatStore(auth) {
   const meName = computed(() => me.value?.profile?.realName || auth.userId || "未登录");
   const meMeta = computed(() => me.value?.profile?.bio || "保持联络，保持专注");
   const meAvatar = computed(() => getInitials(meName.value, auth.userId));
-  const meAvatarUrl = computed(() => me.value?.profile?.avatarUrl || "");
+  const meAvatarUrl = computed(() => resolveMediaUrl(me.value?.profile?.avatarUrl || ""));
   const selectedConversation = computed(() => conversations.value.find((item) => item.id === selectedId.value) || null);
   const selectedPeerId = computed(() => createDialogPeerId.value || contacts.value[0]?.id || "");
   const selectedParticipants = computed(() => contacts.value.filter((user) => createDialogParticipantIds.value.includes(user.id)));
@@ -108,7 +109,7 @@ export function useChatStore(auth) {
     id: user.id,
     name: user.profile?.realName || user.id,
     bio: user.profile?.bio || "",
-    avatarUrl: user.profile?.avatarUrl || "",
+    avatarUrl: resolveMediaUrl(user.profile?.avatarUrl || ""),
   })));
   const uploadProgressText = computed(() => {
     if (!uploadingFiles.value) return "";
@@ -130,7 +131,7 @@ export function useChatStore(auth) {
           ...row,
           displayTitle: title,
           displaySubtitle: subtitle,
-          avatarUrl: row.kind === "direct" ? (peer?.profile?.avatarUrl || "") : "",
+          avatarUrl: row.kind === "direct" ? resolveMediaUrl(peer?.profile?.avatarUrl || "") : "",
           preview: buildPreview(row),
         };
       })
@@ -160,7 +161,7 @@ export function useChatStore(auth) {
     const senderName = message.sender?.profile?.realName || message.senderId || "未知用户";
     const deleted = Boolean(message.deletedAt);
     const isFileMessage = Array.isArray(message.files) && message.files.length > 0;
-    let html = deleted ? "<em>消息已撤回</em>" : escapeHtml(message.content || "");
+    let html = deleted ? "" : escapeHtml(message.content || "");
 
     participants.value.forEach((user) => {
       const name = user.profile?.realName || "";
@@ -172,6 +173,10 @@ export function useChatStore(auth) {
     return {
       ...message,
       senderName,
+      isSystemNote: deleted,
+      systemText: String(message.senderId) === String(auth.userId)
+        ? "你撤回了一条消息"
+        : `${senderName} 撤回了一条消息`,
       isFileMessage,
       isMe: String(message.senderId) === String(auth.userId),
       canEdit: String(message.senderId) === String(auth.userId) && !deleted && message.type === "text" && !isFileMessage,
@@ -186,7 +191,7 @@ export function useChatStore(auth) {
           }))
         : [],
       replyToText: buildReplyText(message),
-      avatarUrl: message.sender?.profile?.avatarUrl || "",
+      avatarUrl: resolveMediaUrl(message.sender?.profile?.avatarUrl || ""),
       avatarText: getInitials(senderName, senderName),
     };
   }));

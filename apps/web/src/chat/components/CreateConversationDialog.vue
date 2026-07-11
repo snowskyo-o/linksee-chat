@@ -1,4 +1,6 @@
-﻿<script setup>
+<script setup>
+import AvatarImage from "../../shared/components/AvatarImage.vue";
+
 defineProps({
   open: { type: Boolean, default: false },
   mode: { type: String, default: "direct" },
@@ -49,8 +51,9 @@ defineEmits([
           @click="mode === 'direct' ? $emit('update:peerId', contact.id) : $emit('toggle-participant', contact.id)"
         >
           <div class="participant-avatar dialog-contact-avatar">
-            <img v-if="contact.avatarUrl" :src="contact.avatarUrl" alt="" />
-            <span v-else>{{ contact.name.slice(0, 2).toUpperCase() }}</span>
+            <AvatarImage :src="contact.avatarUrl" alt="">
+              <span>{{ contact.name.slice(0, 2).toUpperCase() }}</span>
+            </AvatarImage>
           </div>
           <div class="dialog-contact-copy">
             <strong>{{ contact.name }}</strong>
