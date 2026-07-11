@@ -1,6 +1,44 @@
 ﻿import { chatApi } from "../../shared/api-client.js";
 
 export function useChatActions(store) {
+  function buildOptimisticTextMessage(content, mentions = []) {
+    const now = new Date().toISOString();
+    const me = store.me.value || {};
+    return {
+      id: `local-${Date.now()}`,
+      conversationId: store.selectedId.value,
+      senderId: me.id || localStorage.getItem("chat_user_id") || "",
+      sender: me,
+      content,
+      type: "text",
+      mentions,
+      files: [],
+      createdAt: now,
+      updatedAt: now,
+      editedAt: null,
+      deletedAt: null,
+      replyTo: store.replyTo.value || null,
+    };
+  }
+
+  function syncConversationPreview(conversationId, messageLike) {
+    patchConversationLocally(conversationId, (item) => ({
+      ...item,
+      updatedAt: messageLike?.createdAt || new Date().toISOString(),
+      unreadCount: 0,
+      unreadMentionCount: 0,
+      lastMessage: {
+        ...(item.lastMessage || {}),
+        id: messageLike?.id || item.lastMessage?.id,
+        content: messageLike?.content || item.lastMessage?.content || "",
+        type: messageLike?.type || item.lastMessage?.type || "text",
+        createdAt: messageLike?.createdAt || new Date().toISOString(),
+        deletedAt: messageLike?.deletedAt || null,
+        files: messageLike?.files || [],
+      },
+    }));
+  }
+
   function buildFileMessageContent(files) {
     if (!Array.isArray(files) || files.length === 0) return "附件";
     if (files.length === 1) return files[0].name || "附件";
@@ -231,9 +269,22 @@ export function useChatActions(store) {
         `/api/v1/conversations/${encodeURIComponent(store.selectedId.value)}/messages/${encodeURIComponent(store.editingMessageId.value)}`,
         { content, mentions },
       );
+      store.messages.value = store.messages.value.map((item) => (
+        String(item.id) === String(store.editingMessageId.value)
+          ? { ...item, content, mentions, editedAt: new Date().toISOString() }
+          : item
+      ));
+      syncConversationPreview(store.selectedId.value, {
+        content,
+        type: "text",
+        createdAt: new Date().toISOString(),
+      });
       store.editingMessageId.value = "";
       store.pushNotification({ title: "消息已更新", message: "刚才的内容已经替换。", tone: "success" });
     } else {
+      const optimisticMessage = buildOptimisticTextMessage(content, mentions);
+      store.messages.value = [...store.messages.value, optimisticMessage];
+      syncConversationPreview(store.selectedId.value, optimisticMessage);
       await chatApi.postJson(`/api/v1/conversations/${encodeURIComponent(store.selectedId.value)}/messages`, {
         content,
         mentions,
@@ -243,8 +294,9 @@ export function useChatActions(store) {
     }
 
     store.resetComposer();
-    await refreshAll();
-    await markConversationReadIfNeeded().catch(() => {});
+    loadConversations().catch(() => {});
+    loadMessages().catch(() => {});
+    markConversationReadIfNeeded().catch(() => {});
   }
 
   async function uploadFiles(fileList) {

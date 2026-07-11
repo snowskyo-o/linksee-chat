@@ -140,10 +140,10 @@ function createLoginWindow() {
   }
 
   loginWindow = createShellWindow({
-    width: 568,
-    height: 372,
-    minWidth: 568,
-    minHeight: 372,
+    width: 420,
+    height: 560,
+    minWidth: 420,
+    minHeight: 560,
     transparent: true,
     resizable: false,
     maximizable: false,

@@ -66,12 +66,6 @@ onMounted(async () => {
       </div>
 
       <div class="qq-list-nav-bottom">
-        <button class="qq-list-nav-btn" type="button" title="刷新" @click="actions.loadConversations">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17.65 6.35A7.95 7.95 0 0 0 12 4V1L7 6l5 5V7a5 5 0 1 1-4.9 6h-2.02A7 7 0 1 0 17.65 6.35Z"/></svg>
-        </button>
-        <button v-if="shell.isDesktop" class="qq-list-nav-btn" type="button" title="最小化" @click="shell.minimizeWindow">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 11h14v2H5z"/></svg>
-        </button>
         <button class="qq-list-nav-btn is-danger" type="button" title="退出" @click="logout">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 17v-2h5V9h-5V7h7v10h-7Zm-1-1-5-4 5-4v3h5v2H9v3Z"/></svg>
         </button>
@@ -81,18 +75,11 @@ onMounted(async () => {
     <section class="qq-list-panel">
       <section class="qq-list-overview">
         <header class="qq-list-topbar">
-          <div class="qq-list-profile">
-            <div class="qq-list-profile-avatar">
-              <img v-if="store.meAvatarUrl.value" :src="store.meAvatarUrl.value" alt="" />
-              <span v-else>{{ store.meAvatar.value }}</span>
-            </div>
-            <div class="qq-list-profile-copy">
+          <div class="qq-list-profile-copy">
+            <div class="qq-list-profile-line">
               <strong>{{ store.meName.value }}</strong>
-              <p>{{ unreadTotal ? `未读 ${unreadTotal}` : "双击会话打开独立窗口" }}</p>
-              <div class="qq-list-status-row">
-                <span class="qq-list-status-pill">在线</span>
-                <span class="qq-list-status-pill is-muted">{{ store.filteredConversations.value.length }} 个会话</span>
-              </div>
+              <span class="qq-list-status-pill">在线</span>
+              <span class="qq-list-status-pill is-muted">{{ store.filteredConversations.value.length }} 个会话</span>
             </div>
           </div>
 
@@ -103,13 +90,17 @@ onMounted(async () => {
         </header>
 
         <div class="qq-list-search-row">
-          <input
-            :value="store.conversationKeyword.value"
-            class="qq-list-search"
-            placeholder="搜索会话"
-            @input="store.conversationKeyword.value = $event.target.value"
-          />
-          <button class="qq-list-add-btn" type="button" title="刷新列表" @click="actions.loadConversations">⟳</button>
+          <label class="qq-list-search-box">
+            <input
+              :value="store.conversationKeyword.value"
+              class="qq-list-search"
+              placeholder="搜索会话"
+              @input="store.conversationKeyword.value = $event.target.value"
+            />
+            <span class="qq-list-search-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M10.5 4a6.5 6.5 0 1 1 0 13a6.5 6.5 0 0 1 0-13Zm0 2a4.5 4.5 0 1 0 0 9a4.5 4.5 0 0 0 0-9Zm8.91 11.5 2.8 2.79-1.42 1.42-2.79-2.8 1.41-1.41Z"/></svg>
+            </span>
+          </label>
         </div>
       </section>
 

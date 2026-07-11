@@ -8,3 +8,4 @@ apps/web/dist/
 prisma/dev.db
 desktop-config.json
 release/
+.cache/

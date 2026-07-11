@@ -95,7 +95,7 @@ async function submitLogin() {
 
 <template>
   <main class="compact-auth-shell" :class="{ 'is-desktop': shell.isDesktop }">
-    <section class="compact-auth-card" :class="{ 'is-desktop': shell.isDesktop }">
+    <section class="compact-auth-card compact-auth-login-card" :class="{ 'is-desktop': shell.isDesktop }">
       <header class="compact-auth-header">
         <div class="compact-auth-drag">
           <span class="compact-auth-logo">L</span>
@@ -111,59 +111,52 @@ async function submitLogin() {
         </div>
       </header>
 
-      <section class="compact-auth-content">
-        <section class="compact-auth-hero">
-          <div class="compact-auth-hero-brand">
-            <strong>Linksee Chat</strong>
-            <span>简洁、克制、专注沟通</span>
-          </div>
-
-          <div class="compact-auth-preview-card">
-            <div class="compact-auth-avatar">
+      <section class="compact-auth-body compact-auth-body-login">
+        <div class="compact-auth-login-top">
+          <div class="compact-auth-login-avatar-wrap">
+            <div class="compact-auth-avatar compact-auth-login-avatar">
               <img v-if="previewAvatarUrl" :src="previewAvatarUrl" alt="" />
               <span v-else>{{ previewInitials }}</span>
             </div>
-
-            <div class="compact-auth-copy">
-              <h1>{{ previewLoading ? "正在读取资料..." : previewName }}</h1>
-              <strong class="compact-auth-preview-id">{{ userId || "准备登录" }}</strong>
-              <p>{{ previewBio }}</p>
-            </div>
-          </div>
-        </section>
-
-        <section class="compact-auth-body">
-          <div class="compact-auth-form-head">
-            <strong>账号登录</strong>
-            <span>输入账号后自动显示头像与昵称</span>
           </div>
 
-          <form class="compact-auth-form" @submit.prevent="submitLogin">
-            <label class="compact-auth-field">
-              <span>账号</span>
-              <input v-model="userId" name="userId" placeholder="输入账号" autocomplete="username" />
-            </label>
+          <div class="compact-auth-copy compact-auth-login-copy">
+            <h1>{{ previewLoading ? "正在读取资料..." : previewName }}</h1>
+            <strong class="compact-auth-preview-id">{{ userId || "请输入账号" }}</strong>
+            <p>{{ previewBio }}</p>
+          </div>
+        </div>
 
-            <label class="compact-auth-field">
-              <span>密码</span>
-              <input
-                v-model="password"
-                name="password"
-                type="password"
-                placeholder="输入密码"
-                autocomplete="current-password"
-              />
-            </label>
+        <div class="compact-auth-form-head compact-auth-form-head-login">
+          <strong>账号登录</strong>
+          <span>输入账号和密码后登录</span>
+        </div>
 
-            <button class="primary-btn compact-auth-submit" type="submit" :disabled="submitting">
-              {{ submitting ? "登录中..." : "登录" }}
-            </button>
+        <form class="compact-auth-form compact-auth-form-login" @submit.prevent="submitLogin">
+          <label class="compact-auth-field">
+            <span>账号</span>
+            <input v-model="userId" name="userId" placeholder="请输入账号" autocomplete="username" />
+          </label>
 
-            <p class="compact-auth-status" :class="hint ? (hintTone === 'error' ? 'is-error' : 'is-success') : ''">
-              {{ hint || "测试账号：1000000001 / Chat1234" }}
-            </p>
-          </form>
-        </section>
+          <label class="compact-auth-field">
+            <span>密码</span>
+            <input
+              v-model="password"
+              name="password"
+              type="password"
+              placeholder="请输入密码"
+              autocomplete="current-password"
+            />
+          </label>
+
+          <button class="primary-btn compact-auth-submit compact-auth-login-submit" type="submit" :disabled="submitting">
+            {{ submitting ? "登录中..." : "登录" }}
+          </button>
+
+          <p class="compact-auth-status" :class="hint ? (hintTone === 'error' ? 'is-error' : 'is-success') : ''">
+            {{ hint || "测试账号：1000000001 / Chat1234" }}
+          </p>
+        </form>
       </section>
     </section>
   </main>
