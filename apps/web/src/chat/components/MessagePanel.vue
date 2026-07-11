@@ -47,22 +47,23 @@ defineEmits([
 </script>
 
 <template>
-  <section class="chat-workspace">
+  <section class="chat-workspace" :class="{ 'is-standalone': standaloneMode }">
+    <div v-if="standaloneMode" class="chat-standalone-topbar">
+      <div class="chat-window-drag">
+        <span class="chat-window-mark">L</span>
+        <span class="chat-window-app">Linksee Chat</span>
+      </div>
+      <div v-if="shell.isDesktop" class="chat-window-actions">
+        <button class="desktop-window-btn desktop-window-btn-standalone" type="button" aria-label="最小化" @click="shell.minimizeWindow">-</button>
+        <button class="desktop-window-btn desktop-window-btn-standalone" type="button" aria-label="最大化" @click="shell.toggleMaximizeWindow">
+          {{ shell.isMaximized ? "❐" : "□" }}
+        </button>
+        <button class="desktop-window-btn desktop-window-btn-standalone is-close" type="button" aria-label="关闭" @click="shell.closeWindow">×</button>
+      </div>
+    </div>
+
     <header class="chat-workspace-head" :class="{ 'is-standalone': standaloneMode }">
       <div class="chat-title-block">
-        <div v-if="standaloneMode" class="chat-window-chrome">
-          <div class="chat-window-drag">
-            <span class="chat-window-mark">L</span>
-            <span class="chat-window-app">Linksee Chat</span>
-          </div>
-          <div v-if="shell.isDesktop" class="chat-window-actions">
-            <button class="desktop-window-btn" type="button" aria-label="最小化" @click="shell.minimizeWindow">-</button>
-            <button class="desktop-window-btn" type="button" aria-label="最大化" @click="shell.toggleMaximizeWindow">
-              {{ shell.isMaximized ? "❐" : "□" }}
-            </button>
-            <button class="desktop-window-btn is-close" type="button" aria-label="关闭" @click="shell.closeWindow">×</button>
-          </div>
-        </div>
         <h2>{{ chatTitle }}</h2>
         <p class="muted">{{ chatSubtitle }}</p>
       </div>
@@ -74,10 +75,11 @@ defineEmits([
           @input="$emit('update:messageKeyword', $event.target.value)"
           @keydown.enter.prevent="$emit('search')"
         />
-        <button class="qq-chat-icon-btn" type="button" title="公告" @click="$emit('announcement')">公</button>
+        <button class="qq-chat-icon-btn" type="button" title="公告" @click="$emit('announcement')">☎</button>
         <button class="qq-chat-icon-btn" type="button" title="置顶" @click="$emit('toggle-pin')">
-          {{ isPinned ? "取" : "顶" }}
+          {{ isPinned ? "★" : "☆" }}
         </button>
+        <button class="qq-chat-icon-btn" type="button" title="标记已读" @click="$emit('mark-read')">✓</button>
         <div class="socket-pill" :class="socketOnline ? 'online' : 'offline'">
           {{ socketOnline ? "在线" : "离线" }}
         </div>
@@ -113,10 +115,10 @@ defineEmits([
       <div class="composer-top desktop-composer-top">
         <div class="composer-tool-group qq-composer-toolbar">
           <button v-if="editing || showReplyBar" class="ghost-btn compact-btn" type="button" @click="$emit('cancel-edit')">取消</button>
-          <button class="qq-chat-tool-btn" type="button" title="标记已读" @click="$emit('mark-read')">已</button>
-          <button class="qq-chat-tool-btn" type="button" title="发送文件" :disabled="uploadingFiles" @click="$emit('open-file-picker')">
-            {{ uploadingFiles ? "传" : "文" }}
-          </button>
+          <button class="qq-chat-tool-btn" type="button" title="表情">☺</button>
+          <button class="qq-chat-tool-btn" type="button" title="截图">✂</button>
+          <button class="qq-chat-tool-btn" type="button" title="文件" :disabled="uploadingFiles" @click="$emit('open-file-picker')">📁</button>
+          <button class="qq-chat-tool-btn" type="button" title="图片">🖼</button>
         </div>
         <div v-if="uploadProgressText" class="search-bar upload-inline-tip">{{ uploadProgressText }}</div>
       </div>
@@ -143,7 +145,10 @@ defineEmits([
         <div class="hint" :class="composerHint ? (composerHintTone === 'error' ? 'is-error' : 'is-success') : ''">
           {{ composerHint }}
         </div>
-        <button class="primary-btn" type="submit">发送</button>
+        <div class="composer-send-group">
+          <button class="ghost-btn composer-quiet-btn" type="button" @click="$emit('update:messageInput', '')">清空</button>
+          <button class="primary-btn composer-send-btn" type="submit">发送</button>
+        </div>
       </div>
     </form>
   </section>
