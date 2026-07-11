@@ -128,7 +128,7 @@ html body .desktop-page-shell { min-height: 100vh; }
 .chat-auth-body {
   min-height: 100vh;
   display: block;
-  background: #edf3fb;
+  background: transparent;
 }
 
 .auth-page-shell,
@@ -140,20 +140,24 @@ html body .desktop-page-shell { min-height: 100vh; }
 
 .compact-auth-shell {
   min-height: 100vh;
-  padding: 0;
-  background: #edf3fb;
+  display: grid;
+  place-items: center;
+  padding: 12px;
+  background: transparent;
 }
 
 .compact-auth-card {
   width: 100%;
-  min-height: 100vh;
+  height: 100%;
   display: grid;
   grid-template-rows: auto 154px 1fr;
   overflow: hidden;
   background: #ffffff;
-  border: 0;
-  border-radius: 0;
-  box-shadow: none;
+  border: 1px solid rgba(221, 228, 238, 0.98);
+  border-radius: 24px;
+  box-shadow:
+    0 24px 60px rgba(14, 23, 38, 0.18),
+    0 10px 24px rgba(47, 107, 255, 0.08);
 }
 
 .compact-auth-header {
@@ -164,7 +168,7 @@ html body .desktop-page-shell { min-height: 100vh; }
   gap: 12px;
   padding: 0 10px 0 12px;
   border-bottom: 1px solid rgba(232, 236, 243, 0.86);
-  background: rgba(255, 255, 255, 0.96);
+  background: rgba(255, 255, 255, 0.98);
 }
 
 .compact-auth-drag {
@@ -210,7 +214,7 @@ html body .desktop-page-shell { min-height: 100vh; }
   justify-items: center;
   align-content: center;
   gap: 12px;
-  padding: 20px 26px 18px;
+  padding: 18px 26px 16px;
   background: linear-gradient(180deg, #4b6fcb 0%, #6582d8 100%);
 }
 
@@ -227,7 +231,7 @@ html body .desktop-page-shell { min-height: 100vh; }
   align-content: start;
   justify-items: stretch;
   gap: 16px;
-  padding: 22px 22px 20px;
+  padding: 18px 22px 18px;
 }
 
 .compact-auth-avatar {
@@ -255,6 +259,16 @@ html body .desktop-page-shell { min-height: 100vh; }
   gap: 4px;
   text-align: center;
   color: #fff;
+}
+
+.compact-auth-copy h1 {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.compact-auth-copy p {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 13px;
 }
 
 .compact-auth-copy h1,
@@ -320,6 +334,10 @@ html body .desktop-page-shell { min-height: 100vh; }
   font-size: 14px;
 }
 
+.compact-auth-field input::placeholder {
+  color: #a4afbf;
+}
+
 .compact-auth-field input:focus {
   outline: none;
   border-color: var(--brand);
@@ -337,11 +355,11 @@ html body .desktop-page-shell { min-height: 100vh; }
 
 .compact-auth-status {
   min-height: 20px;
-  margin: 2px 2px 0;
+  margin: 0;
   color: var(--muted);
   font-size: 12px;
   line-height: 1.5;
-  text-align: center;
+  text-align: left;
 }
 
 .compact-auth-status.is-error { color: var(--danger); }
