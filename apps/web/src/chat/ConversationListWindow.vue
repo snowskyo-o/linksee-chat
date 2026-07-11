@@ -66,10 +66,10 @@ onMounted(async () => {
     </aside>
 
     <section class="qq-list-panel">
-      <header class="qq-list-header">
+      <header class="qq-list-topbar">
         <div class="qq-list-header-copy">
-          <strong>{{ store.meName.value }}</strong>
-          <span>双击打开会话窗口</span>
+          <strong>消息</strong>
+          <span>{{ unreadTotal ? `未读 ${unreadTotal}` : "双击打开会话窗口" }}</span>
         </div>
 
         <div v-if="shell.isDesktop" class="qq-list-window-actions">
@@ -78,21 +78,46 @@ onMounted(async () => {
         </div>
       </header>
 
-      <ConversationSidebar
-        list-only
-        :me-name="store.meName.value"
-        :me-meta="store.meMeta.value"
-        :me-avatar="store.meAvatar.value"
-        :me-avatar-url="store.meAvatarUrl.value"
-        :keyword="store.conversationKeyword.value"
-        :conversations="store.filteredConversations.value"
-        :selected-id="store.selectedId.value"
-        @update:keyword="store.conversationKeyword.value = $event"
-        @select="selectConversation"
-        @open="openConversation"
-        @refresh="actions.loadConversations"
-        @logout="logout"
-      />
+      <section class="qq-list-overview">
+        <div class="qq-list-profile">
+          <div class="qq-list-profile-avatar">
+            <img v-if="store.meAvatarUrl.value" :src="store.meAvatarUrl.value" alt="" />
+            <span v-else>{{ store.meAvatar.value }}</span>
+          </div>
+          <div class="qq-list-profile-copy">
+            <strong>{{ store.meName.value }}</strong>
+            <p>{{ store.meMeta.value }}</p>
+          </div>
+        </div>
+
+        <div class="qq-list-search-row">
+          <input
+            :value="store.conversationKeyword.value"
+            class="qq-list-search"
+            placeholder="搜索"
+            @input="store.conversationKeyword.value = $event.target.value"
+          />
+          <button class="qq-list-add-btn" type="button" @click="actions.loadConversations">+</button>
+        </div>
+      </section>
+
+      <div class="qq-list-conversations-shell">
+        <ConversationSidebar
+          list-only
+          :me-name="store.meName.value"
+          :me-meta="store.meMeta.value"
+          :me-avatar="store.meAvatar.value"
+          :me-avatar-url="store.meAvatarUrl.value"
+          :keyword="store.conversationKeyword.value"
+          :conversations="store.filteredConversations.value"
+          :selected-id="store.selectedId.value"
+          @update:keyword="store.conversationKeyword.value = $event"
+          @select="selectConversation"
+          @open="openConversation"
+          @refresh="actions.loadConversations"
+          @logout="logout"
+        />
+      </div>
     </section>
   </main>
 </template>
