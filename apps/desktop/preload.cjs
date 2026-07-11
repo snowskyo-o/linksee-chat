@@ -2,7 +2,7 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 function readServerOrigin() {
   const arg = process.argv.find((item) => String(item).startsWith("--remote-origin="));
-  return arg ? String(arg).slice("--remote-origin=".Length) : "";
+  return arg ? String(arg).slice("--remote-origin=".length) : "";
 }
 
 contextBridge.exposeInMainWorld("desktopShell", {
