@@ -424,6 +424,20 @@ export function useChatActions(store) {
     await dataActions.loadContacts();
     await dataActions.loadConversations();
     await dataActions.loadParticipants();
+    store.messages.value = store.messages.value.map((message) => (
+      String(message.senderId) === String(store.me.value.id)
+        ? {
+            ...message,
+            sender: {
+              ...(message.sender || {}),
+              profile: {
+                ...(message.sender?.profile || {}),
+                avatarUrl: refreshedUrl,
+              },
+            },
+          }
+        : message
+    ));
     store.contacts.value = store.contacts.value.map((user) => (
       String(user.id) === String(store.me.value.id)
         ? { ...user, profile: { ...(user.profile || {}), avatarUrl: refreshedUrl } }

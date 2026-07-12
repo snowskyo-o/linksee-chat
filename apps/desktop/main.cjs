@@ -48,7 +48,7 @@ const chatWindows = new Map();
 let tray = null;
 let isQuitting = false;
 
-function createTrayIcon() {
+function createFallbackTrayIcon() {
   const svg = `
     <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
       <rect x="6" y="6" width="52" height="52" rx="16" fill="#4f7cff"/>
@@ -59,6 +59,34 @@ function createTrayIcon() {
   return nativeImage
     .createFromDataURL(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`)
     .resize({ width: 16, height: 16 });
+}
+
+function resolveTrayIconPath() {
+  const candidates = process.platform === "win32"
+    ? [
+        path.join(process.resourcesPath || "", "icon.ico"),
+        path.join(path.dirname(process.execPath), "resources", "icon.ico"),
+        path.join(projectRoot, "build", "icon.ico"),
+      ]
+    : [
+        path.join(process.resourcesPath || "", "icon.png"),
+        path.join(path.dirname(process.execPath), "resources", "icon.png"),
+        path.join(projectRoot, "build", "icon.png"),
+      ];
+
+  return candidates.find((file) => file && fs.existsSync(file)) || "";
+}
+
+function createTrayIcon() {
+  const trayIconPath = resolveTrayIconPath();
+  if (trayIconPath) {
+    const icon = nativeImage.createFromPath(trayIconPath);
+    if (!icon.isEmpty()) {
+      return icon.resize({ width: 16, height: 16 });
+    }
+  }
+
+  return createFallbackTrayIcon();
 }
 
 function resolveWindowByEvent(event) {

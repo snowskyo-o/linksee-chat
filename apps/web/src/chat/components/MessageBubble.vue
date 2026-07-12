@@ -5,7 +5,7 @@ defineProps({
   message: { type: Object, required: true },
 });
 
-defineEmits(["download-file", "open-menu"]);
+defineEmits(["download-file", "open-menu", "retry"]);
 </script>
 
 <template>
@@ -33,6 +33,15 @@ defineEmits(["download-file", "open-menu"]);
     </div>
 
     <div class="message-bubble-shell" :class="{ 'message-bubble-shell-me': message.isMe }">
+      <button
+        v-if="message.canRetry && message.isMe"
+        class="message-retry-btn"
+        type="button"
+        @click.stop="$emit('retry', message.id)"
+      >
+        重试
+      </button>
+
       <div class="message-bubble" :class="{ 'message-bubble-me': message.isMe }">
         <div v-if="message.replyToText" class="reply-quote">{{ message.replyToText }}</div>
         <div class="message-content" v-html="message.html"></div>

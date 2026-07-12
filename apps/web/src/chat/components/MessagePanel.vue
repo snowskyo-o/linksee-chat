@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onBeforeUnmount, ref } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useDesktopShell } from "../../shared/useDesktopShell.js";
 import EmojiPicker from "./EmojiPicker.vue";
 import MessageBubble from "./MessageBubble.vue";
@@ -50,6 +50,8 @@ const emit = defineEmits([
 ]);
 
 const emojiOpen = ref(false);
+const messageListRef = ref(null);
+const pendingIncomingCount = ref(0);
 const messageMenu = ref({
   open: false,
   x: 0,
@@ -166,6 +168,71 @@ function selectContextItem(item) {
 function updateMessageInput(value) {
   emit("update:messageInput", value);
 }
+
+function getDistanceFromBottom() {
+  const element = messageListRef.value;
+  if (!element) return 0;
+  return Math.max(0, element.scrollHeight - element.scrollTop - element.clientHeight);
+}
+
+function isNearBottom() {
+  return getDistanceFromBottom() <= 56;
+}
+
+function clearIncomingIndicator() {
+  pendingIncomingCount.value = 0;
+}
+
+function scrollMessageListToBottom(behavior = "auto") {
+  const element = messageListRef.value;
+  if (!element) return;
+  element.scrollTo({
+    top: element.scrollHeight,
+    behavior,
+  });
+  clearIncomingIndicator();
+}
+
+function handleMessageListScroll() {
+  if (isNearBottom()) {
+    clearIncomingIndicator();
+  }
+}
+
+onMounted(() => {
+  nextTick(() => {
+    scrollMessageListToBottom("auto");
+    messageListRef.value?.addEventListener("scroll", handleMessageListScroll, { passive: true });
+  });
+});
+
+watch(
+  () => props.chatTitle,
+  async () => {
+    clearIncomingIndicator();
+    await nextTick();
+    scrollMessageListToBottom("auto");
+  },
+);
+
+watch(
+  () => props.messages[props.messages.length - 1]?.id || "",
+  async (nextId, previousId) => {
+    if (!nextId || nextId === previousId) return;
+    const shouldAutoStick = isNearBottom();
+    const latestMessage = props.messages[props.messages.length - 1];
+    await nextTick();
+    if (!previousId || latestMessage?.isMe || shouldAutoStick) {
+      scrollMessageListToBottom(previousId ? "smooth" : "auto");
+      return;
+    }
+    pendingIncomingCount.value += 1;
+  },
+);
+
+onBeforeUnmount(() => {
+  messageListRef.value?.removeEventListener("scroll", handleMessageListScroll);
+});
 </script>
 
 <template>
@@ -229,7 +296,7 @@ function updateMessageInput(value) {
 
     <div v-if="searchResultText" class="search-bar">{{ searchResultText }}</div>
 
-    <div class="message-list desktop-message-list">
+    <div ref="messageListRef" class="message-list desktop-message-list">
       <button
         v-if="hasMoreMessages"
         class="ghost-btn load-more-btn compact-btn"
@@ -246,7 +313,20 @@ function updateMessageInput(value) {
         :message="message"
         @download-file="$emit('download-file', $event)"
         @open-menu="openMessageMenu"
+        @retry="$emit('message-action', { id: $event, action: 'retry' })"
       />
+      <button
+        v-if="pendingIncomingCount"
+        class="new-message-indicator"
+        type="button"
+        @click="scrollMessageListToBottom('smooth')"
+      >
+        <span class="new-message-indicator__count">{{ pendingIncomingCount }}</span>
+        <span>新消息</span>
+        <svg viewBox="0 0 20 20" aria-hidden="true">
+          <path d="M10 14.25 4.75 9l1.5-1.5 2.75 2.75V4.5h2v5.75L13.75 7.5l1.5 1.5L10 14.25Z"/>
+        </svg>
+      </button>
     </div>
 
     <div v-if="showReplyBar" class="reply-bar">{{ replyText }}</div>
