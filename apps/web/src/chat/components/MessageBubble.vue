@@ -29,7 +29,7 @@ defineEmits(["download-file", "open-menu"]);
 
     <div class="message-head" :class="{ 'message-head-me': message.isMe }">
       <strong>{{ message.senderName }}</strong>
-      <span class="muted">{{ message.timeText }}{{ message.editedAt ? " · 已编辑" : "" }}</span>
+      <span class="muted">{{ message.timeText }}{{ message.editedAt ? " · 已编辑" : "" }}{{ message.statusText ? ` · ${message.statusText}` : "" }}</span>
     </div>
 
     <div class="message-bubble-shell" :class="{ 'message-bubble-shell-me': message.isMe }">

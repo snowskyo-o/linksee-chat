@@ -1,209 +1,19 @@
 import { chatApi } from "../../shared/api-client.js";
-import { resolveMediaUrl } from "../../shared/media.js";
+import { appendCacheBust } from "../../shared/media.js";
+import { createChatDataActions } from "./chat-data-actions.js";
+import {
+  buildFileMessageContent,
+  buildOptimisticTextMessage,
+  findMessage,
+  normalizeMessage,
+  patchConversationLocally,
+  patchMessageLocally,
+  replaceMessageLocally,
+  syncConversationPreview,
+} from "./message-operations.js";
 
 export function useChatActions(store) {
-  function buildOptimisticTextMessage(content, mentions = [], replyTo = null) {
-    const now = new Date().toISOString();
-    const me = store.me.value || {};
-    return {
-      id: `local-${Date.now()}`,
-      conversationId: store.selectedId.value,
-      senderId: me.id || localStorage.getItem("chat_user_id") || "",
-      sender: me,
-      content,
-      type: "text",
-      mentions,
-      files: [],
-      createdAt: now,
-      updatedAt: now,
-      editedAt: null,
-      deletedAt: null,
-      replyTo,
-    };
-  }
-
-  function syncConversationPreview(conversationId, messageLike) {
-    patchConversationLocally(conversationId, (item) => ({
-      ...item,
-      updatedAt: messageLike?.createdAt || new Date().toISOString(),
-      unreadCount: 0,
-      unreadMentionCount: 0,
-      lastMessage: {
-        ...(item.lastMessage || {}),
-        id: messageLike?.id || item.lastMessage?.id,
-        content: messageLike?.content || item.lastMessage?.content || "",
-        type: messageLike?.type || item.lastMessage?.type || "text",
-        createdAt: messageLike?.createdAt || new Date().toISOString(),
-        deletedAt: messageLike?.deletedAt || null,
-        files: messageLike?.files || [],
-      },
-    }));
-  }
-
-  function buildFileMessageContent(files) {
-    if (!Array.isArray(files) || files.length === 0) return "附件";
-    if (files.length === 1) return files[0].name || "附件";
-    if (files.length === 2) return `${files[0].name || "附件"}、${files[1].name || "附件"}`;
-    return `${files[0].name || "附件"} 等 ${files.length} 个文件`;
-  }
-
-  function patchConversationLocally(conversationId, patch) {
-    store.conversations.value = store.conversations.value.map((item) => (
-      String(item.id) === String(conversationId)
-        ? { ...item, ...(typeof patch === "function" ? patch(item) : patch) }
-        : item
-    ));
-  }
-
-  function patchMessageLocally(messageId, patch) {
-    store.messages.value = store.messages.value.map((item) => (
-      String(item.id) === String(messageId)
-        ? { ...item, ...(typeof patch === "function" ? patch(item) : patch) }
-        : item
-    ));
-  }
-
-  function replaceMessageLocally(messageId, nextMessage) {
-    store.messages.value = store.messages.value.map((item) => (
-      String(item.id) === String(messageId) ? nextMessage : item
-    ));
-  }
-
-  function removeMessageLocally(messageId) {
-    store.messages.value = store.messages.value.filter((item) => String(item.id) !== String(messageId));
-  }
-
-  function normalizeUser(user) {
-    return {
-      ...user,
-      profile: {
-        ...(user?.profile || {}),
-        avatarUrl: resolveMediaUrl(user?.profile?.avatarUrl || ""),
-      },
-    };
-  }
-
-  function normalizeMessage(message) {
-    if (!message) return message;
-    return {
-      ...message,
-      sender: message.sender ? normalizeUser(message.sender) : message.sender,
-      replyTo: message.replyTo
-        ? {
-            ...message.replyTo,
-            sender: message.replyTo.sender ? normalizeUser(message.replyTo.sender) : message.replyTo.sender,
-          }
-        : message.replyTo,
-    };
-  }
-
-  function isMessageBusy(messageId) {
-    const message = store.messages.value.find((item) => String(item.id) === String(messageId));
-    return Boolean(message?.operationState);
-  }
-
-  async function loadProfile(auth) {
-    const payload = await chatApi.getJson("/api/v1/users/me");
-    store.me.value = normalizeUser(payload.data || {});
-    store.profileName.value = store.me.value.profile?.realName || auth.userId;
-    store.profileBio.value = store.me.value.profile?.bio || "";
-    document.title = `Linksee Chat · ${store.profileName.value}`;
-  }
-
-  async function loadContacts() {
-    const payload = await chatApi.getJson("/api/v1/contacts");
-    store.contacts.value = (Array.isArray(payload.data) ? payload.data : []).map(normalizeUser);
-  }
-
-  async function loadConversations() {
-    const payload = await chatApi.getJson("/api/v1/conversations");
-    store.conversations.value = Array.isArray(payload.data) ? payload.data : [];
-    if (!store.selectedId.value && store.conversations.value.length) {
-      store.selectedId.value = store.conversations.value[0].id;
-    }
-    if (store.selectedId.value && !store.conversations.value.find((item) => item.id === store.selectedId.value)) {
-      store.selectedId.value = store.conversations.value[0]?.id || "";
-    }
-  }
-
-  async function loadParticipants() {
-    if (!store.selectedId.value) {
-      store.participants.value = [];
-      return;
-    }
-    const payload = await chatApi.getJson(`/api/v1/conversations/${encodeURIComponent(store.selectedId.value)}/participants`);
-    store.participants.value = (Array.isArray(payload.data) ? payload.data : []).map(normalizeUser);
-  }
-
-  async function loadMessages() {
-    if (!store.selectedId.value) {
-      store.messages.value = [];
-      store.hasMoreMessages.value = false;
-      return;
-    }
-    if (store.searchKeyword.value) {
-      const payload = await chatApi.getJson(`/api/v1/conversations/${encodeURIComponent(store.selectedId.value)}/messages/search?q=${encodeURIComponent(store.searchKeyword.value)}`);
-      store.messages.value = (Array.isArray(payload.data) ? payload.data : []).map(normalizeMessage);
-      store.hasMoreMessages.value = false;
-      return;
-    }
-    const payload = await chatApi.getJson(`/api/v1/conversations/${encodeURIComponent(store.selectedId.value)}/messages?limit=50`);
-    store.messages.value = (Array.isArray(payload.data) ? payload.data : []).map(normalizeMessage);
-    store.hasMoreMessages.value = store.messages.value.length >= 50;
-  }
-
-  async function loadOlderMessages() {
-    if (!store.selectedId.value || store.searchKeyword.value || !store.messages.value.length) return;
-    const oldest = store.messages.value[0];
-    if (!oldest?.id) return;
-    store.loadingMoreMessages.value = true;
-    try {
-      const payload = await chatApi.getJson(
-        `/api/v1/conversations/${encodeURIComponent(store.selectedId.value)}/messages?beforeId=${encodeURIComponent(oldest.id)}&limit=50`,
-      );
-      const older = (Array.isArray(payload.data) ? payload.data : []).map(normalizeMessage);
-      store.messages.value = [...older, ...store.messages.value];
-      store.hasMoreMessages.value = older.length >= 50;
-    } finally {
-      store.loadingMoreMessages.value = false;
-    }
-  }
-
-  async function markConversationReadIfNeeded() {
-    const selected = store.selectedConversation.value;
-    const lastMessage = store.messages.value[store.messages.value.length - 1];
-    if (!selected || !lastMessage?.id) return;
-    if (!selected.unreadCount && !selected.unreadMentionCount) return;
-
-    await chatApi.postJson(`/api/v1/conversations/${encodeURIComponent(selected.id)}/read`, {
-      messageId: lastMessage.id,
-    });
-    patchConversationLocally(selected.id, {
-      unreadCount: 0,
-      unreadMentionCount: 0,
-      lastReadAt: new Date().toISOString(),
-    });
-  }
-
-  async function refreshSelectedConversation() {
-    await loadParticipants();
-    await loadMessages();
-  }
-
-  async function refreshAll() {
-    await loadContacts();
-    await loadConversations();
-    await refreshSelectedConversation();
-  }
-
-  async function selectConversation(id) {
-    store.selectedId.value = id;
-    store.searchKeyword.value = "";
-    store.messageKeyword.value = "";
-    store.clearReplyState();
-    await refreshSelectedConversation();
-    await markConversationReadIfNeeded().catch(() => {});
-  }
+  const dataActions = createChatDataActions(store, chatApi);
 
   function createDirectConversation() {
     if (!store.contacts.value.length) {
@@ -226,7 +36,6 @@ export function useChatActions(store) {
   async function submitCreateConversation() {
     store.createDialogSubmitting.value = true;
     store.setCreateDialogHint("", "");
-
     try {
       if (store.createDialogMode.value === "direct") {
         const peerId = store.selectedPeerId.value.trim();
@@ -234,10 +43,7 @@ export function useChatActions(store) {
           store.setCreateDialogHint("请选择一个联系人", "error");
           return;
         }
-        const payload = await chatApi.postJson("/api/v1/conversations", {
-          kind: "direct",
-          peerId,
-        });
+        const payload = await chatApi.postJson("/api/v1/conversations", { kind: "direct", peerId });
         store.selectedId.value = payload.data?.id || store.selectedId.value;
         store.pushNotification({ title: "私聊已创建", message: "可以开始发送消息了。", tone: "success" });
       } else {
@@ -258,9 +64,8 @@ export function useChatActions(store) {
         store.selectedId.value = payload.data?.id || store.selectedId.value;
         store.pushNotification({ title: "群聊已创建", message: `“${title}” 已准备就绪。`, tone: "success" });
       }
-
       store.closeCreateDialog();
-      await refreshAll();
+      await dataActions.refreshAll();
     } catch (error) {
       store.setCreateDialogHint(error?.message || "创建会话失败", "error");
       store.pushNotification({ title: "创建失败", message: error?.message || "创建会话失败", tone: "error" });
@@ -269,14 +74,8 @@ export function useChatActions(store) {
     }
   }
 
-  async function searchMessages() {
-    store.searchKeyword.value = store.messageKeyword.value.trim();
-    await loadMessages();
-  }
-
   function sendAnnouncement() {
-    if (!store.selectedId.value) return;
-    store.openAnnouncementDialog();
+    if (store.selectedId.value) store.openAnnouncementDialog();
   }
 
   async function submitAnnouncement() {
@@ -286,23 +85,69 @@ export function useChatActions(store) {
       store.setAnnouncementHint("请输入公告内容", "error");
       return;
     }
-
     store.announcementSubmitting.value = true;
     store.setAnnouncementHint("", "");
-
     try {
       await chatApi.postJson(`/api/v1/conversations/${encodeURIComponent(store.selectedId.value)}/announcements`, { content });
       store.closeAnnouncementDialog();
       store.setComposerHint("公告已发布", "success");
-      store.pushNotification({ title: "公告已发布", message: "会话成员将看到最新公告。", tone: "success" });
       store.searchKeyword.value = "";
       store.messageKeyword.value = "";
-      await refreshAll();
+      await dataActions.refreshAll();
     } catch (error) {
       store.setAnnouncementHint(error?.message || "发布公告失败", "error");
-      store.pushNotification({ title: "公告发布失败", message: error?.message || "请稍后重试", tone: "error" });
     } finally {
       store.announcementSubmitting.value = false;
+    }
+  }
+
+  async function submitEdit(content, mentions, editingId) {
+    const previous = findMessage(store, editingId);
+    patchMessageLocally(store, editingId, {
+      content,
+      mentions,
+      editedAt: new Date().toISOString(),
+      operationState: "editing",
+      sendError: "",
+    });
+    syncConversationPreview(store, store.selectedId.value, {
+      content,
+      type: "text",
+      createdAt: previous?.createdAt || new Date().toISOString(),
+    });
+    store.clearReplyState();
+    store.resetComposer();
+    try {
+      const payload = await chatApi.patchJson(
+        `/api/v1/conversations/${encodeURIComponent(store.selectedId.value)}/messages/${encodeURIComponent(editingId)}`,
+        { content, mentions },
+      );
+      if (payload.data) {
+        const normalized = normalizeMessage(payload.data);
+        replaceMessageLocally(store, editingId, normalized);
+        syncConversationPreview(store, store.selectedId.value, normalized);
+      }
+    } catch (error) {
+      if (previous) {
+        replaceMessageLocally(store, editingId, previous);
+        syncConversationPreview(store, store.selectedId.value, previous);
+      }
+      store.messageInput.value = content;
+      store.editingMessageId.value = editingId;
+      throw error;
+    }
+  }
+
+  async function postTextMessage(content, mentions, replyTo, optimisticMessage) {
+    const payload = await chatApi.postJson(`/api/v1/conversations/${encodeURIComponent(store.selectedId.value)}/messages`, {
+      content,
+      mentions,
+      replyToId: replyTo ? replyTo.id : null,
+    });
+    if (payload.data) {
+      const normalized = normalizeMessage(payload.data);
+      replaceMessageLocally(store, optimisticMessage.id, normalized);
+      syncConversationPreview(store, store.selectedId.value, normalized);
     }
   }
 
@@ -310,84 +155,53 @@ export function useChatActions(store) {
     if (!store.selectedId.value) return;
     const content = store.messageInput.value.trim();
     if (!content) return;
-
     const mentions = store.collectMentionIds(content);
     if (store.editingMessageId.value) {
-      const editingId = store.editingMessageId.value;
-      const previous = store.messages.value.find((item) => String(item.id) === String(editingId));
-      patchMessageLocally(editingId, {
-        content,
-        mentions,
-        editedAt: new Date().toISOString(),
-        operationState: "editing",
-      });
-      syncConversationPreview(store.selectedId.value, {
-        content,
-        type: "text",
-        createdAt: previous?.createdAt || new Date().toISOString(),
-      });
-      store.clearReplyState();
-      store.resetComposer();
-      try {
-        const payload = await chatApi.patchJson(
-          `/api/v1/conversations/${encodeURIComponent(store.selectedId.value)}/messages/${encodeURIComponent(editingId)}`,
-          { content, mentions },
-        );
-        if (payload.data) {
-          const normalized = normalizeMessage(payload.data);
-          replaceMessageLocally(editingId, normalized);
-          syncConversationPreview(store.selectedId.value, normalized);
-        }
-      } catch (error) {
-        if (previous) {
-          replaceMessageLocally(editingId, previous);
-          syncConversationPreview(store.selectedId.value, previous);
-        }
-        store.messageInput.value = content;
-        store.editingMessageId.value = editingId;
-        throw error;
-      }
+      await submitEdit(content, mentions, store.editingMessageId.value);
     } else {
       const replyTo = store.replyTo.value ? { ...store.replyTo.value } : null;
-      const optimisticMessage = buildOptimisticTextMessage(content, mentions, replyTo);
-      optimisticMessage.operationState = "sending";
+      const optimisticMessage = buildOptimisticTextMessage(store, content, mentions, replyTo);
       store.messages.value = [...store.messages.value, optimisticMessage];
-      syncConversationPreview(store.selectedId.value, optimisticMessage);
+      syncConversationPreview(store, store.selectedId.value, optimisticMessage);
       store.clearReplyState();
       store.resetComposer();
       try {
-        const payload = await chatApi.postJson(`/api/v1/conversations/${encodeURIComponent(store.selectedId.value)}/messages`, {
-          content,
-          mentions,
-          replyToId: replyTo ? replyTo.id : null,
-        });
-        if (payload.data) {
-          const normalized = normalizeMessage(payload.data);
-          replaceMessageLocally(optimisticMessage.id, normalized);
-          syncConversationPreview(store.selectedId.value, normalized);
-        }
+        await postTextMessage(content, mentions, replyTo, optimisticMessage);
       } catch (error) {
-        removeMessageLocally(optimisticMessage.id);
-        store.messageInput.value = content;
-        store.replyTo.value = replyTo;
+        patchMessageLocally(store, optimisticMessage.id, {
+          operationState: "failed",
+          sendError: error?.message || "发送失败",
+        });
         throw error;
       }
     }
+    dataActions.loadConversations().catch(() => {});
+    dataActions.markConversationReadIfNeeded().catch(() => {});
+  }
 
-    loadConversations().catch(() => {});
-    markConversationReadIfNeeded().catch(() => {});
+  async function retryMessage(messageId) {
+    const message = findMessage(store, messageId);
+    if (!message || message.operationState !== "failed") return;
+    patchMessageLocally(store, messageId, { operationState: "sending", sendError: "" });
+    try {
+      await postTextMessage(message.content || "", message.mentions || [], message.replyTo || null, message);
+    } catch (error) {
+      patchMessageLocally(store, messageId, {
+        operationState: "failed",
+        sendError: error?.message || "发送失败",
+      });
+      throw error;
+    }
   }
 
   async function uploadFiles(fileList) {
     if (!store.selectedId.value) return;
     const files = Array.from(fileList || []).filter(Boolean);
     if (!files.length) return;
-
     store.uploadingFiles.value = true;
     store.uploadProgress.value = 0;
     store.uploadFileName.value = files[0]?.name || "";
     store.setComposerHint(`正在上传 ${files.length} 个文件...`, "");
-
     try {
       const uploadedFiles = [];
       for (let index = 0; index < files.length; index += 1) {
@@ -418,7 +232,6 @@ export function useChatActions(store) {
           uploadedAt: new Date().toISOString(),
         });
       }
-
       store.uploadProgress.value = 100;
       await chatApi.postJson(`/api/v1/conversations/${encodeURIComponent(store.selectedId.value)}/messages`, {
         type: "file",
@@ -427,18 +240,14 @@ export function useChatActions(store) {
         mentions: [],
         replyToId: store.replyTo.value ? store.replyTo.value.id : null,
       });
-
-      if (uploadedFiles.length > 0) {
-        store.clearReplyState();
-        store.setComposerHint(`已上传 ${uploadedFiles.length} 个文件`, "success");
-        store.pushNotification({ title: "文件已发送", message: `成功上传 ${uploadedFiles.length} 个文件。`, tone: "success" });
-        await refreshSelectedConversation();
-        await loadConversations();
-        await markConversationReadIfNeeded().catch(() => {});
-      }
+      store.clearReplyState();
+      store.setComposerHint(`已上传 ${uploadedFiles.length} 个文件`, "success");
+      await dataActions.refreshSelectedConversation();
+      await dataActions.loadConversations();
+      await dataActions.markConversationReadIfNeeded().catch(() => {});
     } catch (error) {
       store.setComposerHint(error?.message || "上传失败", "error");
-      store.pushNotification({ title: "上传失败", message: error?.message || "请稍后重试", tone: "error" });
+      throw error;
     } finally {
       store.uploadingFiles.value = false;
       store.uploadProgress.value = 0;
@@ -449,39 +258,54 @@ export function useChatActions(store) {
   async function downloadFile(file) {
     if (!file?.objectKey) {
       store.setComposerHint("附件已过期或下载地址不可用", "error");
-      store.pushNotification({ title: "无法下载", message: "附件已过期或不可用。", tone: "error" });
       return;
     }
-    const response = await chatApi.getBlob(`/api/v1/chat/files/download?objectKey=${encodeURIComponent(file.objectKey)}`);
-    const blob = await response.blob();
-    const objectUrl = window.URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = objectUrl;
-    link.download = file.name || "attachment";
-    link.rel = "noopener";
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.setTimeout(() => {
-      window.URL.revokeObjectURL(objectUrl);
-    }, 1000);
-    store.pushNotification({ title: "开始下载", message: file.name || "附件", tone: "success", ttl: 2200 });
+    store.downloadingFile.value = true;
+    store.downloadProgress.value = 0;
+    store.downloadFileName.value = file.name || "attachment";
+    try {
+      const blob = await chatApi.getBlobWithProgress(
+        `/api/v1/chat/files/download?objectKey=${encodeURIComponent(file.objectKey)}`,
+        ({ percent }) => {
+          store.downloadProgress.value = percent;
+        },
+      );
+      store.downloadProgress.value = 100;
+      const objectUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = file.name || "attachment";
+      link.rel = "noopener";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => window.URL.revokeObjectURL(objectUrl), 1000);
+      store.pushNotification({ title: "开始下载", message: file.name || "附件", tone: "success", ttl: 2200 });
+    } finally {
+      window.setTimeout(() => {
+        store.downloadingFile.value = false;
+        store.downloadProgress.value = 0;
+        store.downloadFileName.value = "";
+      }, 600);
+    }
   }
 
   async function recallMessage(messageId) {
-    if (isMessageBusy(messageId)) return;
-    patchMessageLocally(messageId, {
+    const message = findMessage(store, messageId);
+    if (!message || message.operationState) return;
+    patchMessageLocally(store, messageId, {
       content: "",
       files: [],
       mentions: [],
       deletedAt: new Date().toISOString(),
       operationState: "recalling",
+      sendError: "",
     });
     const payload = await chatApi.postJson(`/api/v1/conversations/${encodeURIComponent(store.selectedId.value)}/messages/${encodeURIComponent(messageId)}/recall`, {});
     if (payload.data) {
       const normalized = normalizeMessage(payload.data);
-      replaceMessageLocally(messageId, normalized);
-      syncConversationPreview(store.selectedId.value, normalized);
+      replaceMessageLocally(store, messageId, normalized);
+      syncConversationPreview(store, store.selectedId.value, normalized);
     }
   }
 
@@ -501,15 +325,13 @@ export function useChatActions(store) {
     if (!selected?.id) return;
     if (selected.pinnedAt) {
       await chatApi.delete(`/api/v1/conversations/${encodeURIComponent(selected.id)}/pin`);
-      patchConversationLocally(selected.id, { pinnedAt: null });
+      patchConversationLocally(store, selected.id, { pinnedAt: null });
       store.setComposerHint("已取消置顶", "success");
-      store.pushNotification({ title: "已取消置顶", message: "该会话恢复普通排序。", tone: "success" });
       return;
     }
     await chatApi.postJson(`/api/v1/conversations/${encodeURIComponent(selected.id)}/pin`, {});
-    patchConversationLocally(selected.id, { pinnedAt: new Date().toISOString() });
+    patchConversationLocally(store, selected.id, { pinnedAt: new Date().toISOString() });
     store.setComposerHint("已置顶会话", "success");
-    store.pushNotification({ title: "会话已置顶", message: "这个会话会固定显示在前面。", tone: "success" });
   }
 
   async function toggleConversationPinById(conversationId) {
@@ -517,16 +339,16 @@ export function useChatActions(store) {
     if (!target) return;
     if (target.pinnedAt) {
       await chatApi.delete(`/api/v1/conversations/${encodeURIComponent(conversationId)}/pin`);
-      patchConversationLocally(conversationId, { pinnedAt: null });
+      patchConversationLocally(store, conversationId, { pinnedAt: null });
       return;
     }
     await chatApi.postJson(`/api/v1/conversations/${encodeURIComponent(conversationId)}/pin`, {});
-    patchConversationLocally(conversationId, { pinnedAt: new Date().toISOString() });
+    patchConversationLocally(store, conversationId, { pinnedAt: new Date().toISOString() });
   }
 
   function handleMessageAction({ id, action }) {
-    const message = store.messages.value.find((item) => String(item.id) === String(id));
-    if (!message || message.operationState) return;
+    const message = findMessage(store, id);
+    if (!message || (message.operationState && action !== "retry")) return;
     if (action === "reply") {
       store.replyTo.value = message;
       store.editingMessageId.value = "";
@@ -541,7 +363,13 @@ export function useChatActions(store) {
     if (action === "recall") {
       recallMessage(message.id).catch((error) => {
         store.setComposerHint(error?.message || "撤回失败", "error");
-        refreshSelectedConversation().catch(() => {});
+        dataActions.refreshSelectedConversation().catch(() => {});
+      });
+      return;
+    }
+    if (action === "retry") {
+      retryMessage(message.id).catch((error) => {
+        store.setComposerHint(error?.message || "重试失败", "error");
       });
     }
   }
@@ -552,12 +380,11 @@ export function useChatActions(store) {
     await chatApi.postJson(`/api/v1/conversations/${encodeURIComponent(store.selectedId.value)}/read`, {
       messageId: lastMessage.id,
     });
-    patchConversationLocally(store.selectedId.value, {
+    patchConversationLocally(store, store.selectedId.value, {
       unreadCount: 0,
       unreadMentionCount: 0,
       lastReadAt: new Date().toISOString(),
     });
-    store.pushNotification({ title: "已标记已读", message: "当前会话未读状态已清除。", tone: "success", ttl: 2200 });
   }
 
   async function saveProfile() {
@@ -569,12 +396,10 @@ export function useChatActions(store) {
       store.profileName.value = payload.data.realName || store.profileName.value.trim();
       store.profileHint.value = "资料已保存";
       store.profileHintTone.value = "success";
-      store.pushNotification({ title: "资料已保存", message: "新的昵称和签名已经生效。", tone: "success" });
-      await refreshAll();
+      await dataActions.refreshAll();
     } catch (error) {
       store.profileHint.value = error?.message || "保存失败";
       store.profileHintTone.value = "error";
-      store.pushNotification({ title: "保存失败", message: error?.message || "请稍后重试", tone: "error" });
     }
   }
 
@@ -584,35 +409,42 @@ export function useChatActions(store) {
       "Content-Type": file.type || "application/octet-stream",
       "X-File-Name": encodeURIComponent(file.name || "avatar"),
     });
+    const refreshedUrl = appendCacheBust(payload.data?.avatarUrl || "", Date.now());
     store.me.value = {
       ...(store.me.value || {}),
       profile: {
         ...(store.me.value?.profile || {}),
-        avatarUrl: resolveMediaUrl(payload.data?.avatarUrl || ""),
+        avatarUrl: refreshedUrl,
       },
     };
     store.profileHint.value = "头像已上传";
     store.profileHintTone.value = "success";
-    await loadProfile({ userId: store.me.value.id || localStorage.getItem("chat_user_id") || "" });
-    await loadContacts();
-    await loadConversations();
-    await loadParticipants();
+    await dataActions.loadProfile({ userId: store.me.value.id || localStorage.getItem("chat_user_id") || "" });
+    store.me.value.profile.avatarUrl = refreshedUrl;
+    await dataActions.loadContacts();
+    await dataActions.loadConversations();
+    await dataActions.loadParticipants();
+    store.contacts.value = store.contacts.value.map((user) => (
+      String(user.id) === String(store.me.value.id)
+        ? { ...user, profile: { ...(user.profile || {}), avatarUrl: refreshedUrl } }
+        : user
+    ));
   }
 
   return {
-    loadProfile,
-    loadContacts,
-    loadConversations,
-    loadParticipants,
-    loadMessages,
-    loadOlderMessages,
-    refreshSelectedConversation,
-    refreshAll,
-    selectConversation,
+    loadProfile: dataActions.loadProfile,
+    loadContacts: dataActions.loadContacts,
+    loadConversations: dataActions.loadConversations,
+    loadParticipants: dataActions.loadParticipants,
+    loadMessages: dataActions.loadMessages,
+    loadOlderMessages: dataActions.loadOlderMessages,
+    refreshSelectedConversation: dataActions.refreshSelectedConversation,
+    refreshAll: dataActions.refreshAll,
+    selectConversation: dataActions.selectConversation,
     createDirectConversation,
     createGroupConversation,
     submitCreateConversation,
-    searchMessages,
+    searchMessages: dataActions.searchMessages,
     sendAnnouncement,
     submitAnnouncement,
     submitComposer,

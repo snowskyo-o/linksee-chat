@@ -21,6 +21,7 @@ defineEmits(["select"]);
       class="message-context-item"
       :class="{ danger: item.tone === 'danger' }"
       type="button"
+      :disabled="item.disabled"
       @click="$emit('select', item)"
     >
       <span>{{ item.label }}</span>

@@ -72,8 +72,17 @@ export function useChatRealtime(auth, selectedIdRef, conversationsRef, socketOnl
     }
   }
 
+  function disconnect() {
+    if (!socket) return;
+    socket.removeAllListeners();
+    socket.disconnect();
+    socket = null;
+    socketOnlineRef.value = false;
+  }
+
   return {
     connect,
     joinSelectedConversation,
+    disconnect,
   };
 }

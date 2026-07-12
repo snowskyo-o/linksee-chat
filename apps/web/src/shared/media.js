@@ -7,3 +7,10 @@ export function resolveMediaUrl(value) {
   if (source.startsWith("/")) return `${getServerOrigin()}${source}`;
   return source;
 }
+
+export function appendCacheBust(url, version = Date.now()) {
+  const source = String(url || "").trim();
+  if (!source) return "";
+  const separator = source.includes("?") ? "&" : "?";
+  return `${source}${separator}v=${encodeURIComponent(String(version))}`;
+}

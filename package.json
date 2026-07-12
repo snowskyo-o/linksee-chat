@@ -32,6 +32,7 @@
     "build":  {
                   "appId":  "com.snowskyo.linkseechat",
                   "productName":  "Linksee Chat",
+                  "icon":  "build/icon.png",
                   "directories":  {
                                       "output":  "release"
                                   },
@@ -44,6 +45,7 @@
                                         "main":  "apps/desktop/main.cjs"
                                     },
                   "win":  {
+                              "icon":  "build/icon.ico",
                               "target":  [
                                              "portable"
                                          ]

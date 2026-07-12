@@ -141,6 +141,38 @@ async function requestBlob(path, options) {
   return response;
 }
 
+function requestBlobWithProgress(path, headers = {}, onProgress) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("GET", buildUrl(path), true);
+    xhr.responseType = "blob";
+    Object.entries(authHeaders(headers)).forEach(([key, value]) => {
+      if (value != null) xhr.setRequestHeader(key, value);
+    });
+    xhr.onprogress = (event) => {
+      if (!event.lengthComputable || typeof onProgress !== "function") return;
+      onProgress({
+        loaded: event.loaded,
+        total: event.total,
+        percent: Math.max(0, Math.min(100, Math.round((event.loaded / event.total) * 100))),
+      });
+    };
+    xhr.onload = async () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(xhr.response);
+        return;
+      }
+      let payload = {};
+      try {
+        payload = JSON.parse(xhr.responseText || "{}");
+      } catch {}
+      reject(buildApiError({ status: xhr.status }, payload));
+    };
+    xhr.onerror = () => reject(buildNetworkError(new Error("XMLHttpRequest failed")));
+    xhr.send();
+  });
+}
+
 function putExternal(url, body, headers = {}, onProgress) {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
@@ -203,6 +235,9 @@ export const chatApi = {
   },
   getBlob(path) {
     return requestBlob(path, { headers: authHeaders() });
+  },
+  getBlobWithProgress(path, onProgress) {
+    return requestBlobWithProgress(path, {}, onProgress);
   },
   putExternal,
 };

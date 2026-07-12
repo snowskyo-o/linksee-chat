@@ -124,6 +124,7 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   if (conversationsRefreshTimer) window.clearTimeout(conversationsRefreshTimer);
   if (selectedRefreshTimer) window.clearTimeout(selectedRefreshTimer);
+  realtime.disconnect();
 });
 </script>
 
@@ -178,6 +179,7 @@ onBeforeUnmount(() => {
         :composer-hint-tone="store.composerHintTone.value"
         :uploading-files="store.uploadingFiles.value"
         :upload-progress-text="store.uploadProgressText.value"
+        :download-progress-text="store.downloadProgressText.value"
         :is-pinned="Boolean(store.selectedConversation.value?.pinnedAt)"
         :has-more-messages="store.hasMoreMessages.value"
         :loading-more-messages="store.loadingMoreMessages.value"

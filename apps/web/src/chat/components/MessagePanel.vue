@@ -24,6 +24,7 @@ const props = defineProps({
   composerHintTone: { type: String, default: "" },
   uploadingFiles: { type: Boolean, default: false },
   uploadProgressText: { type: String, default: "" },
+  downloadProgressText: { type: String, default: "" },
   isPinned: { type: Boolean, default: false },
   hasMoreMessages: { type: Boolean, default: false },
   loadingMoreMessages: { type: Boolean, default: false },
@@ -70,6 +71,10 @@ const contextMenuItems = computed(() => {
 
   if (message.canRecall) {
     items.push({ key: "recall", label: "撤回", tone: "danger" });
+  }
+
+  if (message.canRetry) {
+    items.push({ key: "retry", label: "重试发送" });
   }
 
   if (message.isFileMessage) {
@@ -258,7 +263,9 @@ function updateMessageInput(value) {
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 7H9.83l-2-2H5a2 2 0 0 0-2 2v10c0 1.1.9 2 2 2h14a2 2 0 0 0 2-2V9c0-1.1-.9-2-2-2Zm0 10H5V7h2l2 2h10v8Z"/></svg>
           </button>
         </div>
-        <div v-if="uploadProgressText" class="search-bar upload-inline-tip">{{ uploadProgressText }}</div>
+        <div v-if="uploadProgressText || downloadProgressText" class="search-bar upload-inline-tip">
+          {{ uploadProgressText || downloadProgressText }}
+        </div>
       </div>
 
       <EmojiPicker :open="emojiOpen" @pick="appendEmoji" />

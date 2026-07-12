@@ -72,6 +72,9 @@ export function useChatStore(auth) {
   const uploadingFiles = ref(false);
   const uploadProgress = ref(0);
   const uploadFileName = ref("");
+  const downloadingFile = ref(false);
+  const downloadProgress = ref(0);
+  const downloadFileName = ref("");
   const composerHint = ref("");
   const composerHintTone = ref("");
   const profileName = ref("");
@@ -115,6 +118,11 @@ export function useChatStore(auth) {
     if (!uploadingFiles.value) return "";
     if (!uploadFileName.value) return `上传中 ${uploadProgress.value}%`;
     return `正在上传 ${uploadFileName.value} · ${uploadProgress.value}%`;
+  });
+  const downloadProgressText = computed(() => {
+    if (!downloadingFile.value) return "";
+    if (!downloadFileName.value) return `下载中 ${downloadProgress.value}%`;
+    return `正在下载 ${downloadFileName.value} · ${downloadProgress.value}%`;
   });
 
   const filteredConversations = computed(() => {
@@ -178,10 +186,20 @@ export function useChatStore(auth) {
         ? "你撤回了一条消息"
         : `${senderName} 撤回了一条消息`,
       operationState: message.operationState || "",
+      statusText: message.operationState === "sending"
+        ? "发送中"
+        : message.operationState === "failed"
+          ? "发送失败"
+          : message.operationState === "editing"
+            ? "编辑中"
+            : message.operationState === "recalling"
+              ? "撤回中"
+              : "",
       isFileMessage,
       isMe: String(message.senderId) === String(auth.userId),
       canEdit: String(message.senderId) === String(auth.userId) && !deleted && message.type === "text" && !isFileMessage && !message.operationState,
       canRecall: String(message.senderId) === String(auth.userId) && !deleted && !message.operationState,
+      canRetry: String(message.senderId) === String(auth.userId) && message.operationState === "failed",
       timeText: formatDateTime(message.createdAt),
       html,
       files: isFileMessage
@@ -366,7 +384,11 @@ export function useChatStore(auth) {
     uploadingFiles,
     uploadProgress,
     uploadFileName,
+    downloadingFile,
+    downloadProgress,
+    downloadFileName,
     uploadProgressText,
+    downloadProgressText,
     composerHint,
     composerHintTone,
     profileName,
