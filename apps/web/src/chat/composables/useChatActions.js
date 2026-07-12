@@ -101,43 +101,6 @@ export function useChatActions(store) {
     }
   }
 
-  async function submitEdit(content, mentions, editingId) {
-    const previous = findMessage(store, editingId);
-    patchMessageLocally(store, editingId, {
-      content,
-      mentions,
-      editedAt: new Date().toISOString(),
-      operationState: "editing",
-      sendError: "",
-    });
-    syncConversationPreview(store, store.selectedId.value, {
-      content,
-      type: "text",
-      createdAt: previous?.createdAt || new Date().toISOString(),
-    });
-    store.clearReplyState();
-    store.resetComposer();
-    try {
-      const payload = await chatApi.patchJson(
-        `/api/v1/conversations/${encodeURIComponent(store.selectedId.value)}/messages/${encodeURIComponent(editingId)}`,
-        { content, mentions },
-      );
-      if (payload.data) {
-        const normalized = normalizeMessage(payload.data);
-        replaceMessageLocally(store, editingId, normalized);
-        syncConversationPreview(store, store.selectedId.value, normalized);
-      }
-    } catch (error) {
-      if (previous) {
-        replaceMessageLocally(store, editingId, previous);
-        syncConversationPreview(store, store.selectedId.value, previous);
-      }
-      store.messageInput.value = content;
-      store.editingMessageId.value = editingId;
-      throw error;
-    }
-  }
-
   async function postTextMessage(content, mentions, replyTo, optimisticMessage) {
     const payload = await chatApi.postJson(`/api/v1/conversations/${encodeURIComponent(store.selectedId.value)}/messages`, {
       content,
@@ -156,24 +119,20 @@ export function useChatActions(store) {
     const content = store.messageInput.value.trim();
     if (!content) return;
     const mentions = store.collectMentionIds(content);
-    if (store.editingMessageId.value) {
-      await submitEdit(content, mentions, store.editingMessageId.value);
-    } else {
-      const replyTo = store.replyTo.value ? { ...store.replyTo.value } : null;
-      const optimisticMessage = buildOptimisticTextMessage(store, content, mentions, replyTo);
-      store.messages.value = [...store.messages.value, optimisticMessage];
-      syncConversationPreview(store, store.selectedId.value, optimisticMessage);
-      store.clearReplyState();
-      store.resetComposer();
-      try {
-        await postTextMessage(content, mentions, replyTo, optimisticMessage);
-      } catch (error) {
-        patchMessageLocally(store, optimisticMessage.id, {
-          operationState: "failed",
-          sendError: error?.message || "发送失败",
-        });
-        throw error;
-      }
+    const replyTo = store.replyTo.value ? { ...store.replyTo.value } : null;
+    const optimisticMessage = buildOptimisticTextMessage(store, content, mentions, replyTo);
+    store.messages.value = [...store.messages.value, optimisticMessage];
+    syncConversationPreview(store, store.selectedId.value, optimisticMessage);
+    store.clearReplyState();
+    store.resetComposer();
+    try {
+      await postTextMessage(content, mentions, replyTo, optimisticMessage);
+    } catch (error) {
+      patchMessageLocally(store, optimisticMessage.id, {
+        operationState: "failed",
+        sendError: error?.message || "发送失败",
+      });
+      throw error;
     }
     dataActions.loadConversations().catch(() => {});
     dataActions.markConversationReadIfNeeded().catch(() => {});
@@ -351,13 +310,6 @@ export function useChatActions(store) {
     if (!message || (message.operationState && action !== "retry")) return;
     if (action === "reply") {
       store.replyTo.value = message;
-      store.editingMessageId.value = "";
-      return;
-    }
-    if (action === "edit") {
-      store.replyTo.value = null;
-      store.editingMessageId.value = message.id;
-      store.messageInput.value = message.content || "";
       return;
     }
     if (action === "recall") {
@@ -372,19 +324,6 @@ export function useChatActions(store) {
         store.setComposerHint(error?.message || "重试失败", "error");
       });
     }
-  }
-
-  async function markSelectedConversationRead() {
-    if (!store.selectedId.value || !store.messages.value.length) return;
-    const lastMessage = store.messages.value[store.messages.value.length - 1];
-    await chatApi.postJson(`/api/v1/conversations/${encodeURIComponent(store.selectedId.value)}/read`, {
-      messageId: lastMessage.id,
-    });
-    patchConversationLocally(store, store.selectedId.value, {
-      unreadCount: 0,
-      unreadMentionCount: 0,
-      lastReadAt: new Date().toISOString(),
-    });
   }
 
   async function saveProfile() {
@@ -466,7 +405,6 @@ export function useChatActions(store) {
     downloadFile,
     handleMessageAction,
     submitConfirmDialog,
-    markSelectedConversationRead,
     toggleConversationPin,
     toggleConversationPinById,
     saveProfile,

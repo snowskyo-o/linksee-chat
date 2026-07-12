@@ -59,7 +59,6 @@ export function useChatStore(auth) {
   const hasMoreMessages = ref(false);
   const loadingMoreMessages = ref(false);
   const replyTo = ref(null);
-  const editingMessageId = ref("");
   const mentionOpen = ref(false);
   const mentionStart = ref(-1);
   const mentionKeyword = ref("");
@@ -190,14 +189,11 @@ export function useChatStore(auth) {
         ? "发送中"
         : message.operationState === "failed"
           ? "发送失败"
-          : message.operationState === "editing"
-            ? "编辑中"
-            : message.operationState === "recalling"
+          : message.operationState === "recalling"
               ? "撤回中"
               : "",
       isFileMessage,
       isMe: String(message.senderId) === String(auth.userId),
-      canEdit: String(message.senderId) === String(auth.userId) && !deleted && message.type === "text" && !isFileMessage && !message.operationState,
       canRecall: String(message.senderId) === String(auth.userId) && !deleted && !message.operationState,
       canRetry: String(message.senderId) === String(auth.userId) && message.operationState === "failed",
       timeText: formatDateTime(message.createdAt),
@@ -215,9 +211,8 @@ export function useChatStore(auth) {
     };
   }));
 
-  const showReplyBar = computed(() => Boolean(editingMessageId.value || replyTo.value));
+  const showReplyBar = computed(() => Boolean(replyTo.value));
   const replyText = computed(() => {
-    if (editingMessageId.value) return "正在编辑消息，发送后会覆盖原内容。";
     if (replyTo.value) {
       return `回复 ${replyTo.value.sender?.profile?.realName || replyTo.value.senderId}：${replyTo.value.content || ""}`;
     }
@@ -311,7 +306,6 @@ export function useChatStore(auth) {
   }
 
   function clearReplyState() {
-    editingMessageId.value = "";
     replyTo.value = null;
   }
 
@@ -371,7 +365,6 @@ export function useChatStore(auth) {
     hasMoreMessages,
     loadingMoreMessages,
     replyTo,
-    editingMessageId,
     mentionOpen,
     mentionStart,
     mentionKeyword,

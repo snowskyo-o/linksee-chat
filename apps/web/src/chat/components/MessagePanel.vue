@@ -16,7 +16,6 @@ const props = defineProps({
   messages: { type: Array, default: () => [] },
   replyText: { type: String, default: "" },
   showReplyBar: { type: Boolean, default: false },
-  editing: { type: Boolean, default: false },
   messageInput: { type: String, default: "" },
   mentionOpen: { type: Boolean, default: false },
   mentionOptions: { type: Array, default: () => [] },
@@ -35,7 +34,6 @@ const emit = defineEmits([
   "update:messageKeyword",
   "search",
   "announcement",
-  "mark-read",
   "toggle-pin",
   "cancel-edit",
   "update:messageInput",
@@ -66,10 +64,6 @@ const contextMenuItems = computed(() => {
   const items = [
     { key: "reply", label: "回复" },
   ];
-
-  if (message.canEdit) {
-    items.push({ key: "edit", label: "编辑" });
-  }
 
   if (message.canRecall) {
     items.push({ key: "recall", label: "撤回", tone: "danger" });
@@ -275,9 +269,6 @@ onBeforeUnmount(() => {
         <button class="qq-chat-icon-btn" type="button" title="置顶会话" @click="$emit('toggle-pin')">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3 9 8l2 2-4 6v2h10v-2l-4-6 2-2 4 4V5l-5-2Z"/></svg>
         </button>
-        <button class="qq-chat-icon-btn" type="button" title="标记已读" @click="$emit('mark-read')">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9.55 17.7-4.9-4.9 1.4-1.4 3.5 3.49 8.4-8.39 1.4 1.41-9.8 9.79Zm0-5.66-1.41-1.4 1.41-1.42 1.41 1.42-1.41 1.4Z"/></svg>
-        </button>
         <div class="socket-pill" :class="socketOnline ? 'online' : 'offline'">
           {{ socketOnline ? "在线" : "离线" }}
         </div>
@@ -335,7 +326,7 @@ onBeforeUnmount(() => {
       <input class="hidden" type="file" multiple @change="$emit('file-change', $event)" />
       <div class="composer-top desktop-composer-top">
         <div class="composer-tool-group qq-composer-toolbar">
-          <button v-if="editing || showReplyBar" class="ghost-btn compact-btn" type="button" @click="$emit('cancel-edit')">取消</button>
+          <button v-if="showReplyBar" class="ghost-btn compact-btn" type="button" @click="$emit('cancel-edit')">取消回复</button>
           <button class="qq-chat-tool-btn is-emoji" type="button" title="表情" @click="toggleEmojiPicker">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 1 1 0 20a10 10 0 0 1 0-20Zm-3 7a1.25 1.25 0 1 0 0 2.5A1.25 1.25 0 0 0 9 9Zm6 0a1.25 1.25 0 1 0 0 2.5A1.25 1.25 0 0 0 15 9Zm-6.18 5.36a1 1 0 0 0-1.64 1.14A5.98 5.98 0 0 0 12 18a5.98 5.98 0 0 0 4.82-2.5a1 1 0 1 0-1.64-1.14A3.98 3.98 0 0 1 12 16a3.98 3.98 0 0 1-3.18-1.64Z"/></svg>
           </button>
