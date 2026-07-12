@@ -1,14 +1,18 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import AnnouncementDialog from "./components/AnnouncementDialog.vue";
 import ConfirmDialog from "./components/ConfirmDialog.vue";
 import ConversationSidebar from "./components/ConversationSidebar.vue";
 import CreateConversationDialog from "./components/CreateConversationDialog.vue";
+import ForwardDialog from "./components/ForwardDialog.vue";
 import MessagePanel from "./components/MessagePanel.vue";
 import InfoSidebar from "./components/InfoSidebar.vue";
+import SettingsDialog from "./components/SettingsDialog.vue";
 import ToastStack from "./components/ToastStack.vue";
 import DesktopTitlebar from "../shared/components/DesktopTitlebar.vue";
+import { appendAppLog, clearAppLogs, onAppLogsUpdated, readAppLogs } from "../shared/app-log.js";
 import { getAuth, logout } from "../shared/session.js";
+import { loadAppSettings, saveAppSettings } from "../shared/app-settings.js";
 import { getDesktopConversationId, getDesktopWindowKind, isDesktopRuntime } from "../shared/runtime.js";
 import { useChatStore } from "./store/useChatStore.js";
 import { useChatActions } from "./composables/useChatActions.js";
@@ -19,6 +23,16 @@ const store = useChatStore(auth);
 const actions = useChatActions(store);
 const queryConversationId = new URLSearchParams(window.location.search).get("conversationId") || "";
 const desktopConversationId = getDesktopConversationId() || queryConversationId;
+const settingsOpen = ref(false);
+const appSettings = ref(loadAppSettings());
+const appLogs = ref(readAppLogs());
+const appInfo = ref({
+  productName: "Linksee Chat",
+  version: "",
+  electron: window.desktopShell?.versions?.electron || "",
+  chrome: window.desktopShell?.versions?.chrome || "",
+  node: window.desktopShell?.versions?.node || "",
+});
 const standaloneConversationMode = computed(() => (
   isDesktopRuntime() && getDesktopWindowKind() === "chat"
 ));
@@ -28,6 +42,7 @@ const showStandaloneInfoSidebar = computed(() => (
 
 let conversationsRefreshTimer = null;
 let selectedRefreshTimer = null;
+let detachLogs = null;
 
 function scheduleConversationsRefresh() {
   if (conversationsRefreshTimer) window.clearTimeout(conversationsRefreshTimer);
@@ -49,6 +64,9 @@ async function handleRealtimeEvent(event) {
   const topic = String(event?.topic || "");
   const conversationId = String(event?.payload?.conversationId || "");
   if (!topic || topic === "socket.ready") return;
+  if (topic === "conversation.message.created") {
+    notifyIncomingMessage(conversationId);
+  }
   scheduleConversationsRefresh();
   if (conversationId && String(store.selectedId.value) === conversationId) {
     scheduleSelectedRefresh();
@@ -57,12 +75,66 @@ async function handleRealtimeEvent(event) {
 
 const realtime = useChatRealtime(auth, store.selectedId, store.conversations, store.socketOnline, handleRealtimeEvent);
 
+function persistSettings(nextSettings) {
+  appSettings.value = saveAppSettings(nextSettings);
+}
+
+function openSettings() {
+  settingsOpen.value = true;
+}
+
+function closeSettings() {
+  settingsOpen.value = false;
+}
+
+function isCurrentConversationFocused(conversationId) {
+  return document.visibilityState === "visible"
+    && document.hasFocus()
+    && String(store.selectedId.value) === String(conversationId);
+}
+
+async function notifyIncomingMessage(conversationId) {
+  if (!conversationId || !appSettings.value.notifications?.desktopEnabled && !appSettings.value.notifications?.soundEnabled) {
+    return;
+  }
+  if (isCurrentConversationFocused(conversationId)) {
+    return;
+  }
+  const conversation = store.conversations.value.find((item) => String(item.id) === String(conversationId));
+  const title = conversation?.title || conversation?.displayTitle || store.chatTitle.value || "新消息";
+  const body = conversation?.lastMessage?.content || "你收到一条新消息";
+
+  if (appSettings.value.notifications?.soundEnabled) {
+    window.desktopShell?.beep?.();
+  }
+  if (appSettings.value.notifications?.desktopEnabled) {
+    if (typeof window.desktopShell?.showNotification === "function") {
+      await window.desktopShell.showNotification({
+        title,
+        body,
+        conversationId,
+      }).catch(() => {});
+      appendAppLog({ level: "info", category: "notification", message: `已发送桌面提醒：${title}`, meta: body });
+      return;
+    }
+    if ("Notification" in window) {
+      if (Notification.permission === "default") {
+        await Notification.requestPermission().catch(() => "denied");
+      }
+      if (Notification.permission === "granted") {
+        new Notification(title, { body });
+        appendAppLog({ level: "info", category: "notification", message: `已发送浏览器提醒：${title}`, meta: body });
+      }
+    }
+  }
+}
+
 function handleComposerKeydown(event) {
   if (event.key === "Escape") {
     store.mentionOpen.value = false;
     store.mentionOptions.value = [];
   }
-  if (event.key === "Enter" && !event.shiftKey) {
+  if (event.key === "Enter" && !event.shiftKey && appSettings.value.general?.sendByEnter !== false) {
     event.preventDefault();
     actions.submitComposer().catch((error) => {
       store.setComposerHint(error?.message || "发送失败", "error");
@@ -97,6 +169,18 @@ function handleFileChange(event) {
   });
 }
 
+function handleFileDrop(files) {
+  actions.uploadFiles(files || []).catch((error) => {
+    store.setComposerHint(error?.message || "上传失败", "error");
+  });
+}
+
+function clearMessageSearch() {
+  store.messageKeyword.value = "";
+  store.searchKeyword.value = "";
+  actions.refreshSelectedConversation().catch(() => {});
+}
+
 function handleAvatarUpload(event) {
   const file = event.target?.files?.[0];
   actions.uploadAvatar(file).catch((error) => {
@@ -107,6 +191,19 @@ function handleAvatarUpload(event) {
 
 onMounted(async () => {
   try {
+    detachLogs = onAppLogsUpdated((logs) => {
+      appLogs.value = logs;
+    });
+    const runtimeInfo = await window.desktopShell?.getAppInfo?.().catch(() => null);
+    if (runtimeInfo) {
+      appInfo.value = {
+        productName: runtimeInfo.productName || "Linksee Chat",
+        version: runtimeInfo.version || "",
+        electron: runtimeInfo.electron || appInfo.value.electron,
+        chrome: runtimeInfo.chrome || appInfo.value.chrome,
+        node: runtimeInfo.node || appInfo.value.node,
+      };
+    }
     await actions.loadProfile(auth);
     await actions.loadContacts();
     await actions.loadConversations();
@@ -124,6 +221,7 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   if (conversationsRefreshTimer) window.clearTimeout(conversationsRefreshTimer);
   if (selectedRefreshTimer) window.clearTimeout(selectedRefreshTimer);
+  if (typeof detachLogs === "function") detachLogs();
   realtime.disconnect();
 });
 </script>
@@ -158,6 +256,7 @@ onBeforeUnmount(() => {
         @refresh="actions.refreshAll"
         @new-direct="actions.createDirectConversation"
         @new-group="actions.createGroupConversation"
+        @open-settings="openSettings"
         @toggle-pin="actions.toggleConversationPinById"
         @logout="logout"
       />
@@ -168,6 +267,7 @@ onBeforeUnmount(() => {
         :message-keyword="store.messageKeyword.value"
         :socket-online="store.socketOnline.value"
         :search-result-text="store.searchResultText.value"
+        :searching="Boolean(store.searchKeyword.value)"
         :messages="store.renderedMessages.value"
         :reply-text="store.replyText.value"
         :show-reply-bar="store.showReplyBar.value"
@@ -185,6 +285,7 @@ onBeforeUnmount(() => {
         :standalone-mode="standaloneConversationMode"
         @update:message-keyword="store.messageKeyword.value = $event"
         @search="actions.searchMessages"
+        @clear-search="clearMessageSearch"
         @announcement="actions.sendAnnouncement"
         @toggle-pin="actions.toggleConversationPin"
         @cancel-edit="cancelEdit"
@@ -195,27 +296,48 @@ onBeforeUnmount(() => {
         @message-action="actions.handleMessageAction"
         @open-file-picker="openFilePicker"
         @file-change="handleFileChange"
+        @file-drop="handleFileDrop"
         @download-file="actions.downloadFile"
         @load-more="actions.loadOlderMessages"
       />
 
       <InfoSidebar
         v-if="!standaloneConversationMode || showStandaloneInfoSidebar"
-        :me-avatar-url="store.meAvatarUrl.value"
-        :profile-name="store.profileName.value"
-        :profile-bio="store.profileBio.value"
-        :profile-hint="store.profileHint.value"
-        :profile-hint-tone="store.profileHintTone.value"
-        :participants="store.participants.value"
         :standalone-mode="standaloneConversationMode"
-        @update:profile-name="store.profileName.value = $event"
-        @update:profile-bio="store.profileBio.value = $event"
-        @save-profile="actions.saveProfile"
-        @upload-avatar="handleAvatarUpload"
       />
     </section>
 
     <ToastStack :notifications="store.notifications.value" @dismiss="store.dismissNotification" />
+
+    <SettingsDialog
+      :open="settingsOpen"
+      :settings="appSettings"
+      :profile-name="store.profileName.value"
+      :profile-bio="store.profileBio.value"
+      :profile-hint="store.profileHint.value"
+      :profile-hint-tone="store.profileHintTone.value"
+      :me-avatar-url="store.meAvatarUrl.value"
+      :app-info="appInfo"
+      :logs="appLogs"
+      @close="closeSettings"
+      @clear-logs="clearAppLogs()"
+      @update:settings="persistSettings"
+      @update:profile-name="store.profileName.value = $event"
+      @update:profile-bio="store.profileBio.value = $event"
+      @save-profile="actions.saveProfile"
+      @upload-avatar="handleAvatarUpload"
+    />
+
+    <ForwardDialog
+      :open="store.forwardDialogOpen.value"
+      :conversations="store.filteredConversations.value"
+      :selected-id="store.forwardConversationId.value"
+      :hint="store.forwardHint.value"
+      :submitting="store.forwardSubmitting.value"
+      @close="store.closeForwardDialog"
+      @update:selected-id="store.forwardConversationId.value = $event"
+      @submit="actions.submitForwardMessage"
+    />
 
     <CreateConversationDialog
       v-if="!standaloneConversationMode"

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Menu, Tray, nativeImage } = require("electron");
+const { app, BrowserWindow, ipcMain, Menu, Notification, Tray, nativeImage, shell } = require("electron");
 const fs = require("node:fs");
 const path = require("node:path");
 
@@ -210,6 +210,26 @@ function showPrimaryWindowFromTray() {
   createLoginWindow();
 }
 
+function showDesktopNotification({ title, body, conversationId = "" }) {
+  if (!Notification.isSupported()) return false;
+  const notification = new Notification({
+    title: String(title || "Linksee Chat"),
+    body: String(body || "你收到一条新消息"),
+    silent: true,
+    icon: resolveTrayIconPath() || undefined,
+  });
+  notification.on("click", () => {
+    if (conversationId) {
+      createListWindow();
+      createChatWindow(conversationId);
+      return;
+    }
+    showPrimaryWindowFromTray();
+  });
+  notification.show();
+  return true;
+}
+
 function ensureTray() {
   if (tray && !tray.isDestroyed?.()) return tray;
 
@@ -371,6 +391,13 @@ function registerIpcHandlers() {
   ipcMain.handle("desktop:get-runtime-config", () => ({
     serverOrigin: targetOrigin,
   }));
+  ipcMain.handle("desktop:get-app-info", () => ({
+    productName: app.getName(),
+    version: app.getVersion(),
+    electron: process.versions.electron,
+    chrome: process.versions.chrome,
+    node: process.versions.node,
+  }));
   ipcMain.handle("desktop:minimize", (event) => {
     const window = resolveWindowByEvent(event);
     if (!window || window.isDestroyed()) return null;
@@ -412,6 +439,13 @@ function registerIpcHandlers() {
     }
     closeAllChatWindows();
     createLoginWindow();
+    return true;
+  });
+  ipcMain.handle("desktop:show-notification", (_event, payload) => {
+    return showDesktopNotification(payload || {});
+  });
+  ipcMain.handle("desktop:beep", () => {
+    shell.beep();
     return true;
   });
 }

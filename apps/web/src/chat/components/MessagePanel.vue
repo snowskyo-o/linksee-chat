@@ -13,6 +13,7 @@ const props = defineProps({
   messageKeyword: { type: String, default: "" },
   socketOnline: { type: Boolean, default: false },
   searchResultText: { type: String, default: "" },
+  searching: { type: Boolean, default: false },
   messages: { type: Array, default: () => [] },
   replyText: { type: String, default: "" },
   showReplyBar: { type: Boolean, default: false },
@@ -33,6 +34,7 @@ const props = defineProps({
 const emit = defineEmits([
   "update:messageKeyword",
   "search",
+  "clear-search",
   "announcement",
   "toggle-pin",
   "cancel-edit",
@@ -44,12 +46,17 @@ const emit = defineEmits([
   "open-file-picker",
   "download-file",
   "file-change",
+  "file-drop",
   "load-more",
 ]);
 
 const emojiOpen = ref(false);
 const messageListRef = ref(null);
+const workspaceRef = ref(null);
 const pendingIncomingCount = ref(0);
+const dragActive = ref(false);
+const searchMatchIndex = ref(-1);
+const searchMatches = ref([]);
 const messageMenu = ref({
   open: false,
   x: 0,
@@ -65,8 +72,21 @@ const contextMenuItems = computed(() => {
     { key: "reply", label: "回复" },
   ];
 
+  if (message.canForward) {
+    items.push({ key: "forward", label: "转发" });
+  }
+
+  items.push({
+    key: "favorite",
+    label: message.isFavorite ? "取消收藏" : "收藏",
+  });
+
   if (message.canRecall) {
     items.push({ key: "recall", label: "撤回", tone: "danger" });
+  }
+
+  if (message.canDelete) {
+    items.push({ key: "delete", label: "删除", tone: "danger" });
   }
 
   if (message.canRetry) {
@@ -163,6 +183,44 @@ function updateMessageInput(value) {
   emit("update:messageInput", value);
 }
 
+function collectSearchMatches() {
+  const element = messageListRef.value;
+  if (!element) {
+    searchMatches.value = [];
+    searchMatchIndex.value = -1;
+    return;
+  }
+  searchMatches.value = Array.from(element.querySelectorAll(".message-search-mark"));
+  if (!searchMatches.value.length) {
+    searchMatchIndex.value = -1;
+    return;
+  }
+  if (searchMatchIndex.value < 0 || searchMatchIndex.value >= searchMatches.value.length) {
+    searchMatchIndex.value = 0;
+  }
+  searchMatches.value.forEach((node, index) => {
+    node.classList.toggle("is-active", index === searchMatchIndex.value);
+  });
+}
+
+function focusSearchMatch(index) {
+  if (!searchMatches.value.length) return;
+  const safeIndex = ((index % searchMatches.value.length) + searchMatches.value.length) % searchMatches.value.length;
+  searchMatchIndex.value = safeIndex;
+  searchMatches.value.forEach((node, nextIndex) => {
+    node.classList.toggle("is-active", nextIndex === safeIndex);
+  });
+  searchMatches.value[safeIndex]?.scrollIntoView({
+    behavior: "smooth",
+    block: "center",
+  });
+}
+
+function jumpSearchMatch(step) {
+  if (!searchMatches.value.length) return;
+  focusSearchMatch(searchMatchIndex.value + step);
+}
+
 function getDistanceFromBottom() {
   const element = messageListRef.value;
   if (!element) return 0;
@@ -193,7 +251,63 @@ function handleMessageListScroll() {
   }
 }
 
+function isFileDrag(event) {
+  return event.dataTransfer?.types?.includes("Files");
+}
+
+function isPointInsideWorkspace(clientX, clientY) {
+  const element = workspaceRef.value;
+  if (!element) return false;
+  const rect = element.getBoundingClientRect();
+  return clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom;
+}
+
+function resetDragState() {
+  dragActive.value = false;
+}
+
+function handleDragEnter(event) {
+  if (!isFileDrag(event)) return;
+  event.preventDefault();
+  dragActive.value = isPointInsideWorkspace(event.clientX, event.clientY);
+}
+
+function handleDragOver(event) {
+  if (!isFileDrag(event)) return;
+  event.preventDefault();
+  event.dataTransfer.dropEffect = "copy";
+  dragActive.value = isPointInsideWorkspace(event.clientX, event.clientY);
+}
+
+function handleDragLeave(event) {
+  if (!isFileDrag(event)) return;
+  if (isPointInsideWorkspace(event.clientX, event.clientY)) return;
+  resetDragState();
+}
+
+function handleDrop(event) {
+  if (!event.dataTransfer?.files?.length) return;
+  event.preventDefault();
+  resetDragState();
+  emit("file-drop", event.dataTransfer.files);
+}
+
+function handleWindowDragOver(event) {
+  if (!dragActive.value || !isFileDrag(event)) return;
+  if (!isPointInsideWorkspace(event.clientX, event.clientY)) {
+    resetDragState();
+  }
+}
+
+function handleWindowDragEnd() {
+  resetDragState();
+}
+
 onMounted(() => {
+  window.addEventListener("dragover", handleWindowDragOver);
+  window.addEventListener("drop", handleWindowDragEnd);
+  window.addEventListener("dragend", handleWindowDragEnd);
+  window.addEventListener("blur", handleWindowDragEnd);
   nextTick(() => {
     scrollMessageListToBottom("auto");
     messageListRef.value?.addEventListener("scroll", handleMessageListScroll, { passive: true });
@@ -224,13 +338,34 @@ watch(
   },
 );
 
+watch(
+  () => [props.searching, props.searchResultText, props.messages.length],
+  async () => {
+    await nextTick();
+    collectSearchMatches();
+  },
+  { deep: true },
+);
+
 onBeforeUnmount(() => {
+  window.removeEventListener("dragover", handleWindowDragOver);
+  window.removeEventListener("drop", handleWindowDragEnd);
+  window.removeEventListener("dragend", handleWindowDragEnd);
+  window.removeEventListener("blur", handleWindowDragEnd);
   messageListRef.value?.removeEventListener("scroll", handleMessageListScroll);
 });
 </script>
 
 <template>
-  <section class="chat-workspace" :class="{ 'is-standalone': standaloneMode }">
+  <section
+    ref="workspaceRef"
+    class="chat-workspace"
+    :class="{ 'is-standalone': standaloneMode, 'is-drag-active': dragActive }"
+    @dragenter="handleDragEnter"
+    @dragover="handleDragOver"
+    @dragleave="handleDragLeave"
+    @drop="handleDrop"
+  >
     <div v-if="standaloneMode" class="chat-standalone-topbar">
       <div class="chat-window-drag">
         <span class="chat-window-mark">L</span>
@@ -276,16 +411,28 @@ onBeforeUnmount(() => {
     </header>
 
     <div class="chat-toolbar-search">
-      <input
-        :value="messageKeyword"
-        class="qq-search qq-search-inline is-chat"
-        placeholder="搜索消息"
-        @input="$emit('update:messageKeyword', $event.target.value)"
-        @keydown.enter.prevent="$emit('search')"
-      />
+      <div class="chat-toolbar-search-inner">
+        <input
+          :value="messageKeyword"
+          class="qq-search qq-search-inline is-chat"
+          placeholder="搜索消息"
+          @input="$emit('update:messageKeyword', $event.target.value)"
+          @keydown.enter.prevent="$emit('search')"
+        />
+        <button v-if="messageKeyword || searching" class="ghost-btn compact-btn" type="button" @click="$emit('clear-search')">
+          清除
+        </button>
+      </div>
     </div>
 
     <div v-if="searchResultText" class="search-bar">{{ searchResultText }}</div>
+    <div v-if="searching && searchMatches.length" class="search-bar search-nav-bar">
+      <span>当前匹配 {{ searchMatchIndex + 1 }} / {{ searchMatches.length }}</span>
+      <div class="search-nav-actions">
+        <button class="ghost-btn compact-btn" type="button" @click="jumpSearchMatch(-1)">上一条</button>
+        <button class="ghost-btn compact-btn" type="button" @click="jumpSearchMatch(1)">下一条</button>
+      </div>
+    </div>
 
     <div ref="messageListRef" class="message-list desktop-message-list">
       <button
@@ -380,5 +527,12 @@ onBeforeUnmount(() => {
       :items="contextMenuItems"
       @select="selectContextItem"
     />
+
+    <div v-if="dragActive" class="chat-drop-overlay">
+      <div class="chat-drop-card">
+        <strong>拖拽发送文件</strong>
+        <p class="muted">松开鼠标即可上传，同批重复文件会自动去重。</p>
+      </div>
+    </div>
   </section>
 </template>

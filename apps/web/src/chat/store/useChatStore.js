@@ -2,6 +2,33 @@ import { computed, ref } from "vue";
 import { resolveMediaUrl } from "../../shared/media.js";
 import { escapeHtml, formatDateTime, formatExpiry, formatFileSize, getInitials } from "../../shared/utils.js";
 
+const FAVORITES_STORAGE_KEY = "linksee_chat_favorite_messages";
+
+function loadFavoriteMessages() {
+  try {
+    const raw = window.localStorage.getItem(FAVORITES_STORAGE_KEY);
+    const parsed = JSON.parse(raw || "[]");
+    return Array.isArray(parsed) ? parsed.filter(Boolean).map((item) => ({
+      id: String(item.id || ""),
+      conversationId: String(item.conversationId || ""),
+      conversationTitle: String(item.conversationTitle || "收藏消息"),
+      senderName: String(item.senderName || "未知用户"),
+      content: String(item.content || ""),
+      createdAt: String(item.createdAt || ""),
+    })).filter((item) => item.id && item.conversationId) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveFavoriteMessages(items) {
+  window.localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(items));
+}
+
+function escapeRegExp(value) {
+  return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 function conversationRank(row) {
   const pinnedRank = row.pinnedAt ? 1 : 0;
   const mentionRank = Number(row.unreadMentionCount || 0) > 0 ? 1 : 0;
@@ -59,6 +86,7 @@ export function useChatStore(auth) {
   const hasMoreMessages = ref(false);
   const loadingMoreMessages = ref(false);
   const replyTo = ref(null);
+  const favoriteMessages = ref(loadFavoriteMessages());
   const mentionOpen = ref(false);
   const mentionStart = ref(-1);
   const mentionKeyword = ref("");
@@ -99,6 +127,11 @@ export function useChatStore(auth) {
   const confirmDialogConfirmText = ref("确认");
   const confirmDialogSubmitting = ref(false);
   const pendingConfirmAction = ref(null);
+  const forwardDialogOpen = ref(false);
+  const forwardingMessageId = ref("");
+  const forwardConversationId = ref("");
+  const forwardHint = ref("");
+  const forwardSubmitting = ref(false);
 
   const meName = computed(() => me.value?.profile?.realName || auth.userId || "未登录");
   const meMeta = computed(() => me.value?.profile?.bio || "保持联络，保持专注");
@@ -177,6 +210,12 @@ export function useChatStore(auth) {
       html = html.split(escapeHtml(token)).join(`<span class="mention">${escapeHtml(token)}</span>`);
     });
 
+    const activeSearch = searchKeyword.value.trim();
+    if (activeSearch) {
+      const pattern = new RegExp(`(${escapeRegExp(escapeHtml(activeSearch))})`, "gi");
+      html = html.replace(pattern, '<mark class="message-search-mark">$1</mark>');
+    }
+
     return {
       ...message,
       senderName,
@@ -196,6 +235,9 @@ export function useChatStore(auth) {
       isMe: String(message.senderId) === String(auth.userId),
       canRecall: String(message.senderId) === String(auth.userId) && !deleted && !message.operationState,
       canRetry: String(message.senderId) === String(auth.userId) && message.operationState === "failed",
+      canDelete: String(message.senderId) === String(auth.userId) && !deleted && !message.operationState,
+      canForward: !deleted && !message.operationState && message.type === "text",
+      isFavorite: favoriteMessages.value.some((item) => item.id === String(message.id)),
       timeText: formatDateTime(message.createdAt),
       html,
       files: isFileMessage
@@ -222,6 +264,7 @@ export function useChatStore(auth) {
   const searchResultText = computed(() => (
     searchKeyword.value ? `搜索结果：${searchKeyword.value}（${messages.value.length} 条）` : ""
   ));
+  const favoriteMessageIds = computed(() => favoriteMessages.value.map((item) => item.id));
 
   function pushNotification({ title, message = "", tone = "success", ttl = 3200 }) {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -309,6 +352,47 @@ export function useChatStore(auth) {
     replyTo.value = null;
   }
 
+  function toggleFavoriteMessage(message) {
+    const targetId = String(message?.id || "");
+    if (!targetId) return;
+    if (favoriteMessages.value.some((item) => item.id === targetId)) {
+      favoriteMessages.value = favoriteMessages.value.filter((item) => item.id !== targetId);
+    } else {
+      favoriteMessages.value = [{
+        id: targetId,
+        conversationId: String(message.conversationId || selectedId.value || ""),
+        conversationTitle: chatTitle.value || "收藏消息",
+        senderName: message.sender?.profile?.realName || message.senderName || message.senderId || "未知用户",
+        content: message.content || "[空消息]",
+        createdAt: message.createdAt || new Date().toISOString(),
+      }, ...favoriteMessages.value];
+    }
+    saveFavoriteMessages(favoriteMessages.value);
+  }
+
+  function removeFavoriteMessage(messageId) {
+    const targetId = String(messageId || "");
+    if (!targetId) return;
+    favoriteMessages.value = favoriteMessages.value.filter((item) => item.id !== targetId);
+    saveFavoriteMessages(favoriteMessages.value);
+  }
+
+  function openForwardDialog(messageId) {
+    forwardingMessageId.value = String(messageId || "");
+    forwardConversationId.value = selectedId.value || conversations.value[0]?.id || "";
+    forwardHint.value = "";
+    forwardSubmitting.value = false;
+    forwardDialogOpen.value = true;
+  }
+
+  function closeForwardDialog() {
+    forwardDialogOpen.value = false;
+    forwardingMessageId.value = "";
+    forwardConversationId.value = "";
+    forwardHint.value = "";
+    forwardSubmitting.value = false;
+  }
+
   function collectMentionIds(content) {
     return participants.value
       .filter((user) => content.includes(`@${user.profile.realName || user.id}`))
@@ -365,6 +449,8 @@ export function useChatStore(auth) {
     hasMoreMessages,
     loadingMoreMessages,
     replyTo,
+    favoriteMessages,
+    favoriteMessageIds,
     mentionOpen,
     mentionStart,
     mentionKeyword,
@@ -410,6 +496,11 @@ export function useChatStore(auth) {
     confirmDialogConfirmText,
     confirmDialogSubmitting,
     pendingConfirmAction,
+    forwardDialogOpen,
+    forwardingMessageId,
+    forwardConversationId,
+    forwardHint,
+    forwardSubmitting,
     meName,
     meMeta,
     meAvatar,
@@ -435,6 +526,10 @@ export function useChatStore(auth) {
     closeConfirmDialog,
     toggleDialogParticipant,
     clearReplyState,
+    toggleFavoriteMessage,
+    removeFavoriteMessage,
+    openForwardDialog,
+    closeForwardDialog,
     collectMentionIds,
     updateMentionState,
     applyMention,

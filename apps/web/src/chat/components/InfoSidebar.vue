@@ -1,80 +1,18 @@
 <script setup>
-import AvatarImage from "../../shared/components/AvatarImage.vue";
-
 defineProps({
-  meAvatarUrl: { type: String, default: "" },
-  profileName: { type: String, default: "" },
-  profileBio: { type: String, default: "" },
-  profileHint: { type: String, default: "" },
-  profileHintTone: { type: String, default: "" },
-  participants: { type: Array, default: () => [] },
   standaloneMode: { type: Boolean, default: false },
 });
-
-defineEmits(["update:profileName", "update:profileBio", "save-profile", "upload-avatar"]);
 </script>
 
 <template>
   <aside class="chat-detail-panel" :class="{ 'is-standalone': standaloneMode }">
-    <section class="detail-card profile-edit-card qq-side-card" :class="{ 'is-standalone': standaloneMode }">
+    <section class="detail-card qq-side-card detail-card-blank" :class="{ 'is-standalone': standaloneMode }">
       <div class="detail-card-head">
-        <h3>我的资料</h3>
+        <h3>信息面板预留</h3>
       </div>
-      <form class="profile-form" @submit.prevent="$emit('save-profile')">
-        <div class="profile-avatar-block desktop-profile-block">
-          <div class="profile-avatar-large">
-            <AvatarImage :src="meAvatarUrl" alt="">
-              <span>{{ (profileName || "ME").slice(0, 2).toUpperCase() }}</span>
-            </AvatarImage>
-          </div>
-          <label class="ghost-btn profile-avatar-upload compact-btn">
-            更换头像
-            <input class="hidden" type="file" accept="image/*" @change="$emit('upload-avatar', $event)" />
-          </label>
-        </div>
-        <label class="field field-quiet">
-          <span>昵称</span>
-          <input :value="profileName" placeholder="输入你的昵称" @input="$emit('update:profileName', $event.target.value)" />
-        </label>
-        <label class="field field-quiet">
-          <span>个性签名</span>
-          <textarea
-            :value="profileBio"
-            rows="4"
-            placeholder="写一句你的状态"
-            @input="$emit('update:profileBio', $event.target.value)"
-          ></textarea>
-        </label>
-        <button class="secondary-btn" type="submit">保存</button>
-        <div class="hint" :class="profileHint ? (profileHintTone === 'error' ? 'is-error' : 'is-success') : ''">
-          {{ profileHint }}
-        </div>
-      </form>
-    </section>
-
-    <section class="detail-card qq-side-card" :class="{ 'is-standalone': standaloneMode }">
-      <div class="detail-card-head">
-        <h3>成员</h3>
-        <span class="muted">{{ participants.length }} 人</span>
-      </div>
-      <div class="participant-list desktop-participant-list">
-        <div v-if="!participants.length" class="empty-state">暂无成员</div>
-        <article v-for="user in participants" :key="user.id" class="participant-item desktop-participant-item">
-          <div class="participant-head">
-            <div class="participant-avatar">
-              <AvatarImage :src="user.profile.avatarUrl" alt="">
-                <span>{{ (user.profile.realName || user.id).slice(0, 2).toUpperCase() }}</span>
-              </AvatarImage>
-            </div>
-            <div class="participant-copy">
-              <div class="participant-line">
-                <strong>{{ user.profile.realName || user.id }}</strong>
-                <span v-if="user.role === 'admin'" class="badge ghost">管理员</span>
-              </div>
-              <p>{{ user.profile.bio || "这个人很低调" }}</p>
-            </div>
-          </div>
-        </article>
+      <div class="detail-card-blank-body">
+        <p class="muted">右侧区域先保留为空白面板。</p>
+        <p class="muted">个人资料、通知偏好和软件信息已迁移到设置界面统一管理。</p>
       </div>
     </section>
   </aside>

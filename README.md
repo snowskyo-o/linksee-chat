@@ -175,5 +175,5 @@ npm run dist:desktop
 默认输出目录：
 
 ```text
-release/
+release/<version>/
 ```

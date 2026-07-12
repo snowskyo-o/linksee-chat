@@ -1,4 +1,5 @@
 import { chatApi } from "../../shared/api-client.js";
+import { appendAppLog } from "../../shared/app-log.js";
 import { appendCacheBust } from "../../shared/media.js";
 import { createChatDataActions } from "./chat-data-actions.js";
 import {
@@ -14,6 +15,18 @@ import {
 
 export function useChatActions(store) {
   const dataActions = createChatDataActions(store, chatApi);
+
+  function dedupeFiles(fileList) {
+    const seen = new Set();
+    const unique = [];
+    for (const file of Array.from(fileList || []).filter(Boolean)) {
+      const key = [file.name || "", file.size || 0, file.lastModified || 0].join(":");
+      if (seen.has(key)) continue;
+      seen.add(key);
+      unique.push(file);
+    }
+    return unique;
+  }
 
   function createDirectConversation() {
     if (!store.contacts.value.length) {
@@ -45,7 +58,8 @@ export function useChatActions(store) {
         }
         const payload = await chatApi.postJson("/api/v1/conversations", { kind: "direct", peerId });
         store.selectedId.value = payload.data?.id || store.selectedId.value;
-        store.pushNotification({ title: "私聊已创建", message: "可以开始发送消息了。", tone: "success" });
+      store.pushNotification({ title: "私聊已创建", message: "可以开始发送消息了。", tone: "success" });
+      appendAppLog({ level: "info", category: "conversation", message: `已创建私聊：${peerId}` });
       } else {
         const title = store.createDialogTitle.value.trim();
         if (!title) {
@@ -63,6 +77,7 @@ export function useChatActions(store) {
         });
         store.selectedId.value = payload.data?.id || store.selectedId.value;
         store.pushNotification({ title: "群聊已创建", message: `“${title}” 已准备就绪。`, tone: "success" });
+        appendAppLog({ level: "info", category: "conversation", message: `已创建群聊：${title}` });
       }
       store.closeCreateDialog();
       await dataActions.refreshAll();
@@ -121,19 +136,21 @@ export function useChatActions(store) {
     const mentions = store.collectMentionIds(content);
     const replyTo = store.replyTo.value ? { ...store.replyTo.value } : null;
     const optimisticMessage = buildOptimisticTextMessage(store, content, mentions, replyTo);
-    store.messages.value = [...store.messages.value, optimisticMessage];
-    syncConversationPreview(store, store.selectedId.value, optimisticMessage);
-    store.clearReplyState();
+      store.messages.value = [...store.messages.value, optimisticMessage];
+      syncConversationPreview(store, store.selectedId.value, optimisticMessage);
+      appendAppLog({ level: "info", category: "message", message: "消息进入发送队列", meta: content.slice(0, 80) });
+      store.clearReplyState();
     store.resetComposer();
     try {
       await postTextMessage(content, mentions, replyTo, optimisticMessage);
-    } catch (error) {
-      patchMessageLocally(store, optimisticMessage.id, {
-        operationState: "failed",
-        sendError: error?.message || "发送失败",
-      });
-      throw error;
-    }
+      } catch (error) {
+        patchMessageLocally(store, optimisticMessage.id, {
+          operationState: "failed",
+          sendError: error?.message || "发送失败",
+        });
+        appendAppLog({ level: "error", category: "message", message: "消息发送失败", meta: error?.message || "" });
+        throw error;
+      }
     dataActions.loadConversations().catch(() => {});
     dataActions.markConversationReadIfNeeded().catch(() => {});
   }
@@ -144,23 +161,26 @@ export function useChatActions(store) {
     patchMessageLocally(store, messageId, { operationState: "sending", sendError: "" });
     try {
       await postTextMessage(message.content || "", message.mentions || [], message.replyTo || null, message);
+      appendAppLog({ level: "info", category: "message", message: "消息重试发送成功", meta: (message.content || "").slice(0, 80) });
     } catch (error) {
       patchMessageLocally(store, messageId, {
         operationState: "failed",
         sendError: error?.message || "发送失败",
       });
+      appendAppLog({ level: "error", category: "message", message: "消息重试失败", meta: error?.message || "" });
       throw error;
     }
   }
 
   async function uploadFiles(fileList) {
     if (!store.selectedId.value) return;
-    const files = Array.from(fileList || []).filter(Boolean);
+    const files = dedupeFiles(fileList);
     if (!files.length) return;
     store.uploadingFiles.value = true;
     store.uploadProgress.value = 0;
     store.uploadFileName.value = files[0]?.name || "";
     store.setComposerHint(`正在上传 ${files.length} 个文件...`, "");
+    appendAppLog({ level: "info", category: "file", message: `开始上传 ${files.length} 个文件` });
     try {
       const uploadedFiles = [];
       for (let index = 0; index < files.length; index += 1) {
@@ -201,11 +221,13 @@ export function useChatActions(store) {
       });
       store.clearReplyState();
       store.setComposerHint(`已上传 ${uploadedFiles.length} 个文件`, "success");
+      appendAppLog({ level: "info", category: "file", message: `上传完成 ${uploadedFiles.length} 个文件` });
       await dataActions.refreshSelectedConversation();
       await dataActions.loadConversations();
       await dataActions.markConversationReadIfNeeded().catch(() => {});
     } catch (error) {
       store.setComposerHint(error?.message || "上传失败", "error");
+      appendAppLog({ level: "error", category: "file", message: "文件上传失败", meta: error?.message || "" });
       throw error;
     } finally {
       store.uploadingFiles.value = false;
@@ -240,6 +262,7 @@ export function useChatActions(store) {
       link.remove();
       window.setTimeout(() => window.URL.revokeObjectURL(objectUrl), 1000);
       store.pushNotification({ title: "开始下载", message: file.name || "附件", tone: "success", ttl: 2200 });
+      appendAppLog({ level: "info", category: "file", message: `开始下载 ${file.name || "附件"}` });
     } finally {
       window.setTimeout(() => {
         store.downloadingFile.value = false;
@@ -265,6 +288,62 @@ export function useChatActions(store) {
       const normalized = normalizeMessage(payload.data);
       replaceMessageLocally(store, messageId, normalized);
       syncConversationPreview(store, store.selectedId.value, normalized);
+    }
+  }
+
+  async function deleteMessage(messageId) {
+    const message = findMessage(store, messageId);
+    if (!message || message.operationState) return;
+    patchMessageLocally(store, messageId, { operationState: "recalling", sendError: "" });
+    try {
+      const payload = await chatApi.delete(
+        `/api/v1/conversations/${encodeURIComponent(store.selectedId.value)}/messages/${encodeURIComponent(messageId)}`,
+      );
+      if (payload.data) {
+        const normalized = normalizeMessage(payload.data);
+        replaceMessageLocally(store, messageId, normalized);
+        syncConversationPreview(store, store.selectedId.value, normalized);
+        appendAppLog({ level: "info", category: "message", message: "消息已删除" });
+      }
+    } catch (error) {
+      patchMessageLocally(store, messageId, { operationState: "", sendError: "" });
+      throw error;
+    }
+  }
+
+  async function submitForwardMessage() {
+    const message = findMessage(store, store.forwardingMessageId.value);
+    const targetConversationId = String(store.forwardConversationId.value || "");
+    if (!message) {
+      store.forwardHint.value = "转发消息不存在";
+      return;
+    }
+    if (!targetConversationId) {
+      store.forwardHint.value = "请选择一个目标会话";
+      return;
+    }
+    if (!message.canForward) {
+      store.forwardHint.value = "当前仅支持转发文本消息";
+      return;
+    }
+
+    store.forwardSubmitting.value = true;
+    store.forwardHint.value = "";
+    try {
+      await chatApi.postJson(`/api/v1/conversations/${encodeURIComponent(targetConversationId)}/messages`, {
+        content: message.content || "",
+        mentions: [],
+        replyToId: null,
+      });
+      store.closeForwardDialog();
+      store.pushNotification({ title: "转发成功", message: "消息已发送到目标会话", tone: "success" });
+      appendAppLog({ level: "info", category: "message", message: `消息已转发到会话 ${targetConversationId}` });
+      await dataActions.loadConversations();
+    } catch (error) {
+      store.forwardHint.value = error?.message || "转发失败";
+      appendAppLog({ level: "error", category: "message", message: "消息转发失败", meta: error?.message || "" });
+    } finally {
+      store.forwardSubmitting.value = false;
     }
   }
 
@@ -312,9 +391,29 @@ export function useChatActions(store) {
       store.replyTo.value = message;
       return;
     }
+    if (action === "favorite") {
+      store.toggleFavoriteMessage(message);
+      appendAppLog({
+        level: "info",
+        category: "message",
+        message: message.isFavorite ? "已取消收藏消息" : "已收藏消息",
+      });
+      return;
+    }
+    if (action === "forward") {
+      store.openForwardDialog(message.id);
+      return;
+    }
     if (action === "recall") {
       recallMessage(message.id).catch((error) => {
         store.setComposerHint(error?.message || "撤回失败", "error");
+        dataActions.refreshSelectedConversation().catch(() => {});
+      });
+      return;
+    }
+    if (action === "delete") {
+      deleteMessage(message.id).catch((error) => {
+        store.setComposerHint(error?.message || "删除失败", "error");
         dataActions.refreshSelectedConversation().catch(() => {});
       });
       return;
@@ -404,6 +503,7 @@ export function useChatActions(store) {
     uploadFiles,
     downloadFile,
     handleMessageAction,
+    submitForwardMessage,
     submitConfirmDialog,
     toggleConversationPin,
     toggleConversationPinById,

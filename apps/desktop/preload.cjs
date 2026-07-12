@@ -18,6 +18,7 @@ contextBridge.exposeInMainWorld("desktopShell", {
     node: process.versions.node,
   },
   getRuntimeConfig: () => ipcRenderer.invoke("desktop:get-runtime-config"),
+  getAppInfo: () => ipcRenderer.invoke("desktop:get-app-info"),
   getWindowState: () => ipcRenderer.invoke("desktop:get-window-state"),
   minimize: () => ipcRenderer.invoke("desktop:minimize"),
   toggleMaximize: () => ipcRenderer.invoke("desktop:toggle-maximize"),
@@ -25,6 +26,8 @@ contextBridge.exposeInMainWorld("desktopShell", {
   loginSuccess: () => ipcRenderer.invoke("desktop:login-success"),
   openChatWindow: (conversationId) => ipcRenderer.invoke("desktop:open-chat-window", conversationId),
   logoutToLogin: () => ipcRenderer.invoke("desktop:logout"),
+  showNotification: (payload) => ipcRenderer.invoke("desktop:show-notification", payload),
+  beep: () => ipcRenderer.invoke("desktop:beep"),
   onWindowState(callback) {
     if (typeof callback !== "function") {
       return () => {};

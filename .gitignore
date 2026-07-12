@@ -8,4 +8,12 @@ apps/web/dist/
 prisma/dev.db
 desktop-config.json
 release/
+!release/
+release/desktop/
+release/legacy/
+release/win-unpacked/
+release/*.exe
+release/*.7z
+release/builder-debug.yml
+release/builder-effective-config.yaml
 .cache/

@@ -30,6 +30,7 @@ defineEmits([
   "refresh",
   "new-direct",
   "new-group",
+  "open-settings",
   "logout",
   "toggle-pin",
 ]);
@@ -61,6 +62,7 @@ defineEmits([
         <button class="ghost-btn compact-btn" type="button" @click="$emit('new-direct')">私聊</button>
         <button class="ghost-btn compact-btn" type="button" @click="$emit('new-group')">群聊</button>
         <button class="ghost-btn compact-btn" type="button" @click="$emit('refresh')">刷新</button>
+        <button class="ghost-btn compact-btn" type="button" @click="$emit('open-settings')">设置</button>
       </div>
       <button v-else class="ghost-btn compact-btn" type="button" @click="$emit('refresh')">刷新列表</button>
     </div>

@@ -29,10 +29,20 @@ defineEmits(["download-file", "open-menu", "retry"]);
 
     <div class="message-head" :class="{ 'message-head-me': message.isMe }">
       <strong>{{ message.senderName }}</strong>
-      <span class="muted">{{ message.timeText }}{{ message.editedAt ? " · 已编辑" : "" }}{{ message.statusText ? ` · ${message.statusText}` : "" }}</span>
+      <span class="muted">
+        <span v-if="message.isFavorite" class="message-favorite-mark">★</span>
+        {{ message.timeText }}{{ message.editedAt ? " · 已编辑" : "" }}{{ message.statusText ? ` · ${message.statusText}` : "" }}
+      </span>
     </div>
 
     <div class="message-bubble-shell" :class="{ 'message-bubble-shell-me': message.isMe }">
+      <span
+        v-if="message.operationState === 'sending' && message.isMe"
+        class="message-sending-indicator"
+        aria-label="发送中"
+        title="发送中"
+      ></span>
+
       <button
         v-if="message.canRetry && message.isMe"
         class="message-retry-btn"
