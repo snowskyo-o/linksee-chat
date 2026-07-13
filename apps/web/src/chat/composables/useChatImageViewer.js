@@ -1,4 +1,9 @@
-import { computed, ref } from "vue";
+import { ref } from "vue";
+import {
+  createImageViewerActiveFile,
+  createImageViewerOwnerMessageId,
+  createImageViewerStatusText,
+} from "./chat-image-viewer-derived.js";
 import { chatApi } from "../../shared/api-client.js";
 import { createObjectUrlFromBlobLike } from "../../shared/blob-source.js";
 
@@ -9,35 +14,9 @@ export function useChatImageViewer({ store, actions }) {
   const imageViewerLoading = ref(false);
   const imageViewerHint = ref("");
   const imageViewerFile = ref(null);
-
-  const imageViewerActiveFile = computed(() => {
-    const objectKey = String(imageViewerFile.value?.objectKey || "").trim();
-    if (!objectKey) return imageViewerFile.value;
-    for (const message of store.renderedMessages.value) {
-      const matched = (message.files || []).find((file) => String(file.objectKey || "") === objectKey);
-      if (matched) return matched;
-    }
-    return imageViewerFile.value;
-  });
-
-  const imageViewerOwnerMessageId = computed(() => {
-    const objectKey = String(imageViewerActiveFile.value?.objectKey || imageViewerFile.value?.objectKey || "").trim();
-    if (!objectKey) return "";
-    const owner = store.renderedMessages.value.find((message) => (
-      Array.isArray(message.files) && message.files.some((file) => String(file.objectKey || "") === objectKey)
-    ));
-    return String(owner?.id || "");
-  });
-
-  const imageViewerStatusText = computed(() => {
-    const transfer = imageViewerActiveFile.value?.transfer || null;
-    if (imageViewerLoading.value) return "正在加载";
-    if (transfer?.status === "downloading") return `下载中 ${transfer.progress || 0}%`;
-    if (transfer?.status === "saving") return "正在保存到本地";
-    if (transfer?.status === "saved") return transfer.path ? "已保存，可打开位置" : "已保存";
-    if (transfer?.status === "failed") return transfer.error || "保存失败";
-    return imageViewerHint.value || "";
-  });
+  const imageViewerActiveFile = createImageViewerActiveFile(store, imageViewerFile);
+  const imageViewerOwnerMessageId = createImageViewerOwnerMessageId(store, imageViewerActiveFile, imageViewerFile);
+  const imageViewerStatusText = createImageViewerStatusText(imageViewerActiveFile, imageViewerHint, imageViewerLoading);
 
   async function openImageViewer(file) {
     if (!file?.objectKey) return;

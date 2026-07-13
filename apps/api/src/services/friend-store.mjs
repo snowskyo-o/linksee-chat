@@ -1,10 +1,7 @@
 import { prisma } from "../../../../infra/db/prisma.mjs";
 import { buildFriendAliasMap, decorateUsersWithFriendAliases } from "./friend-aliases.mjs";
+import { buildFriendRequestPairWhere, buildFriendRequestWhere, buildFriendshipWhere, orderedFriendPair } from "./friend-store-helpers.mjs";
 import { buildDiscoveryRows, decorateMappedRequests, mapFriendRequests } from "./friend-relationships.mjs";
-
-function orderedFriendPair(userIdA, userIdB) {
-  return [String(userIdA || ""), String(userIdB || "")].sort();
-}
 
 export async function findFriendship(userIdA, userIdB) {
   const [userLowId, userHighId] = orderedFriendPair(userIdA, userIdB);
@@ -21,12 +18,7 @@ export async function findFriendship(userIdA, userIdB) {
 
 export async function listFriendRequestsForUser(userId) {
   const rows = await prisma.chatFriendRequest.findMany({
-    where: {
-      OR: [
-        { senderId: userId },
-        { receiverId: userId },
-      ],
-    },
+    where: buildFriendRequestWhere(userId),
     orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
     include: {
       sender: { include: { profile: true } },
@@ -49,23 +41,8 @@ export async function listFriendDiscovery(userId, keyword = "") {
       orderBy: { id: "asc" },
       include: { profile: true },
     }),
-    prisma.chatFriendRequest.findMany({
-      where: {
-        OR: [
-          { senderId: userId },
-          { receiverId: userId },
-        ],
-      },
-      orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
-    }),
-    prisma.chatFriendship.findMany({
-      where: {
-        OR: [
-          { userLowId: userId },
-          { userHighId: userId },
-        ],
-      },
-    }),
+    prisma.chatFriendRequest.findMany({ where: buildFriendRequestWhere(userId), orderBy: [{ updatedAt: "desc" }, { id: "desc" }] }),
+    prisma.chatFriendship.findMany({ where: buildFriendshipWhere(userId) }),
   ]);
   return buildDiscoveryRows(users, requests, friendships, userId, keyword);
 }
@@ -91,15 +68,8 @@ export async function ensureFriendship(userIdA, userIdB) {
 export async function updateFriendAlias(currentUserId, friendUserId, alias) {
   const friendship = await findFriendship(currentUserId, friendUserId);
   if (!friendship) return null;
-
-  const data = friendship.userLowId === currentUserId
-    ? { lowAlias: alias || null }
-    : { highAlias: alias || null };
-
-  return prisma.chatFriendship.update({
-    where: { id: friendship.id },
-    data,
-  });
+  const data = friendship.userLowId === currentUserId ? { lowAlias: alias || null } : { highAlias: alias || null };
+  return prisma.chatFriendship.update({ where: { id: friendship.id }, data });
 }
 
 export async function removeFriendship(currentUserId, friendUserId) {
@@ -107,17 +77,8 @@ export async function removeFriendship(currentUserId, friendUserId) {
   if (!friendship) return false;
 
   await prisma.$transaction([
-    prisma.chatFriendship.delete({
-      where: { id: friendship.id },
-    }),
-    prisma.chatFriendRequest.deleteMany({
-      where: {
-        OR: [
-          { senderId: currentUserId, receiverId: friendUserId },
-          { senderId: friendUserId, receiverId: currentUserId },
-        ],
-      },
-    }),
+    prisma.chatFriendship.delete({ where: { id: friendship.id } }),
+    prisma.chatFriendRequest.deleteMany({ where: buildFriendRequestPairWhere(currentUserId, friendUserId) }),
   ]);
   return true;
 }

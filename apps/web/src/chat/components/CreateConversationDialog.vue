@@ -1,51 +1,11 @@
 <script setup>
-import { computed, ref, watch } from "vue";
 import AvatarImage from "../../shared/components/AvatarImage.vue";
+import { createConversationDialogEmits, createConversationDialogProps } from "./create-conversation-dialog-contract.js";
+import { useCreateConversationDialogState } from "./useCreateConversationDialogState.js";
 
-const props = defineProps({
-  open: { type: Boolean, default: false },
-  mode: { type: String, default: "direct" },
-  title: { type: String, default: "" },
-  peerId: { type: String, default: "" },
-  participantIds: { type: Array, default: () => [] },
-  contacts: { type: Array, default: () => [] },
-  selectedParticipants: { type: Array, default: () => [] },
-  hint: { type: String, default: "" },
-  hintTone: { type: String, default: "" },
-  submitting: { type: Boolean, default: false },
-});
-
-defineEmits([
-  "close",
-  "submit",
-  "update:title",
-  "update:peerId",
-  "toggle-participant",
-]);
-
-const keyword = ref("");
-
-const filteredContacts = computed(() => {
-  const search = keyword.value.trim().toLowerCase();
-  if (!search) return props.contacts;
-  return props.contacts.filter((contact) => (
-    [contact.name, contact.bio].some((value) => String(value || "").toLowerCase().includes(search))
-  ));
-});
-
-const selectionSummary = computed(() => {
-  if (props.mode === "direct") {
-    return props.peerId ? "已选择 1 位联系人" : "请选择 1 位联系人";
-  }
-  return props.participantIds.length ? `已选择 ${props.participantIds.length} 位成员` : "至少选择 2 位成员";
-});
-
-watch(
-  () => props.open,
-  (open) => {
-    if (open) keyword.value = "";
-  },
-);
+const props = defineProps(createConversationDialogProps);
+defineEmits(createConversationDialogEmits);
+const { filteredContacts, keyword, selectionSummary } = useCreateConversationDialogState(props);
 </script>
 
 <template>
