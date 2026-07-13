@@ -6,6 +6,16 @@ const { writeImageToClipboard } = require("./desktop-media.cjs");
 const { clearDesktopCaches } = require("./cache-maintenance.cjs");
 const { registerDesktopIpcHandlers } = require("./desktop-ipc.cjs");
 const {
+  buildWindowState,
+  clearWindowContext,
+  createDesktopWindowController,
+  focusWindow,
+  resolveWindowByEvent,
+  setWindowContext,
+  shouldSuppressDesktopNotification,
+  toggleWindowMaximize,
+} = require("./desktop-windows.cjs");
+const {
   broadcastOpenConversation,
   buildTrayMenu,
   buildTrayTooltip,
@@ -103,27 +113,6 @@ const screenshotSelection = createScreenshotSelectionManager({
 autoUpdater.autoDownload = false;
 autoUpdater.autoInstallOnAppQuit = false;
 autoUpdater.setFeedURL({ provider: "generic", url: updateFeedUrl });
-
-function resolveWindowByEvent(event) {
-  return BrowserWindow.fromWebContents(event.sender);
-}
-
-function buildWindowState(window) {
-  return !window || window.isDestroyed() ? { isMaximized: false } : { isMaximized: window.isMaximized() };
-}
-
-function toggleWindowMaximize(window) {
-  if (!window || window.isDestroyed()) return;
-  if (window.isMaximized()) {
-    window.unmaximize();
-  } else {
-    window.maximize();
-  }
-}
-
-function getLiveWindows() {
-  return [loginWindow, listWindow, ...chatWindows.values()].filter((window) => window && !window.isDestroyed());
-}
 
 function setUnreadCount(nextCount) {
   unreadCount = Math.max(0, Number(nextCount || 0));
@@ -250,163 +239,9 @@ function buildArguments({ kind, conversationId = "" }) {
   ];
 }
 
-function createShellWindow({
-  width,
-  height,
-  minWidth,
-  minHeight,
-  transparent = false,
-  resizable = true,
-  maximizable = true,
-  fullscreenable = true,
-  title = "Linksee Chat",
-  backgroundColor = "#f4f7fb",
-  pagePath,
-  pageQuery = {},
-  kind,
-  conversationId = "",
-}) {
-  const window = new BrowserWindow({
-    width,
-    height,
-    minWidth,
-    minHeight,
-    transparent,
-    hasShadow: true,
-    resizable,
-    maximizable,
-    fullscreenable,
-    autoHideMenuBar: true,
-    frame: false,
-    title,
-    backgroundColor,
-    titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "hidden",
-    trafficLightPosition: process.platform === "darwin" ? { x: 16, y: 16 } : undefined,
-    webPreferences: {
-      preload: preloadPath,
-      contextIsolation: true,
-      nodeIntegration: false,
-      additionalArguments: buildArguments({ kind, conversationId }),
-    },
-  });
-
-  window.on("maximize", () => sendWindowState(window));
-  window.on("unmaximize", () => sendWindowState(window));
-  window.on("enter-full-screen", () => sendWindowState(window));
-  window.on("leave-full-screen", () => sendWindowState(window));
-  window.once("ready-to-show", () => sendWindowState(window));
-  window.loadFile(pagePath, { query: pageQuery }).catch((error) => {
-    console.error("[desktop] failed to load renderer", error);
-  });
-
-  return window;
-}
-
-function focusWindow(window) {
-  if (!window || window.isDestroyed()) return;
-  if (window.isMinimized()) window.restore();
-  window.show();
-  window.focus();
-}
-
-function snapshotWindowBounds(window) {
-  if (!window || window.isDestroyed()) return null;
-  const bounds = window.getBounds();
-  return { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height };
-}
-
-function animateWindowBounds(window, fromBounds, toBounds, { duration = 180, onDone } = {}) {
-  if (!window || window.isDestroyed()) {
-    if (typeof onDone === "function") onDone();
-    return;
-  }
-
-  const start = Date.now();
-  const tick = () => {
-    if (!window || window.isDestroyed()) {
-      if (typeof onDone === "function") onDone();
-      return;
-    }
-
-    const elapsed = Date.now() - start;
-    const progress = Math.min(1, elapsed / duration);
-    const eased = 1 - Math.pow(1 - progress, 3);
-    const nextBounds = {
-      x: Math.round(fromBounds.x + ((toBounds.x - fromBounds.x) * eased)),
-      y: Math.round(fromBounds.y + ((toBounds.y - fromBounds.y) * eased)),
-      width: Math.round(fromBounds.width + ((toBounds.width - fromBounds.width) * eased)),
-      height: Math.round(fromBounds.height + ((toBounds.height - fromBounds.height) * eased)),
-    };
-
-    window.setBounds(nextBounds, false);
-    if (progress >= 1) {
-      if (typeof onDone === "function") onDone();
-      return;
-    }
-    setTimeout(tick, 12);
-  };
-
-  tick();
-}
-
-function slideOutListWindow() {
-  if (!listWindow || listWindow.isDestroyed() || listWindowAnimating) return;
-  if (!listWindow.isVisible()) return;
-
-  listWindowAnimating = true;
-  listWindowBoundsSnapshot = snapshotWindowBounds(listWindow) || listWindowBoundsSnapshot;
-  const fromBounds = snapshotWindowBounds(listWindow);
-  if (!fromBounds) {
-    listWindowAnimating = false;
-    return;
-  }
-
-  const toBounds = {
-    ...fromBounds,
-    x: fromBounds.x + Math.round(fromBounds.width * 0.72),
-  };
-
-  animateWindowBounds(listWindow, fromBounds, toBounds, {
-    duration: 180,
-    onDone: () => {
-      if (listWindow && !listWindow.isDestroyed()) {
-        listWindow.hide();
-        if (listWindowBoundsSnapshot) {
-          listWindow.setBounds(listWindowBoundsSnapshot, false);
-        }
-      }
-      listWindowAnimating = false;
-    },
-  });
-}
-
-function restoreListWindowPosition() {
-  if (!listWindow || listWindow.isDestroyed()) return;
-  if (!listWindowBoundsSnapshot) {
-    listWindowBoundsSnapshot = snapshotWindowBounds(listWindow);
-    return;
-  }
-  listWindow.setBounds(listWindowBoundsSnapshot, false);
-}
-
 function hideWindowToTray(window) {
   if (!window || window.isDestroyed()) return;
   window.hide();
-}
-
-function setWindowContext(window, context = {}) {
-  if (!window || window.isDestroyed()) return;
-  const existing = windowContextById.get(window.id) || {};
-  windowContextById.set(window.id, {
-    ...existing,
-    kind: String(context.kind || existing.kind || "").trim(),
-    conversationId: String(context.conversationId || existing.conversationId || "").trim(),
-  });
-}
-
-function clearWindowContext(window) {
-  if (!window) return;
-  windowContextById.delete(window.id);
 }
 
 function quitDesktopApp() {
@@ -427,125 +262,64 @@ function quitDesktopApp() {
   app.quit();
 }
 
-function createLoginWindow() {
-  if (loginWindow && !loginWindow.isDestroyed()) {
-    focusWindow(loginWindow);
-    return loginWindow;
-  }
-  loginWindow = createShellWindow({
-    width: 420,
-    height: 560,
-    minWidth: 420,
-    minHeight: 560,
-    transparent: true,
-    resizable: false,
-    maximizable: false,
-    fullscreenable: false,
-    title: "Linksee Chat Login",
-    backgroundColor: "#00000000",
-    pagePath: loginPagePath,
-    kind: "login",
-  });
-  setWindowContext(loginWindow, { kind: "login", conversationId: "" });
-
-  loginWindow.on("close", (event) => {
-    if (isQuitting) return;
-    if (!getDesktopPreferences().closeToTray) {
-      quitDesktopApp();
-      return;
-    }
-    event.preventDefault();
-    hideWindowToTray(loginWindow);
-  });
-
-  loginWindow.on("closed", () => {
-    clearWindowContext(loginWindow);
-    loginWindow = null;
-  });
-
-  return loginWindow;
-}
-
-function createListWindow() {
-  if (listWindow && !listWindow.isDestroyed()) {
-    focusWindow(listWindow);
+const desktopWindowState = {
+  chatWindows,
+  get listWindow() {
     return listWindow;
-  }
-  listWindow = createShellWindow({
-    width: 344,
-    height: 760,
-    minWidth: 328,
-    minHeight: 680,
-    maximizable: false,
-    title: "Linksee Chat",
-    backgroundColor: "#eef3f9",
-    pagePath: listPagePath,
-    kind: "list",
-  });
-  setWindowContext(listWindow, { kind: "list", conversationId: "" });
+  },
+  set listWindow(value) {
+    listWindow = value;
+  },
+  get listWindowBoundsSnapshot() {
+    return listWindowBoundsSnapshot;
+  },
+  set listWindowBoundsSnapshot(value) {
+    listWindowBoundsSnapshot = value;
+  },
+  get loginWindow() {
+    return loginWindow;
+  },
+  set loginWindow(value) {
+    loginWindow = value;
+  },
+  get listWindowAnimating() {
+    return listWindowAnimating;
+  },
+  set listWindowAnimating(value) {
+    listWindowAnimating = value;
+  },
+};
 
-  listWindow.on("close", (event) => {
-    if (isQuitting) return;
-    if (!getDesktopPreferences().closeToTray) {
-      quitDesktopApp();
-      return;
-    }
-    event.preventDefault();
-    hideWindowToTray(listWindow);
-    hideAllChatWindows(chatWindows);
-  });
+const desktopWindows = createDesktopWindowController({
+  BrowserWindow,
+  buildArguments,
+  buildWindowState,
+  chatPagePath,
+  clearWindowContext: (window) => clearWindowContext(windowContextById, window),
+  createLoginWindowRef: {
+    quitDesktopApp,
+  },
+  getDesktopPreferences,
+  hideAllChatWindows,
+  hideWindowToTray,
+  isQuittingRef: () => isQuitting,
+  listPagePath,
+  loginPagePath,
+  preloadPath,
+  sendWindowState,
+  setWindowContext: (window, context) => setWindowContext(windowContextById, window, context),
+  state: desktopWindowState,
+});
 
-  listWindow.on("move", () => {
-    if (listWindowAnimating || !listWindow || listWindow.isDestroyed() || !listWindow.isVisible()) return;
-    listWindowBoundsSnapshot = snapshotWindowBounds(listWindow);
-  });
-
-  listWindow.on("closed", () => {
-    clearWindowContext(listWindow);
-    listWindow = null;
-  });
-
-  return listWindow;
-}
-
-function createChatWindow(conversationId) {
-  const key = String(conversationId || "").trim();
-  if (!key) return null;
-  const existing = chatWindows.get(key);
-  if (existing && !existing.isDestroyed()) {
-    focusWindow(existing);
-    return existing;
-  }
-  const chatWindow = createShellWindow({
-    width: 1100,
-    height: 820,
-    minWidth: 820,
-    minHeight: 620,
-    title: "Linksee Chat Conversation",
-    backgroundColor: "#f3f6fb",
-    pagePath: chatPagePath,
-    pageQuery: { conversationId: key, mode: "conversation" },
-    kind: "chat",
-    conversationId: key,
-  });
-  setWindowContext(chatWindow, { kind: "chat", conversationId: key });
-
-  chatWindow.on("closed", () => {
-    clearWindowContext(chatWindow);
-    chatWindows.delete(key);
-  });
-  chatWindows.set(key, chatWindow);
-  return chatWindow;
-}
-
-function closeAllChatWindows() {
-  for (const window of chatWindows.values()) {
-    if (window && !window.isDestroyed()) {
-      window.close();
-    }
-  }
-  chatWindows.clear();
-}
+const {
+  createChatWindow,
+  createListWindow,
+  createLoginWindow,
+  closeAllChatWindows,
+  getLiveWindows,
+  restoreListWindowPosition,
+  slideOutListWindow,
+} = desktopWindows;
 
 function logout() {
   if (listWindow && !listWindow.isDestroyed()) {
@@ -618,17 +392,7 @@ registerDesktopIpcHandlers({
     ...payload,
     getDesktopPreferences,
     resolveTrayIconPath: () => resolveTrayIconPath({ fs, path, process, projectRoot }),
-    shouldSuppressDesktopNotification: (conversationId) => {
-      const targetConversationId = String(conversationId || "").trim();
-      if (!targetConversationId) return false;
-      for (const [windowId, context] of windowContextById.entries()) {
-        const currentWindow = BrowserWindow.fromId(windowId);
-        if (!currentWindow || currentWindow.isDestroyed() || currentWindow.isMinimized() || !currentWindow.isVisible()) continue;
-        if (!currentWindow.isFocused()) continue;
-        if (String(context?.conversationId || "").trim() === targetConversationId) return true;
-      }
-      return false;
-    },
+    shouldSuppressDesktopNotification: (conversationId) => shouldSuppressDesktopNotification(BrowserWindow, windowContextById, conversationId),
     createListWindow,
     createChatWindow,
     broadcastOpenConversation: (conversationId) => broadcastOpenConversation(conversationId, { listWindow, chatWindows }),
