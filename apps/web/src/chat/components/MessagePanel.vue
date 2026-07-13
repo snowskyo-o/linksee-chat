@@ -1,76 +1,15 @@
 <script setup>
-import { ref } from "vue";
-import ChatWorkspaceHeader from "./ChatWorkspaceHeader.vue";
-import MessageListViewport from "./MessageListViewport.vue";
-import MessagePanelComposer from "./MessagePanelComposer.vue";
+import { computed, ref } from "vue";
 import MessagePanelOverlay from "./MessagePanelOverlay.vue";
+import MessagePanelWorkspace from "./MessagePanelWorkspace.vue";
 import { useMessagePanelContextMenu } from "../composables/useMessagePanelContextMenu.js";
 import { useMessagePanelDrag } from "../composables/useMessagePanelDrag.js";
 import { useMessagePanelScroll } from "../composables/useMessagePanelScroll.js";
 import { useMessagePanelSearch } from "../composables/useMessagePanelSearch.js";
+import { messagePanelEmits, messagePanelProps } from "./message-panel-contract.js";
 
-const props = defineProps({
-  chatTitle: { type: String, default: "请选择会话" },
-  chatSubtitle: { type: String, default: "选择一个会话开始聊天" },
-  chatKind: { type: String, default: "" },
-  hasConversation: { type: Boolean, default: false },
-  participantCount: { type: Number, default: 0 },
-  messageKeyword: { type: String, default: "" },
-  socketOnline: { type: Boolean, default: false },
-  networkBannerText: { type: String, default: "" },
-  searchResultText: { type: String, default: "" },
-  searching: { type: Boolean, default: false },
-  messages: { type: Array, default: () => [] },
-  replyText: { type: String, default: "" },
-  showReplyBar: { type: Boolean, default: false },
-  messageInput: { type: String, default: "" },
-  mentionOpen: { type: Boolean, default: false },
-  mentionOptions: { type: Array, default: () => [] },
-  composerHint: { type: String, default: "" },
-  composerHintTone: { type: String, default: "" },
-  pendingFiles: { type: Array, default: () => [] },
-  uploadingFiles: { type: Boolean, default: false },
-  uploadProgressText: { type: String, default: "" },
-  downloadProgressText: { type: String, default: "" },
-  hasMoreMessages: { type: Boolean, default: false },
-  loadingMoreMessages: { type: Boolean, default: false },
-  loadState: { type: Object, default: () => ({ status: "idle", message: "" }) },
-  standaloneMode: { type: Boolean, default: false },
-  stickers: { type: Array, default: () => [] },
-  recentStickers: { type: Array, default: () => [] },
-  stickersLoading: { type: Boolean, default: false },
-  stickersHint: { type: String, default: "" },
-  stickersHintTone: { type: String, default: "" },
-});
-
-const emit = defineEmits([
-  "update:messageKeyword",
-  "search",
-  "clear-search",
-  "cancel-edit",
-  "update:messageInput",
-  "message-keydown",
-  "mention-pick",
-  "submit",
-  "message-action",
-  "open-file-picker",
-  "capture-screenshot",
-  "open-sticker-import",
-  "send-sticker",
-  "clear-recent-stickers",
-  "download-file",
-  "save-file-as",
-  "open-file",
-  "open-file-location",
-  "copy-image",
-  "open-image",
-  "file-change",
-  "file-paste",
-  "file-drop",
-  "remove-pending-file",
-  "load-more",
-  "retry-load",
-]);
+const props = defineProps(messagePanelProps);
+const emit = defineEmits(messagePanelEmits);
 
 const messageListViewportRef = ref(null);
 const workspaceRef = ref(null);
@@ -78,6 +17,45 @@ const { contextMenuItems, messageMenu, openMessageMenu, selectContextItem } = us
 const { dragActive, handleDragEnter, handleDragLeave, handleDragOver, handleDrop } = useMessagePanelDrag(workspaceRef, emit);
 const { pendingIncomingCount, scrollMessageListToBottom } = useMessagePanelScroll(props, messageListViewportRef);
 const { jumpSearchMatch, searchMatchIndex, searchMatches } = useMessagePanelSearch(props, messageListViewportRef);
+
+const workspaceProps = computed(() => ({
+  ...props,
+  messageListViewportRef,
+  pendingIncomingCount: pendingIncomingCount.value,
+  searchMatchIndex: searchMatchIndex.value,
+  searchMatchesLength: searchMatches.value.length,
+}));
+
+const workspaceListeners = {
+  "cancel-edit": () => emit("cancel-edit"),
+  "capture-screenshot": () => emit("capture-screenshot"),
+  "clear-recent-stickers": () => emit("clear-recent-stickers"),
+  "clear-search": () => emit("clear-search"),
+  "download-file": (file) => emit("download-file", file),
+  "file-change": (event) => emit("file-change", event),
+  "file-paste": (event) => emit("file-paste", event),
+  "load-more": () => emit("load-more"),
+  "mention-pick": (user) => emit("mention-pick", user),
+  "message-action": (payload) => emit("message-action", payload),
+  "message-keydown": (event) => emit("message-keydown", event),
+  "open-file": (file) => emit("open-file", file),
+  "open-file-location": (file) => emit("open-file-location", file),
+  "open-image": (file) => emit("open-image", file),
+  "open-menu": openMessageMenu,
+  "open-file-picker": () => emit("open-file-picker"),
+  "open-sticker-import": () => emit("open-sticker-import"),
+  "remove-pending-file": (file) => emit("remove-pending-file", file),
+  "retry-load": () => emit("retry-load"),
+  "save-file-as": (file) => emit("save-file-as", file),
+  "scroll-to-bottom": () => scrollMessageListToBottom("smooth"),
+  search: () => emit("search"),
+  "search-next": () => jumpSearchMatch(1),
+  "search-prev": () => jumpSearchMatch(-1),
+  "send-sticker": (sticker) => emit("send-sticker", sticker),
+  submit: () => emit("submit"),
+  "update:messageInput": (value) => emit("update:messageInput", value),
+  "update:messageKeyword": (value) => emit("update:messageKeyword", value),
+};
 </script>
 
 <template>
@@ -90,75 +68,7 @@ const { jumpSearchMatch, searchMatchIndex, searchMatches } = useMessagePanelSear
     @dragleave="handleDragLeave"
     @drop="handleDrop"
   >
-    <ChatWorkspaceHeader
-      :chat-title="chatTitle"
-      :chat-kind="chatKind"
-      :participant-count="participantCount"
-      :standalone-mode="standaloneMode"
-      :network-banner-text="networkBannerText"
-      :message-keyword="messageKeyword"
-      :searching="searching"
-      :search-result-text="searchResultText"
-      :search-match-index="searchMatchIndex"
-      :search-matches-length="searchMatches.length"
-      @update:message-keyword="$emit('update:messageKeyword', $event)"
-      @search="$emit('search')"
-      @clear-search="$emit('clear-search')"
-      @search-prev="jumpSearchMatch(-1)"
-      @search-next="jumpSearchMatch(1)"
-    />
-
-    <MessageListViewport
-      ref="messageListViewportRef"
-      :has-conversation="hasConversation"
-      :has-more-messages="hasMoreMessages"
-      :load-state="loadState"
-      :loading-more-messages="loadingMoreMessages"
-      :messages="messages"
-      :pending-incoming-count="pendingIncomingCount"
-      @download-file="$emit('download-file', $event)"
-      @load-more="$emit('load-more')"
-      @message-action="$emit('message-action', $event)"
-      @open-file="$emit('open-file', $event)"
-      @open-file-location="$emit('open-file-location', $event)"
-      @open-image="$emit('open-image', $event)"
-      @open-menu="openMessageMenu"
-      @retry-load="$emit('retry-load')"
-      @save-file-as="$emit('save-file-as', $event)"
-      @scroll-to-bottom="scrollMessageListToBottom('smooth')"
-    />
-
-    <MessagePanelComposer
-      :show-reply-bar="showReplyBar"
-      :reply-text="replyText"
-      :message-input="messageInput"
-      :mention-open="mentionOpen"
-      :mention-options="mentionOptions"
-      :composer-hint="composerHint"
-      :composer-hint-tone="composerHintTone"
-      :pending-files="pendingFiles"
-      :uploading-files="uploadingFiles"
-      :upload-progress-text="uploadProgressText"
-      :download-progress-text="downloadProgressText"
-      :recent-stickers="recentStickers"
-      :stickers="stickers"
-      :stickers-loading="stickersLoading"
-      :stickers-hint="stickersHint"
-      :stickers-hint-tone="stickersHintTone"
-      @cancel-edit="$emit('cancel-edit')"
-      @update:message-input="$emit('update:messageInput', $event)"
-      @message-keydown="$emit('message-keydown', $event)"
-      @mention-pick="$emit('mention-pick', $event)"
-      @submit="$emit('submit')"
-      @open-file-picker="$emit('open-file-picker')"
-      @capture-screenshot="$emit('capture-screenshot')"
-      @open-sticker-import="$emit('open-sticker-import')"
-      @send-sticker="$emit('send-sticker', $event)"
-      @clear-recent-stickers="$emit('clear-recent-stickers')"
-      @file-change="$emit('file-change', $event)"
-      @file-paste="$emit('file-paste', $event)"
-      @remove-pending-file="$emit('remove-pending-file', $event)"
-    />
+    <MessagePanelWorkspace v-bind="workspaceProps" v-on="workspaceListeners" />
 
     <MessagePanelOverlay
       :context-menu-items="contextMenuItems"

@@ -1,9 +1,7 @@
 <script setup>
 import CreateConversationDialog from "./CreateConversationDialog.vue";
-import NewFriendsDialog from "./NewFriendsDialog.vue";
-import FriendRemarkDialog from "./FriendRemarkDialog.vue";
-import SettingsDialog from "./SettingsDialog.vue";
-import UpdatePromptDialog from "./UpdatePromptDialog.vue";
+import ConversationFriendDialogs from "./ConversationFriendDialogs.vue";
+import ConversationSettingsDialogs from "./ConversationSettingsDialogs.vue";
 
 defineProps({
   store: { type: Object, default: () => ({}) },
@@ -65,53 +63,20 @@ defineEmits([
     @toggle-participant="store.toggleDialogParticipant"
   />
 
-  <NewFriendsDialog
-    :open="friendCenter.open.value"
-    :keyword="friendCenter.keyword.value"
-    :loading="friendCenter.loading.value"
-    :hint="friendCenter.hint.value"
-    :hint-tone="friendCenter.hintTone.value"
-    :recent-contacts="friendCenter.recentContacts.value"
-    :incoming-requests="friendCenter.incomingRequests.value"
-    :outgoing-requests="friendCenter.outgoingRequests.value"
-    :recommended-users="friendCenter.recommendedUsers.value"
-    :friend-contacts="friendCenter.friendContacts.value"
-    @close="friendCenter.closeCenter()"
-    @update:keyword="friendCenter.keyword.value = $event"
-    @start-chat="$emit('start-chat', $event)"
-    @edit-friend="$emit('edit-friend', $event)"
-    @remove-friend="friendCenter.removeFriend($event).catch(() => {})"
-    @send-request="friendCenter.sendRequest"
-    @accept-request="friendCenter.resolveRequest($event, 'accept', '已通过好友申请')"
-    @reject-request="friendCenter.resolveRequest($event, 'reject', '已拒绝好友申请')"
-    @cancel-request="friendCenter.resolveRequest($event, 'cancel', '已取消好友申请')"
-  />
-
-  <FriendRemarkDialog
-    :open="remarkDialogOpen"
-    :contact="remarkTarget"
-    :value="remarkDraft"
-    @close="$emit('close-remark')"
-    @update:value="$emit('update:remark-draft', $event)"
-    @submit="$emit('submit-remark')"
-  />
-
-  <SettingsDialog
-    :open="settingsOpen"
-    :settings="appSettings"
-    :desktop-preferences="desktopPreferences"
-    :profile-account="store.me.value?.id || auth.userId"
-    :profile-role="store.me.value?.role || auth.role"
-    :profile-name="store.profileName.value"
-    :profile-bio="store.profileBio.value"
-    :profile-hint="store.profileHint.value"
-    :profile-hint-tone="store.profileHintTone.value"
-    :password-hint="passwordChange.passwordHint.value"
-    :password-hint-tone="passwordChange.passwordHintTone.value"
-    :password-submitting="passwordChange.passwordSubmitting.value"
-    :me-avatar-url="store.meAvatarUrl.value"
+  <ConversationFriendDialogs :friend-center="friendCenter" @start-chat="$emit('start-chat', $event)" @edit-friend="$emit('edit-friend', $event)" />
+  <ConversationSettingsDialogs
     :app-info="appInfo"
-    @close="$emit('close-settings')"
+    :app-settings="appSettings"
+    :auth="auth"
+    :desktop-preferences="desktopPreferences"
+    :password-change="passwordChange"
+    :remark-dialog-open="remarkDialogOpen"
+    :remark-draft="remarkDraft"
+    :remark-target="remarkTarget"
+    :settings-open="settingsOpen"
+    :store="store"
+    :update-prompt-open="updatePromptOpen"
+    @close-settings="$emit('close-settings')"
     @update:settings="$emit('update:settings', $event)"
     @update:desktop-preferences="$emit('update:desktop-preferences', $event)"
     @update:profile-name="$emit('update:profile-name', $event)"
@@ -124,13 +89,11 @@ defineEmits([
     @open-download-dir="$emit('open-download-dir')"
     @clear-cache="$emit('clear-cache')"
     @open-update="$emit('open-update')"
-  />
-
-  <UpdatePromptDialog
-    :open="updatePromptOpen"
-    :update="appInfo.update"
+    @close-update="$emit('close-update')"
     @update-now="$emit('update-now')"
     @remind-later="$emit('remind-later')"
-    @close="$emit('close-update')"
+    @close-remark="$emit('close-remark')"
+    @update:remark-draft="$emit('update:remark-draft', $event)"
+    @submit-remark="$emit('submit-remark')"
   />
 </template>
