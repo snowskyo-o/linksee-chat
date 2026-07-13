@@ -802,6 +802,9 @@ watch(
 
       <InfoSidebar
         v-if="!standaloneConversationMode || showStandaloneInfoSidebar"
+        :conversation="store.selectedConversation.value"
+        :participants="store.participants.value"
+        :current-user-id="auth.userId"
         :standalone-mode="standaloneConversationMode"
       />
     </section>
