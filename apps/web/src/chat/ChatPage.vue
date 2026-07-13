@@ -372,6 +372,25 @@ async function handleSendSticker(sticker) {
   }
 }
 
+async function captureScreenshot() {
+  if (typeof window.desktopShell?.captureScreenshot !== "function") {
+    store.setComposerHint("当前环境不支持截图发送", "error");
+    return;
+  }
+  try {
+    const payload = await window.desktopShell.captureScreenshot();
+    const bytes = new Uint8Array(Array.isArray(payload?.bytes) ? payload.bytes : []);
+    if (!bytes.length) throw new Error("截图结果为空");
+    const file = new File([bytes], payload?.fileName || `截图-${Date.now()}.png`, {
+      type: payload?.mimeType || "image/png",
+      lastModified: Date.now(),
+    });
+    await actions.uploadFiles([file]);
+  } catch (error) {
+    store.setComposerHint(error?.message || "截图发送失败", "error");
+  }
+}
+
 async function openImageViewer(file) {
   if (!file?.objectKey) return;
   imageViewerOpen.value = true;
@@ -567,6 +586,7 @@ watch(
         @submit="actions.submitComposer"
         @message-action="actions.handleMessageAction"
         @open-file-picker="openFilePicker"
+        @capture-screenshot="captureScreenshot"
         @open-sticker-import="openStickerImport"
         @send-sticker="handleSendSticker"
         @file-change="handleFileChange"
@@ -575,6 +595,7 @@ watch(
         @remove-pending-file="store.removePendingFile"
         @download-file="actions.downloadFile"
         @open-file-location="actions.openFileLocation"
+        @copy-image="actions.copyImageToClipboard"
         @open-image="openImageViewer"
         @load-more="actions.loadOlderMessages"
       />

@@ -50,10 +50,12 @@ const emit = defineEmits([
   "submit",
   "message-action",
   "open-file-picker",
+  "capture-screenshot",
   "open-sticker-import",
   "send-sticker",
   "download-file",
   "open-file-location",
+  "copy-image",
   "open-image",
   "file-change",
   "file-paste",
@@ -96,6 +98,16 @@ const contextMenuItems = computed(() => {
       file,
       action: "download",
     }));
+    message.files
+      .filter((file) => file.isImage && !file.expired && file.objectKey)
+      .forEach((file, index) => items.push({
+        key: `copy-image:${index}`,
+        label: `复制 ${file.name}`,
+        meta: file.metaText,
+        disabled: false,
+        file,
+        action: "copy-image",
+      }));
     message.files
       .filter((file) => file.transfer?.status === "saved" && file.transfer?.path)
       .forEach((file, index) => items.push({
@@ -190,6 +202,11 @@ function openMessageMenu(payload) {
 function selectContextItem(item) {
   if (item.disabled) return;
   if (item.file) {
+    if (item.action === "copy-image") {
+      emit("copy-image", item.file);
+      closeFloatingPanels();
+      return;
+    }
     if (item.action === "open-location") {
       emit("open-file-location", item.file);
       closeFloatingPanels();
@@ -489,6 +506,9 @@ onBeforeUnmount(() => {
           </button>
           <button v-if="shell.isDesktop" class="qq-chat-tool-btn is-sticker" type="button" title="表情包" @click="toggleStickerPicker">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14a2 2 0 0 1 2 2v7.5A6.5 6.5 0 0 1 14.5 20H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Zm9.5 14A4.5 4.5 0 0 0 19 13.5V6H5v12h9.5ZM8 9.25a1.25 1.25 0 1 0 0 2.5a1.25 1.25 0 0 0 0-2.5Zm5 0a1.25 1.25 0 1 0 0 2.5a1.25 1.25 0 0 0 0-2.5Zm-5.2 5.52a1 1 0 0 0 .4 1.36c1.14.64 2.4.97 3.8.97c1.4 0 2.66-.33 3.8-.97a1 1 0 0 0-.96-1.76c-.83.46-1.75.69-2.84.69s-2.01-.23-2.84-.69a1 1 0 0 0-1.36.4Z"/></svg>
+          </button>
+          <button v-if="shell.isDesktop" class="qq-chat-tool-btn" type="button" title="截图" :disabled="uploadingFiles" @click="$emit('capture-screenshot')">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4 7.8 6H5a2 2 0 0 0-2 2v9a3 3 0 0 0 3 3h12a3 3 0 0 0 3-3V8a2 2 0 0 0-2-2h-2.8L15 4H9Zm3 4.25A4.75 4.75 0 1 1 7.25 13 4.76 4.76 0 0 1 12 8.25Zm0 2A2.75 2.75 0 1 0 14.75 13 2.75 2.75 0 0 0 12 10.25Z"/></svg>
           </button>
           <button class="qq-chat-tool-btn" type="button" title="发送文件" :disabled="uploadingFiles" @click="$emit('open-file-picker')">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 7H9.83l-2-2H5a2 2 0 0 0-2 2v10c0 1.1.9 2 2 2h14a2 2 0 0 0 2-2V9c0-1.1-.9-2-2-2Zm0 10H5V7h2l2 2h10v8Z"/></svg>

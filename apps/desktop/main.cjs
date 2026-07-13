@@ -4,6 +4,7 @@ const { createHash } = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
+const { captureScreenshot, writeImageToClipboard } = require("./desktop-media.cjs");
 
 const DEFAULT_REMOTE_ORIGIN = "http://186.241.89.102";
 const projectRoot = path.resolve(__dirname, "../..");
@@ -939,6 +940,10 @@ function registerIpcHandlers() {
       conversationId: payload.conversationId,
       cacheKey: payload.cacheKey,
     });
+  });
+  ipcMain.handle("desktop:capture-screenshot", () => captureScreenshot());
+  ipcMain.handle("desktop:write-image-to-clipboard", (_event, payload = {}) => {
+    return writeImageToClipboard(payload);
   });
   ipcMain.handle("desktop:read-state-cache", (_event, payload = {}) => {
     return readStateCache(payload.scope, payload.key);

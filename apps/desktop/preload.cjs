@@ -28,6 +28,8 @@ contextBridge.exposeInMainWorld("desktopShell", {
   updateWindowContext: (payload) => ipcRenderer.invoke("desktop:update-window-context", payload),
   resolveAvatarSource: (sourceUrl) => ipcRenderer.invoke("desktop:resolve-avatar-source", sourceUrl),
   saveDownloadedFile: (payload) => ipcRenderer.invoke("desktop:save-downloaded-file", payload),
+  captureScreenshot: () => ipcRenderer.invoke("desktop:capture-screenshot"),
+  writeImageToClipboard: (payload) => ipcRenderer.invoke("desktop:write-image-to-clipboard", payload),
   readStateCache: (payload) => ipcRenderer.invoke("desktop:read-state-cache", payload),
   writeStateCache: (payload) => ipcRenderer.invoke("desktop:write-state-cache", payload),
   openStoragePath: (targetPath) => ipcRenderer.invoke("desktop:open-storage-path", targetPath),
