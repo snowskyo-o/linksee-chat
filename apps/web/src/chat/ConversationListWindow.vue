@@ -22,11 +22,13 @@ import { useChatRealtime } from "./composables/useChatRealtime.js";
 import { useConversationSearchSections } from "./composables/useConversationSearchSections.js";
 import { useFriendCenter } from "./composables/useFriendCenter.js";
 import { useListSearch } from "./composables/useListSearch.js";
+import { usePasswordChange } from "./composables/usePasswordChange.js";
 import { formatConversationTime, useRecentKeywords } from "./composables/useRecentKeywords.js";
 const shell = useDesktopShell();
 const auth = getAuth();
 const store = useChatStore(auth);
 const actions = useChatActions(store);
+const passwordChange = usePasswordChange();
 const realtime = useChatRealtime(auth, store.selectedId, store.conversations, store.socketOnline, handleRealtimeEvent);
 const friendCenter = useFriendCenter(store, {
   async onChanged() {
@@ -743,6 +745,9 @@ watch(() => friendCenter.keyword.value, () => {
       :profile-bio="store.profileBio.value"
       :profile-hint="store.profileHint.value"
       :profile-hint-tone="store.profileHintTone.value"
+      :password-hint="passwordChange.passwordHint.value"
+      :password-hint-tone="passwordChange.passwordHintTone.value"
+      :password-submitting="passwordChange.passwordSubmitting.value"
       :me-avatar-url="store.meAvatarUrl.value"
       :app-info="appInfo"
       @close="settingsOpen = false"
@@ -751,6 +756,7 @@ watch(() => friendCenter.keyword.value, () => {
       @update:profile-name="store.profileName.value = $event"
       @update:profile-bio="store.profileBio.value = $event"
       @save-profile="actions.saveProfile"
+      @submit-password="passwordChange.submitPassword"
       @logout="logout"
       @upload-avatar="handleAvatarUpload"
       @choose-download-dir="chooseDownloadDirectory"

@@ -1,22 +1,13 @@
-import crypto from "node:crypto";
 import { Router } from "express";
 import { prisma } from "../../../../infra/db/prisma.mjs";
 import { findUserById } from "../services/chat-store.mjs";
+import { verifyPassword } from "../services/password-service.mjs";
 import {
   findUserIdByRefreshToken,
   issueSession,
   revokeAccessToken,
   revokeRefreshToken,
 } from "../services/session-store.mjs";
-
-function verifyPassword(password, passwordHash) {
-  if (!passwordHash || !passwordHash.startsWith("scrypt$")) {
-    return false;
-  }
-  const [, salt, digest] = passwordHash.split("$");
-  const current = crypto.scryptSync(password, salt, 64).toString("hex");
-  return crypto.timingSafeEqual(Buffer.from(digest, "hex"), Buffer.from(current, "hex"));
-}
 
 export const authRouter = Router();
 

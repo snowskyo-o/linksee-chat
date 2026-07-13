@@ -3,6 +3,7 @@ import { prisma } from "../../../../infra/db/prisma.mjs";
 import { env } from "../../../../infra/config/env.mjs";
 import { minioClient } from "../../../../infra/storage/minio.mjs";
 import { findUserById } from "../services/chat-store.mjs";
+import { hashPassword, verifyPassword } from "../services/password-service.mjs";
 
 export const publicProfileRouter = Router();
 
@@ -156,6 +157,36 @@ export function createProfileRouter(emitUserProfileEvent) {
 
   emitProfileUpdate(emitUserProfileEvent, req.userId, updated);
   return res.json({ ok: true, data: { userId: req.userId, ...updated } });
+});
+
+  router.patch("/users/me/password", async (req, res) => {
+  const currentPassword = typeof req.body?.currentPassword === "string" ? req.body.currentPassword : "";
+  const nextPassword = typeof req.body?.nextPassword === "string" ? req.body.nextPassword : "";
+
+  if (!currentPassword || !nextPassword) {
+    return res.status(400).json({ ok: false, code: "VALIDATION_FAILED", message: "请填写当前密码和新密码" });
+  }
+  if (nextPassword.length < 6) {
+    return res.status(400).json({ ok: false, code: "VALIDATION_FAILED", message: "新密码至少需要 6 位" });
+  }
+  if (nextPassword.length > 64) {
+    return res.status(400).json({ ok: false, code: "VALIDATION_FAILED", message: "新密码不能超过 64 位" });
+  }
+  if (currentPassword === nextPassword) {
+    return res.status(400).json({ ok: false, code: "VALIDATION_FAILED", message: "新密码不能与当前密码相同" });
+  }
+
+  const user = await findUserById(req.userId);
+  if (!user || !verifyPassword(currentPassword, user.passwordHash)) {
+    return res.status(400).json({ ok: false, code: "VALIDATION_FAILED", message: "当前密码不正确" });
+  }
+
+  await prisma.user.update({
+    where: { id: req.userId },
+    data: { passwordHash: hashPassword(nextPassword) },
+  });
+
+  return res.json({ ok: true, data: { userId: req.userId, changed: true } });
 });
 
   router.post("/users/me/avatar", express.raw({

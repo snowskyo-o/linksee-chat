@@ -26,6 +26,7 @@ import { getDesktopConversationId, getDesktopWindowKind, isDesktopRuntime } from
 import { useChatStore } from "./store/useChatStore.js";
 import { useChatActions } from "./composables/useChatActions.js";
 import { useGroupManagement } from "./composables/useGroupManagement.js";
+import { usePasswordChange } from "./composables/usePasswordChange.js";
 import { useChatRealtime } from "./composables/useChatRealtime.js";
 import { useStickerLibrary } from "./composables/useStickerLibrary.js";
 
@@ -33,6 +34,7 @@ const auth = getAuth();
 const store = useChatStore(auth);
 const actions = useChatActions(store);
 const groupManagement = useGroupManagement(store, actions);
+const passwordChange = usePasswordChange();
 const stickerLibrary = useStickerLibrary();
 const queryConversationId = new URLSearchParams(window.location.search).get("conversationId") || "";
 const desktopConversationId = getDesktopConversationId() || queryConversationId;
@@ -836,6 +838,9 @@ watch(
       :profile-bio="store.profileBio.value"
       :profile-hint="store.profileHint.value"
       :profile-hint-tone="store.profileHintTone.value"
+      :password-hint="passwordChange.passwordHint.value"
+      :password-hint-tone="passwordChange.passwordHintTone.value"
+      :password-submitting="passwordChange.passwordSubmitting.value"
       :me-avatar-url="store.meAvatarUrl.value"
       :app-info="appInfo"
       @close="closeSettings"
@@ -844,6 +849,7 @@ watch(
       @update:profile-name="store.profileName.value = $event"
       @update:profile-bio="store.profileBio.value = $event"
       @save-profile="actions.saveProfile"
+      @submit-password="passwordChange.submitPassword"
       @logout="logout"
       @upload-avatar="handleAvatarUpload"
       @choose-download-dir="chooseDownloadDirectory"
