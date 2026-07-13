@@ -256,7 +256,9 @@ export function useChatStore(auth) {
       canRecall: String(message.senderId) === String(auth.userId) && !deleted && !message.operationState,
       canRetry: String(message.senderId) === String(auth.userId) && message.operationState === "failed",
       canDelete: String(message.senderId) === String(auth.userId) && !deleted && !message.operationState,
-      canForward: !deleted && !message.operationState && message.type === "text",
+      canForward: !deleted && !message.operationState && (
+        message.type === "text" || isFileMessage
+      ),
       hasTextContent: !deleted && !isFileMessage && Boolean(String(message.content || "").trim()),
       isFavorite: favoriteMessages.value.some((item) => item.id === String(message.id)),
       timeText: formatDateTime(message.createdAt),

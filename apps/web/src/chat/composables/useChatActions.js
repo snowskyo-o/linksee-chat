@@ -549,18 +549,25 @@ export function useChatActions(store) {
       return;
     }
     if (!message.canForward) {
-      store.forwardHint.value = "当前仅支持转发文本消息";
+      store.forwardHint.value = "当前消息暂不支持转发";
       return;
     }
 
     store.forwardSubmitting.value = true;
     store.forwardHint.value = "";
     try {
-      await chatApi.postJson(`/api/v1/conversations/${encodeURIComponent(targetConversationId)}/messages`, {
-        content: message.content || "",
-        mentions: [],
-        replyToId: null,
-      });
+      if (Array.isArray(message.files) && message.files.length) {
+        await chatApi.postJson(`/api/v1/conversations/${encodeURIComponent(targetConversationId)}/messages/forward`, {
+          sourceConversationId: String(message.conversationId || store.selectedId.value || ""),
+          sourceMessageId: String(message.id || ""),
+        });
+      } else {
+        await chatApi.postJson(`/api/v1/conversations/${encodeURIComponent(targetConversationId)}/messages`, {
+          content: message.content || "",
+          mentions: [],
+          replyToId: null,
+        });
+      }
       store.closeForwardDialog();
       store.pushNotification({ title: "转发成功", message: "消息已发送到目标会话", tone: "success" });
       appendAppLog({ level: "info", category: "message", message: `消息已转发到会话 ${targetConversationId}` });

@@ -29,6 +29,7 @@ import {
   CHAT_FILE_RETENTION_MS,
   buildChatObjectKey,
   buildFileSummary,
+  cloneChatFilesToConversation,
   cleanupExpiredChatFiles,
   enrichChatFilesForResponse,
   ensureChatFileSize,
@@ -673,6 +674,92 @@ export function createChatRouter(emitConversationEvent) {
     });
 
     emitConversationEvent(ctx.conversation.id, "conversation.message.created", { messageId: created.id.toString() });
+    return res.status(201).json({ ok: true, data: serializeMessage(created) });
+  });
+
+  router.post("/conversations/:conversationId/messages/forward", async (req, res) => {
+    const targetCtx = await requireConversation(req, res);
+    if (!targetCtx) return;
+
+    const sourceConversationId = typeof req.body?.sourceConversationId === "string" ? req.body.sourceConversationId.trim() : "";
+    const sourceMessageId = typeof req.body?.sourceMessageId === "string" ? req.body.sourceMessageId.trim() : "";
+    if (!sourceConversationId || !sourceMessageId) {
+      return res.status(400).json({ ok: false, code: "VALIDATION_FAILED", message: "sourceConversationId 和 sourceMessageId 必填" });
+    }
+
+    const sourceConversation = await prisma.chatConversation.findFirst({
+      where: {
+        id: BigInt(sourceConversationId),
+        members: { some: { userId: req.userId } },
+      },
+      include: { members: true },
+    }).catch(() => null);
+    if (!sourceConversation) {
+      return res.status(404).json({ ok: false, code: "NOT_FOUND", message: "源会话不存在" });
+    }
+
+    const sourceMessage = await prisma.chatMessage.findFirst({
+      where: {
+        id: BigInt(sourceMessageId),
+        conversationId: sourceConversation.id,
+        deletedAt: null,
+      },
+      include: {
+        sender: { include: { profile: true } },
+        replyTo: { include: { filesMeta: true } },
+        filesMeta: true,
+      },
+    }).catch(() => null);
+    if (!sourceMessage) {
+      return res.status(404).json({ ok: false, code: "NOT_FOUND", message: "源消息不存在" });
+    }
+
+    const sourceFiles = Array.isArray(sourceMessage.files) ? sourceMessage.files : [];
+    const nextFiles = sourceFiles.length
+      ? await cloneChatFilesToConversation(sourceFiles, req.params.conversationId, sourceMessage.filesMeta || [])
+      : [];
+    const nextType = nextFiles.length ? "file" : "text";
+    const nextContent = nextFiles.length
+      ? buildFileSummary(nextFiles)
+      : String(sourceMessage.content || "").trim();
+    if (!nextFiles.length && !validateContent(nextContent, res)) return;
+
+    const created = await prisma.chatMessage.create({
+      data: {
+        conversationId: targetCtx.conversation.id,
+        senderId: req.userId,
+        content: nextContent,
+        files: nextFiles.length ? nextFiles : null,
+        mentions: [],
+        replyToId: null,
+        eventId: crypto.randomUUID(),
+        traceId: crypto.randomUUID(),
+        filesMeta: nextFiles.length
+          ? {
+              create: nextFiles.map((file) => ({
+                objectKey: file.objectKey,
+                name: file.name,
+                size: BigInt(file.size),
+                mimeType: file.mimeType,
+                uploadedAt: new Date(file.uploadedAt),
+                expiresAt: new Date(file.expiresAt || Date.now() + CHAT_FILE_RETENTION_MS),
+              })),
+            }
+          : undefined,
+      },
+      include: {
+        sender: { include: { profile: true } },
+        replyTo: { include: { filesMeta: true } },
+        filesMeta: true,
+      },
+    });
+
+    emitConversationEvent(targetCtx.conversation.id, "conversation.message.created", {
+      messageId: created.id.toString(),
+      forwardedFromConversationId: sourceConversationId,
+      forwardedFromMessageId: sourceMessageId,
+      type: nextType,
+    });
     return res.status(201).json({ ok: true, data: serializeMessage(created) });
   });
 
