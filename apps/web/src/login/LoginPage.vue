@@ -2,6 +2,7 @@
 import { computed, nextTick, onMounted, ref } from "vue";
 import { chatApi } from "../shared/api-client.js";
 import AvatarImage from "../shared/components/AvatarImage.vue";
+import LoginAssistDialog from "./components/LoginAssistDialog.vue";
 import { resolveMediaUrl } from "../shared/media.js";
 import { useDesktopShell } from "../shared/useDesktopShell.js";
 import { isDesktopRuntime, navigateTo } from "../shared/runtime.js";
@@ -24,6 +25,9 @@ const rememberAccount = ref(rememberedAccount);
 const autoLogin = ref(rememberedAutoLogin);
 const capsLockOn = ref(false);
 const passwordInput = ref(null);
+const assistTitle = ref("");
+const assistMessage = ref("");
+const assistOpen = ref(false);
 
 const previewInitials = computed(() => getInitials(previewName.value, userId.value || "LC"));
 
@@ -92,6 +96,29 @@ function updateCapsLock(event) {
   if (typeof event.getModifierState === "function") {
     capsLockOn.value = event.getModifierState("CapsLock");
   }
+}
+
+function openAssistDialog(title, message) {
+  assistTitle.value = title;
+  assistMessage.value = message;
+  assistOpen.value = true;
+}
+
+function openForgotPassword() {
+  const account = String(userId.value || "").trim();
+  openAssistDialog(
+    "忘记密码",
+    account
+      ? `当前版本暂未接入在线找回流程，请联系管理员协助重置账号 ${account} 的密码。`
+      : "当前版本暂未接入在线找回流程，请联系管理员协助重置密码。",
+  );
+}
+
+function openRegisterAccount() {
+  openAssistDialog(
+    "注册账号",
+    "当前版本暂未开放自助注册，请联系管理员分配账号，或等待邀请注册能力上线。",
+  );
 }
 
 async function submitLogin() {
@@ -255,8 +282,8 @@ onMounted(() => {
           </button>
 
           <div class="compact-auth-links">
-            <button type="button">忘记密码</button>
-            <button type="button">注册账号</button>
+            <button type="button" :disabled="submitting" @click="openForgotPassword">忘记密码</button>
+            <button type="button" :disabled="submitting" @click="openRegisterAccount">注册账号</button>
           </div>
 
           <p class="compact-auth-status" :class="hint ? (hintTone === 'error' ? 'is-error' : 'is-success') : ''">
@@ -265,5 +292,12 @@ onMounted(() => {
         </form>
       </section>
     </section>
+
+    <LoginAssistDialog
+      :open="assistOpen"
+      :title="assistTitle"
+      :message="assistMessage"
+      @close="assistOpen = false"
+    />
   </main>
 </template>
