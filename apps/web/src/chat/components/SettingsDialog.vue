@@ -110,7 +110,7 @@ function patchDesktopPreferences(key, value) {
           <label class="settings-toggle">
             <div>
               <strong>提示音</strong>
-              <p class="muted">收到新消息时播放系统提示音。</p>
+              <p class="muted">收到新消息时播放内置双音提示，不支持时回退为系统提示音。</p>
             </div>
             <input
               :checked="Boolean(settings?.notifications?.soundEnabled)"

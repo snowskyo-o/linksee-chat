@@ -18,6 +18,7 @@ import { chatApi } from "../shared/api-client.js";
 import { getAuth, logout } from "../shared/session.js";
 import { loadAppSettings, saveAppSettings } from "../shared/app-settings.js";
 import { mergeDesktopPreferences } from "../shared/desktop-preferences.js";
+import { playNotificationSound } from "../shared/notification-sound.js";
 import { getDesktopConversationId, getDesktopWindowKind, isDesktopRuntime } from "../shared/runtime.js";
 import { useChatStore } from "./store/useChatStore.js";
 import { useChatActions } from "./composables/useChatActions.js";
@@ -272,7 +273,8 @@ async function notifyIncomingMessage(conversationId) {
   const body = conversation?.lastMessage?.content || "你收到一条新消息";
 
   if (appSettings.value.notifications?.soundEnabled) {
-    window.desktopShell?.beep?.();
+    const played = await playNotificationSound().catch(() => false);
+    if (!played) window.desktopShell?.beep?.();
   }
   if (appSettings.value.notifications?.desktopEnabled) {
     if (typeof window.desktopShell?.showNotification === "function") {
