@@ -267,16 +267,31 @@ export function useChatActions(store) {
         },
       );
       store.downloadProgress.value = 100;
-      const objectUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = objectUrl;
-      link.download = file.name || "attachment";
-      link.rel = "noopener";
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.setTimeout(() => window.URL.revokeObjectURL(objectUrl), 1000);
-      store.pushNotification({ title: "开始下载", message: file.name || "附件", tone: "success", ttl: 2200 });
+      if (window.desktopShell?.isDesktop && typeof window.desktopShell?.saveDownloadedFile === "function") {
+        const saved = await window.desktopShell.saveDownloadedFile({
+          fileName: file.name || "attachment",
+          bytes: Array.from(new Uint8Array(await blob.arrayBuffer())),
+          conversationId: store.selectedId.value || "shared",
+          cacheKey: file.objectKey,
+        });
+        store.pushNotification({
+          title: "已保存到本地",
+          message: saved?.exportPath || file.name || "附件",
+          tone: "success",
+          ttl: 2600,
+        });
+      } else {
+        const objectUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = objectUrl;
+        link.download = file.name || "attachment";
+        link.rel = "noopener";
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.setTimeout(() => window.URL.revokeObjectURL(objectUrl), 1000);
+        store.pushNotification({ title: "开始下载", message: file.name || "附件", tone: "success", ttl: 2200 });
+      }
       appendAppLog({ level: "info", category: "file", message: `开始下载 ${file.name || "附件"}` });
     } finally {
       window.setTimeout(() => {

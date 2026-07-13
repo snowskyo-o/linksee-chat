@@ -47,8 +47,7 @@ const emit = defineEmits([
   "submit",
   "message-action",
   "open-file-picker",
-  "import-stickers",
-  "import-sticker-folder",
+  "open-sticker-import",
   "send-sticker",
   "download-file",
   "file-change",
@@ -489,8 +488,7 @@ onBeforeUnmount(() => {
         :hint-tone="stickersHintTone"
         :desktop-mode="shell.isDesktop"
         @pick="sendSticker"
-        @import-files="$emit('import-stickers')"
-        @import-folder="$emit('import-sticker-folder')"
+        @import-files="$emit('open-sticker-import')"
       />
 
       <textarea

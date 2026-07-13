@@ -2619,6 +2619,39 @@ html body .desktop-page-shell { min-height: 100vh; }
 .forward-dialog-card {
   width: min(440px, calc(100vw - 32px));
 }
+.sticker-import-dialog {
+  width: min(560px, calc(100vw - 32px));
+}
+.sticker-import-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 14px 0 18px;
+}
+.sticker-import-action {
+  display: grid;
+  gap: 8px;
+  padding: 18px;
+  border: 1px solid rgba(126, 150, 196, 0.16);
+  border-radius: 20px;
+  background: linear-gradient(180deg, rgba(248, 251, 255, 0.98), rgba(241, 246, 255, 0.96));
+  text-align: left;
+  transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+}
+.sticker-import-action:hover {
+  transform: translateY(-2px);
+  border-color: rgba(79, 124, 255, 0.28);
+  box-shadow: 0 18px 36px rgba(73, 107, 182, 0.14);
+}
+.sticker-import-action strong {
+  font-size: 16px;
+  color: #22314d;
+}
+.sticker-import-action span {
+  color: #6e7c93;
+  font-size: 13px;
+  line-height: 1.6;
+}
 .forward-dialog-list {
   display: grid;
   gap: 10px;

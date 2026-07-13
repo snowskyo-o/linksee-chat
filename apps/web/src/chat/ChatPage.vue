@@ -8,6 +8,7 @@ import ForwardDialog from "./components/ForwardDialog.vue";
 import MessagePanel from "./components/MessagePanel.vue";
 import InfoSidebar from "./components/InfoSidebar.vue";
 import SettingsDialog from "./components/SettingsDialog.vue";
+import StickerImportDialog from "./components/StickerImportDialog.vue";
 import ToastStack from "./components/ToastStack.vue";
 import DesktopTitlebar from "../shared/components/DesktopTitlebar.vue";
 import { appendAppLog, clearAppLogs, onAppLogsUpdated, readAppLogs } from "../shared/app-log.js";
@@ -28,6 +29,7 @@ const desktopConversationId = getDesktopConversationId() || queryConversationId;
 const settingsOpen = ref(false);
 const appSettings = ref(loadAppSettings());
 const appLogs = ref(readAppLogs());
+const stickerImportOpen = ref(false);
 const appInfo = ref({
   productName: "Linksee Chat",
   version: "",
@@ -178,6 +180,24 @@ function handleFileDrop(files) {
   });
 }
 
+function openStickerImport() {
+  stickerImportOpen.value = true;
+}
+
+async function importStickerFiles() {
+  await stickerLibrary.importFiles();
+}
+
+async function importStickerFolder() {
+  await stickerLibrary.importFolder();
+}
+
+async function openStickerFolder() {
+  const folder = appInfo.value.storage?.stickers || "";
+  if (!folder || typeof window.desktopShell?.openStoragePath !== "function") return;
+  await window.desktopShell.openStoragePath(folder).catch(() => {});
+}
+
 async function handleSendSticker(sticker) {
   if (!sticker?.src) return;
   try {
@@ -325,8 +345,7 @@ onBeforeUnmount(() => {
         @submit="actions.submitComposer"
         @message-action="actions.handleMessageAction"
         @open-file-picker="openFilePicker"
-        @import-stickers="stickerLibrary.importFiles"
-        @import-sticker-folder="stickerLibrary.importFolder"
+        @open-sticker-import="openStickerImport"
         @send-sticker="handleSendSticker"
         @file-change="handleFileChange"
         @file-drop="handleFileDrop"
@@ -359,6 +378,17 @@ onBeforeUnmount(() => {
       @update:profile-bio="store.profileBio.value = $event"
       @save-profile="actions.saveProfile"
       @upload-avatar="handleAvatarUpload"
+    />
+
+    <StickerImportDialog
+      :open="stickerImportOpen"
+      :storage="appInfo.storage"
+      :hint="stickerLibrary.hint.value"
+      :hint-tone="stickerLibrary.hintTone.value"
+      @close="stickerImportOpen = false"
+      @import-files="importStickerFiles"
+      @import-folder="importStickerFolder"
+      @open-sticker-folder="openStickerFolder"
     />
 
     <ForwardDialog

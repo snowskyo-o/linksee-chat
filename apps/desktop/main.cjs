@@ -1,6 +1,8 @@
 const { app, BrowserWindow, ipcMain, Menu, Notification, Tray, nativeImage, shell, dialog } = require("electron");
+const { createHash } = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
+const { pathToFileURL } = require("node:url");
 
 const DEFAULT_REMOTE_ORIGIN = "http://186.241.89.102";
 const projectRoot = path.resolve(__dirname, "../..");
@@ -66,6 +68,33 @@ function sanitizeStickerName(value) {
     .replace(/^_+|_+$/g, "") || "sticker";
 }
 
+function sanitizeFileName(value, fallback = "file") {
+  return String(value || "")
+    .replace(/[<>:"/\\|?*\u0000-\u001F]+/g, "_")
+    .replace(/\s+/g, " ")
+    .trim() || fallback;
+}
+
+function hashValue(value) {
+  return createHash("sha1").update(String(value || "")).digest("hex");
+}
+
+async function ensureRemoteAvatarCached(sourceUrl) {
+  const normalized = String(sourceUrl || "").trim();
+  if (!/^https?:/i.test(normalized)) return "";
+  const { avatars } = ensureStorageDirectories();
+  const nextUrl = new URL(normalized);
+  const extension = path.extname(nextUrl.pathname || "").toLowerCase() || ".img";
+  const filePath = path.join(avatars, `${hashValue(normalized)}${extension}`);
+  if (!fs.existsSync(filePath)) {
+    const response = await fetch(normalized);
+    if (!response.ok) throw new Error(`avatar fetch failed: ${response.status}`);
+    const arrayBuffer = await response.arrayBuffer();
+    fs.writeFileSync(filePath, Buffer.from(arrayBuffer));
+  }
+  return pathToFileURL(filePath).toString();
+}
+
 function listStickerEntries() {
   const { stickers } = ensureStorageDirectories();
   if (!fs.existsSync(stickers)) return [];
@@ -116,6 +145,33 @@ function walkStickerFiles(rootPath, bucket = [], depth = 0) {
     }
   });
   return bucket;
+}
+
+function ensureConversationCacheDir(conversationId = "shared") {
+  const { chatCache } = ensureStorageDirectories();
+  const target = path.join(chatCache, sanitizeFileName(conversationId, "shared"));
+  fs.mkdirSync(target, { recursive: true });
+  return target;
+}
+
+function saveDownloadedAsset({ fileName, bytes, conversationId = "", cacheKey = "" }) {
+  const safeName = sanitizeFileName(fileName, "attachment");
+  const payload = Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes || []);
+  const cacheDir = ensureConversationCacheDir(conversationId);
+  const { exports } = ensureStorageDirectories();
+  const stem = path.parse(safeName).name;
+  const extension = path.extname(safeName);
+  const uniqueSuffix = `${Date.now()}-${(cacheKey && hashValue(cacheKey).slice(0, 8)) || hashValue(safeName).slice(0, 8)}`;
+  const cachePath = path.join(cacheDir, `${stem}-${uniqueSuffix}${extension}`);
+  const exportPath = path.join(exports, `${stem}-${uniqueSuffix}${extension}`);
+  fs.writeFileSync(cachePath, payload);
+  fs.writeFileSync(exportPath, payload);
+  return {
+    cachePath,
+    exportPath,
+    cacheUrl: pathToFileURL(cachePath).toString(),
+    exportUrl: pathToFileURL(exportPath).toString(),
+  };
 }
 
 function normalizeOrigin(value) {
@@ -589,6 +645,27 @@ function registerIpcHandlers() {
     node: process.versions.node,
     storage: getStorageInfo(),
   }));
+  ipcMain.handle("desktop:resolve-avatar-source", async (_event, sourceUrl) => {
+    try {
+      return await ensureRemoteAvatarCached(sourceUrl);
+    } catch {
+      return String(sourceUrl || "");
+    }
+  });
+  ipcMain.handle("desktop:save-downloaded-file", (_event, payload = {}) => {
+    return saveDownloadedAsset({
+      fileName: payload.fileName,
+      bytes: payload.bytes,
+      conversationId: payload.conversationId,
+      cacheKey: payload.cacheKey,
+    });
+  });
+  ipcMain.handle("desktop:open-storage-path", async (_event, targetPath) => {
+    const nextPath = String(targetPath || "").trim();
+    if (!nextPath || !fs.existsSync(nextPath)) return false;
+    await shell.openPath(nextPath);
+    return true;
+  });
   ipcMain.handle("desktop:list-stickers", () => listStickerEntries());
   ipcMain.handle("desktop:import-sticker-files", async () => {
     const result = await dialog.showOpenDialog({

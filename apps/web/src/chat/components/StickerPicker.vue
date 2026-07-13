@@ -8,7 +8,7 @@ defineProps({
   desktopMode: { type: Boolean, default: false },
 });
 
-defineEmits(["pick", "import-files", "import-folder"]);
+defineEmits(["pick", "import-files"]);
 </script>
 
 <template>
@@ -17,8 +17,7 @@ defineEmits(["pick", "import-files", "import-folder"]);
       <header class="emoji-picker-group-title sticker-picker-head">
         <span>表情包</span>
         <div v-if="desktopMode" class="sticker-picker-actions">
-          <button class="ghost-btn compact-btn" type="button" @click="$emit('import-files')">导入图片</button>
-          <button class="ghost-btn compact-btn" type="button" @click="$emit('import-folder')">导入文件夹</button>
+          <button class="ghost-btn compact-btn" type="button" @click="$emit('import-files')">管理导入</button>
         </div>
       </header>
 
