@@ -1,48 +1,11 @@
 <script setup>
 import { computed, ref } from "vue";
-
-const RECENT_EMOJIS_KEY = "linksee_chat_recent_emojis";
-const RECENT_EMOJI_LIMIT = 18;
-
-const emojiGroups = [
-  {
-    title: "常用",
-    items: ["😀", "😁", "😂", "🤣", "😊", "😍", "🥳", "😎", "🙂", "😉", "🤗", "🥰"],
-  },
-  {
-    title: "表情",
-    items: ["😄", "😆", "😅", "😇", "🙂", "🙃", "😉", "😌", "😋", "😜", "🤩", "🥺"],
-  },
-  {
-    title: "情绪",
-    items: ["😭", "😡", "😤", "😱", "😴", "🤔", "🫠", "😬", "🥲", "😮", "😶", "🫡"],
-  },
-  {
-    title: "动作",
-    items: ["👍", "👏", "🙏", "🤝", "💪", "🙌", "👌", "✌️", "🤟", "👋", "💯", "🎉"],
-  },
-  {
-    title: "爱心",
-    items: ["❤️", "🩷", "🧡", "💛", "💚", "🩵", "💙", "💜", "🖤", "🤍", "💞", "💕"],
-  },
-  {
-    title: "生活",
-    items: ["☕", "🍵", "🍔", "🍰", "🍓", "🌹", "🍀", "🌈", "⭐", "✨", "🎵", "🎧"],
-  },
-  {
-    title: "动物",
-    items: ["🐱", "🐶", "🐼", "🐰", "🦊", "🐯", "🐻", "🐨", "🐸", "🐵", "🦄", "🐧"],
-  },
-];
-
-function loadRecentEmojis() {
-  try {
-    const parsed = JSON.parse(window.localStorage.getItem(RECENT_EMOJIS_KEY) || "[]");
-    return Array.isArray(parsed) ? parsed.filter(Boolean).slice(0, RECENT_EMOJI_LIMIT) : [];
-  } catch {
-    return [];
-  }
-}
+import {
+  RECENT_EMOJIS_KEY,
+  buildRecentEmojis,
+  emojiGroups,
+  loadRecentEmojis,
+} from "./emoji-picker-support";
 
 defineProps({
   open: { type: Boolean, default: false },
@@ -56,7 +19,7 @@ const visibleGroups = computed(() => {
 });
 
 function persistRecentEmojis(items) {
-  recentEmojis.value = items.slice(0, RECENT_EMOJI_LIMIT);
+  recentEmojis.value = buildRecentEmojis(items);
   window.localStorage.setItem(RECENT_EMOJIS_KEY, JSON.stringify(recentEmojis.value));
 }
 
