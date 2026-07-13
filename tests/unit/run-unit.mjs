@@ -7,6 +7,7 @@ const { mergeUserProfile, mergeUsersById } = await import("../../apps/web/src/ch
 const { mergeMessagesById } = await import("../../apps/web/src/chat/composables/chat-profile-merge-conversations.js");
 const { resolveImageViewerOwnerMessageId } = await import("../../apps/web/src/chat/composables/chat-image-viewer-derived.js");
 const { isMessageActionAvailable } = await import("../../apps/web/src/chat/composables/chat-message-action-rules.js");
+const { pickVisibleConversationPreview } = await import("../../apps/web/src/chat/composables/message-visibility-cache.js");
 const { resolveIncomingNotificationCopy } = await import("../../apps/web/src/chat/composables/chat-realtime-notifications.js");
 const { buildDerivedConversationPreview, buildDerivedMessagePreview, buildFavoriteMessagePreview, buildReplyPreviewText } = await import("../../apps/web/src/chat/store/chat-store-derived-utils.js");
 const { canDeleteMessageForCurrentUser } = await import("../../apps/web/src/chat/store/chat-store-message-derived.js");
@@ -170,3 +171,16 @@ assert.equal(
 );
 
 console.log("[unit] message preview falls back to attachment summary");
+
+const localPreviewFallback = pickVisibleConversationPreview(
+  [
+    { id: "1", content: "旧消息", type: "text" },
+    { id: "2", content: "", type: "file", files: [{ name: "合同.pdf", mimeType: "application/pdf" }] },
+  ],
+  "1",
+);
+assert.equal(localPreviewFallback.id, "2");
+assert.equal(localPreviewFallback.content, "合同.pdf");
+assert.equal(localPreviewFallback.type, "file");
+
+console.log("[unit] local preview fallback uses derived message summary");

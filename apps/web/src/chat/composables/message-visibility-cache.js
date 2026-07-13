@@ -1,3 +1,5 @@
+import { buildDerivedMessagePreview } from "../store/chat-store-derived-utils.js";
+
 const STORAGE_KEY = "linksee_chat_message_visibility_v1";
 
 function loadState() {
@@ -17,7 +19,7 @@ function normalizePreview(message) {
   if (!message?.id) return null;
   return {
     id: String(message.id),
-    content: String(message.content || ""),
+    content: buildDerivedMessagePreview(message),
     type: String(message.type || "text"),
     createdAt: String(message.createdAt || new Date().toISOString()),
     deletedAt: message.deletedAt || null,

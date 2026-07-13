@@ -1,3 +1,5 @@
+import { buildDerivedMessagePreview } from "../store/chat-store-derived-utils.js";
+
 export function patchConversationLocally(store, conversationId, patch) {
   store.conversations.value = store.conversations.value.map((item) => (
     String(item.id) === String(conversationId)
@@ -50,7 +52,7 @@ export function syncConversationPreview(store, conversationId, messageLike) {
     lastMessage: {
       ...(item.lastMessage || {}),
       id: messageLike?.id || item.lastMessage?.id,
-      content: messageLike?.content || item.lastMessage?.content || "",
+      content: buildDerivedMessagePreview(messageLike) || item.lastMessage?.content || "",
       type: messageLike?.type || item.lastMessage?.type || "text",
       createdAt: messageLike?.createdAt || new Date().toISOString(),
       deletedAt: messageLike?.deletedAt || null,
