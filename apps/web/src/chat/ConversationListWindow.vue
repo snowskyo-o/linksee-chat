@@ -1,521 +1,50 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import AvatarImage from "../shared/components/AvatarImage.vue";
-import ContactDirectoryPanel from "./components/ContactDirectoryPanel.vue";
-import ConversationThreadList from "./components/ConversationThreadList.vue";
-import CreateConversationDialog from "./components/CreateConversationDialog.vue";
-import ListSearchPanel from "./components/ListSearchPanel.vue";
-import NewFriendsDialog from "./components/NewFriendsDialog.vue";
-import QuickCreateMenu from "./components/QuickCreateMenu.vue";
-import SettingsDialog from "./components/SettingsDialog.vue";
-import FriendRemarkDialog from "./components/FriendRemarkDialog.vue";
-import UpdatePromptDialog from "./components/UpdatePromptDialog.vue";
 import { useDesktopShell } from "../shared/useDesktopShell.js";
-import { applyAppearanceMode, watchSystemAppearance } from "../shared/appearance-mode.js";
-import { chatApi } from "../shared/api-client.js";
 import { getAuth, logout } from "../shared/session.js";
-import { loadAppSettings, saveAppSettings, subscribeAppSettings } from "../shared/app-settings.js";
-import { mergeDesktopPreferences } from "../shared/desktop-preferences.js";
-import { useChatStore } from "./store/useChatStore.js";
+import ContactDirectoryPanel from "./components/ContactDirectoryPanel.vue";
+import ConversationListDialogs from "./components/ConversationListDialogs.vue";
+import ConversationThreadList from "./components/ConversationThreadList.vue";
+import ListSearchPanel from "./components/ListSearchPanel.vue";
+import QuickCreateMenu from "./components/QuickCreateMenu.vue";
 import { useChatActions } from "./composables/useChatActions.js";
 import { useChatRealtime } from "./composables/useChatRealtime.js";
-import { useConversationSearchSections } from "./composables/useConversationSearchSections.js";
+import { useConversationListRuntime } from "./composables/useConversationListRuntime.js";
 import { useFriendCenter } from "./composables/useFriendCenter.js";
-import { useListSearch } from "./composables/useListSearch.js";
 import { usePasswordChange } from "./composables/usePasswordChange.js";
-import { formatConversationTime, useRecentKeywords } from "./composables/useRecentKeywords.js";
+import { useChatStore } from "./store/useChatStore.js";
+
 const shell = useDesktopShell();
 const auth = getAuth();
 const store = useChatStore(auth);
 const actions = useChatActions(store);
 const passwordChange = usePasswordChange();
-const realtime = useChatRealtime(auth, store.selectedId, store.conversations, store.socketOnline, handleRealtimeEvent);
+let runtime = null;
+const realtime = useChatRealtime(
+  auth,
+  store.selectedId,
+  store.conversations,
+  store.socketOnline,
+  (event) => runtime?.handleRealtimeEvent?.(event),
+);
 const friendCenter = useFriendCenter(store, {
   async onChanged() {
     await actions.loadContacts().catch(() => {});
     await actions.loadConversations().catch(() => {});
   },
 });
-const settingsOpen = ref(false);
-const searchFocused = ref(false);
-const quickCreateOpen = ref(false);
-const appSettings = ref(loadAppSettings());
-const desktopPreferences = ref(mergeDesktopPreferences());
-const { recentKeywords, pushRecentKeyword, clearRecentKeywords } = useRecentKeywords();
-const appInfo = ref({
-  productName: "Linksee Chat",
-  version: "",
-  electron: window.desktopShell?.versions?.electron || "",
-  chrome: window.desktopShell?.versions?.chrome || "",
-  node: window.desktopShell?.versions?.node || "",
-  storage: null,
-});
-const activePane = ref("messages");
-const remarkDialogOpen = ref(false);
-const remarkDraft = ref("");
-const remarkTarget = ref(null);
-const updatePromptOpen = ref(false);
-const unreadTotal = computed(() => store.filteredConversations.value.reduce((sum, row) => {
-  return sum + Number(row.unreadCount || 0) + Number(row.unreadMentionCount || 0);
-}, 0));
-const filteredFavorites = computed(() => {
-  const keyword = store.conversationKeyword.value.trim().toLowerCase();
-  return store.favoriteMessages.value.filter((item) => {
-    if (!keyword) return true;
-    return [item.conversationTitle, item.senderName, item.content]
-      .some((value) => String(value || "").toLowerCase().includes(keyword));
-  });
-});
-const searchKeyword = computed(() => store.conversationKeyword.value.trim());
-const contactRows = computed(() => store.createDialogContacts.value.map((contact) => ({
-  key: `contact:${contact.id}`,
-  id: contact.id,
-  title: contact.name,
-  subtitle: contact.friendAlias && contact.realName && contact.realName !== contact.friendAlias
-    ? `${contact.realName}${contact.bio ? ` · ${contact.bio}` : ""}`
-    : (contact.bio || "联系人"),
-  meta: "联系人",
-  kind: "contact",
-  avatarUrl: contact.avatarUrl,
-  avatarText: contact.name.slice(0, 2).toUpperCase(),
-})));
-const filteredContacts = computed(() => {
-  const keyword = searchKeyword.value.toLowerCase();
-  if (!keyword) return contactRows.value;
-  return contactRows.value.filter((row) => (
-    [row.title, row.subtitle].some((value) => String(value || "").toLowerCase().includes(keyword))
-  ));
-});
-const searchPanelOpen = computed(() => searchFocused.value || Boolean(searchKeyword.value));
-const visibleConversations = computed(() => (
-  searchPanelOpen.value ? store.conversationRows.value : store.filteredConversations.value
-));
-const searchSections = useConversationSearchSections(store, searchKeyword, contactRows);
-const searchController = useListSearch({
-  openRef: searchPanelOpen,
-  keywordRef: searchKeyword,
-  recentKeywordsRef: recentKeywords,
-  sectionsRef: searchSections,
-  onPick: (item) => handleSearchPick(item),
-  onRecentPick: (value) => applyRecentKeyword(value),
-  onFooterPick: () => handleSearchFooterPick(),
-});
-
-let detachUpdateState = null;
-let detachDesktopPreferences = null;
-let detachOpenConversation = null;
-let detachAppSettings = null;
-let detachSystemAppearance = null;
-let friendSearchTimer = 0;
-const selectConversation = (id) => { store.selectedId.value = id; };
-
-function syncAppearance() {
-  applyAppearanceMode(appSettings.value.appearance?.themeMode || "system");
-}
-
-function updateReminderKey(version) {
-  return `linksee_update_remind_after_${String(version || "latest")}`;
-}
-
-function shouldShowUpdatePrompt(update) {
-  if (!update?.hasUpdate) return false;
-  if (update.mandatory) return true;
-  const remindAfter = Number(window.localStorage.getItem(updateReminderKey(update.latestVersion)) || 0);
-  return Date.now() >= remindAfter;
-}
-
-function applyDesktopUpdateState(state = {}) {
-  const update = {
-    native: true,
-    hasUpdate: Boolean(state.available),
-    latestVersion: state.version || "",
-    mandatory: false,
-    downloaded: Boolean(state.downloaded),
-    progress: Number(state.progress || 0),
-    status: state.status || "idle",
-    error: state.error || "",
-  };
-  appInfo.value = { ...appInfo.value, update };
-  updatePromptOpen.value = shouldShowUpdatePrompt(update);
-}
-
-function applyDesktopPreferenceState(payload = {}) {
-  desktopPreferences.value = mergeDesktopPreferences(payload.preferences || payload.desktopPreferences);
-  if (payload.storage) {
-    appInfo.value = { ...appInfo.value, storage: payload.storage };
-  }
-}
-
-async function checkForUpdates() {
-  const currentVersion = appInfo.value.version || "";
-  if (!currentVersion) return;
-  if (typeof window.desktopShell?.checkForUpdates === "function") {
-    const state = await window.desktopShell.checkForUpdates().catch((error) => ({
-      status: "error",
-      error: error?.message || "检查更新失败",
-    }));
-    applyDesktopUpdateState(state);
-    return;
-  }
-  const payload = await chatApi.getJson(`/api/v1/updates/latest?currentVersion=${encodeURIComponent(currentVersion)}`).catch(() => null);
-  if (payload?.data) {
-    appInfo.value = { ...appInfo.value, update: payload.data };
-    updatePromptOpen.value = shouldShowUpdatePrompt(payload.data);
-  }
-}
-
-async function handleUpdateNow() {
-  const update = appInfo.value.update || {};
-  if (update.native && typeof window.desktopShell?.downloadUpdate === "function") {
-    if (update.downloaded && typeof window.desktopShell?.installUpdate === "function") {
-      await window.desktopShell.installUpdate();
-      return;
-    }
-    updatePromptOpen.value = true;
-    const state = await window.desktopShell.downloadUpdate().catch((error) => ({
-      ...update,
-      status: "error",
-      error: error?.message || "下载更新失败",
-    }));
-    applyDesktopUpdateState(state);
-    return;
-  }
-  appInfo.value = {
-    ...appInfo.value,
-    update: {
-      ...update,
-      status: "error",
-      error: "当前客户端不支持自动更新，请安装正式桌面版后重试",
-    },
-  };
-  updatePromptOpen.value = true;
-}
-
-function remindUpdateLater() {
-  const update = appInfo.value.update || {};
-  const remindAfter = Date.now() + 6 * 60 * 60 * 1000;
-  window.localStorage.setItem(updateReminderKey(update.latestVersion), String(remindAfter));
-  updatePromptOpen.value = false;
-}
-
-async function handleRealtimeEvent(event) {
-  const topic = String(event?.topic || "");
-  if (!topic || topic === "socket.ready") return;
-  if (topic === "user.profile.dirty") {
-    actions.markProfileDirty(event.payload?.userId);
-    return;
-  }
-  if (topic.startsWith("conversation.")) {
-    actions.loadConversations().catch(() => {});
-  }
-}
-
-async function openConversation(id) {
-  store.showConversation(id);
+const selectConversation = (id) => {
   store.selectedId.value = id;
-  const conversation = store.conversations.value.find((item) => String(item.id) === String(id));
-  await actions.refreshProfilesIfDirty((conversation?.participants || []).map((user) => user.id)).catch(() => {});
-  if (typeof window.desktopShell?.openChatWindow === "function") await window.desktopShell.openChatWindow(id);
-}
-
-async function reloadConversationList() {
-  await actions.loadConversations().catch((error) => {
-    store.pushNotification({ title: "加载失败", message: error?.message || "暂时无法获取会话列表", tone: "error" });
-  });
-}
-
-async function handleDesktopOpenConversation(payload = {}) {
-  const conversationId = String(payload.conversationId || "").trim();
-  if (!conversationId) return;
-  activePane.value = "messages";
-  await actions.loadConversations().catch(() => {});
-  store.showConversation(conversationId);
-  store.selectedId.value = conversationId;
-}
-async function openFavorite(item) {
-  if (!item?.conversationId) return;
-  activePane.value = "messages";
-  await openConversation(item.conversationId);
-}
-
-const removeFavorite = (item) => store.removeFavoriteMessage(item?.id);
-const persistSettings = (nextSettings) => {
-  appSettings.value = saveAppSettings(nextSettings);
-  syncAppearance();
-};
-async function persistDesktopPreferences(nextPreferences) {
-  if (typeof window.desktopShell?.updateDesktopPreferences !== "function") {
-    desktopPreferences.value = mergeDesktopPreferences(nextPreferences);
-    return;
-  }
-  const payload = await window.desktopShell.updateDesktopPreferences(nextPreferences).catch(() => null);
-  if (payload) {
-    applyDesktopPreferenceState(payload);
-    return;
-  }
-  desktopPreferences.value = mergeDesktopPreferences(nextPreferences);
-}
-const handleAvatarUpload = (event) => actions.uploadAvatar(event.target?.files?.[0]).catch((error) => {
-  store.profileHint.value = error?.message || "头像上传失败";
-  store.profileHintTone.value = "error";
-});
-const copyConversationTitle = async (row) => {
-  const title = String(row?.displayTitle || row?.title || "").trim();
-  if (!title) return;
-  try { await navigator.clipboard.writeText(title); store.pushNotification({ title: "已复制", message: `“${title}”`, tone: "success", ttl: 1600 }); }
-  catch (error) { store.pushNotification({ title: "复制失败", message: error?.message || "当前环境不支持剪贴板", tone: "error" }); }
-};
-const toggleConversationMute = (row) => {
-  const muted = store.toggleConversationMuted(row?.id);
-  store.pushNotification({ title: muted ? "已开启免打扰" : "已取消免打扰", message: row?.displayTitle || "会话", tone: "success", ttl: 1600 });
-};
-const markConversationRead = (row) => {
-  actions.markConversationReadById(row?.id).then(() => {
-    store.pushNotification({ title: "已标记已读", message: row?.displayTitle || "会话", tone: "success", ttl: 1400 });
-  }).catch((error) => {
-    store.pushNotification({ title: "操作失败", message: error?.message || "暂时无法标记已读", tone: "error" });
-  });
-};
-const hideConversationFromList = (row) => {
-  if (!row?.id) return;
-  chatApi.delete(`/api/v1/conversations/${encodeURIComponent(row.id)}`).then(() => {
-    store.hideConversation(row.id);
-    store.conversations.value = store.conversations.value.filter((item) => String(item.id) !== String(row.id));
-    if (store.selectedId.value === row.id) store.selectedId.value = store.filteredConversations.value[0]?.id || "";
-    store.pushNotification({ title: "已删除会话", message: row.displayTitle || "会话", tone: "success", ttl: 1800 });
-  }).catch((error) => {
-    store.pushNotification({ title: "删除失败", message: error?.message || "暂时无法删除会话", tone: "error" });
-  });
-};
-const openFriendRemark = (contact) => { remarkTarget.value = contact || null; remarkDraft.value = String(contact?.friendAlias || ""); remarkDialogOpen.value = true; };
-async function submitFriendRemark() {
-  if (!remarkTarget.value?.id) return;
-  await friendCenter.updateAlias(remarkTarget.value.id, remarkDraft.value);
-  await actions.loadContacts().catch(() => {});
-  await actions.loadConversations().catch(() => {});
-  remarkDialogOpen.value = false;
-}
-
-function handleGlobalPointer(event) {
-  const target = event.target;
-  if (!(target instanceof HTMLElement)) return;
-  if (target.closest(".qq-list-search-cluster") || target.closest(".qq-search-panel") || target.closest(".qq-plus-action-wrap") || target.closest(".qq-quick-create-menu") || target.closest(".new-friends-dialog-card")) return;
-  searchFocused.value = false;
-  quickCreateOpen.value = false;
-}
-
-const handleSearchInput = (value) => { store.conversationKeyword.value = value; searchFocused.value = true; };
-
-function clearSearchInput() {
-  store.conversationKeyword.value = "";
-  searchFocused.value = true;
-  searchController.resetActive();
-}
-
-function handleSearchPick(item) {
-  pushRecentKeyword(searchKeyword.value || item.title);
-  if (item.action === "conversation") {
-    store.showConversation(item.id);
-    selectConversation(item.id);
-    openConversation(item.id);
-  } else if (item.action === "contact") openDirectConversationByContact(item.id);
-  else if (item.action === "favorite") openFavorite(item);
-  searchFocused.value = false;
-}
-
-function handleSearchFooterPick() {
-  const keyword = searchKeyword.value.trim();
-  if (!keyword) {
-    activePane.value = "messages";
-    searchFocused.value = false;
-    return;
-  }
-
-  const firstConversation = searchSections.value.find((section) => section.key === "conversations")?.items?.[0];
-  const firstContact = searchSections.value.find((section) => section.key === "contacts")?.items?.[0];
-  const firstFavorite = searchSections.value.find((section) => section.key === "favorites")?.items?.[0];
-
-  if (firstConversation) {
-    handleSearchPick(firstConversation);
-    return;
-  }
-  if (firstContact) {
-    handleSearchPick(firstContact);
-    return;
-  }
-  if (firstFavorite) {
-    handleSearchPick(firstFavorite);
-    return;
-  }
-
-  activePane.value = "contacts";
-  openNewFriendsCenter();
-  friendCenter.keyword.value = keyword;
-  friendCenter.refresh();
-}
-
-const applyRecentKeyword = (value) => {
-  store.conversationKeyword.value = value;
-  searchFocused.value = true;
 };
 
-function handleSearchKeydown(event) {
-  if (!searchPanelOpen.value) return;
-  if (event.key === "ArrowDown") {
-    event.preventDefault();
-    searchController.move(1);
-    return;
-  }
-  if (event.key === "ArrowUp") {
-    event.preventDefault();
-    searchController.move(-1);
-    return;
-  }
-  if (event.key === "Enter") {
-    event.preventDefault();
-    searchController.triggerActive();
-    return;
-  }
-  if (event.key === "Escape") {
-    event.preventDefault();
-    searchFocused.value = false;
-    quickCreateOpen.value = false;
-  }
-}
-
-const openDirectCreation = () => { quickCreateOpen.value = false; searchFocused.value = false; openNewFriendsCenter(); };
-function openNewFriendsCenter() {
-  quickCreateOpen.value = false;
-  searchFocused.value = false;
-  friendCenter.keyword.value = "";
-  friendCenter.openCenter();
-}
-
-function openDirectConversationByContact(contactId) {
-  actions.openOrCreateDirectConversation(contactId).catch((error) => {
-    store.pushNotification({
-      title: "无法打开会话",
-      message: error?.message || "暂时无法打开这个联系人",
-      tone: "error",
-    });
-  });
-  activePane.value = "messages";
-}
-
-const startChatFromNewFriends = (contactId) => {
-  activePane.value = "contacts";
-  friendCenter.openDirectChat(contactId);
-};
-const openGroupCreation = () => {
-  quickCreateOpen.value = false;
-  searchFocused.value = false;
-  actions.createGroupConversation();
-};
-
-async function chooseDownloadDirectory() {
-  if (typeof window.desktopShell?.chooseDirectory !== "function") return;
-  const folder = await window.desktopShell.chooseDirectory({
-    title: "选择下载保存目录",
-    defaultPath: desktopPreferences.value.downloadsDir || appInfo.value.storage?.exports || "",
-  }).catch(() => "");
-  if (!folder) return;
-  await persistDesktopPreferences({
-    ...desktopPreferences.value,
-    downloadsDir: folder,
-  });
-}
-
-async function openDownloadDirectory() {
-  const folder = desktopPreferences.value.downloadsDir || appInfo.value.storage?.exports || "";
-  if (!folder || typeof window.desktopShell?.openStoragePath !== "function") return;
-  await window.desktopShell.openStoragePath(folder).catch(() => {});
-}
-
-async function clearDesktopCache() {
-  if (typeof window.desktopShell?.clearCache !== "function") return;
-  const payload = await window.desktopShell.clearCache().catch(() => null);
-  if (payload?.storage) {
-    appInfo.value = { ...appInfo.value, storage: payload.storage };
-  }
-  const files = Number(payload?.summary?.files || 0);
-  const bytes = Number(payload?.summary?.bytes || 0);
-  store.pushNotification({
-    title: "缓存已清理",
-    message: `已清理 ${files} 个缓存文件 · ${Math.round(bytes / 1024)} KB`,
-    tone: "success",
-    ttl: 2600,
-  });
-}
-
-onMounted(async () => {
-  syncAppearance();
-  window.addEventListener("pointerdown", handleGlobalPointer);
-  detachAppSettings = subscribeAppSettings((nextSettings) => {
-    appSettings.value = nextSettings;
-    syncAppearance();
-  });
-  detachSystemAppearance = watchSystemAppearance(() => {
-    if ((appSettings.value.appearance?.themeMode || "system") === "system") syncAppearance();
-  });
-  const runtimeInfo = await window.desktopShell?.getAppInfo?.().catch(() => null);
-  if (runtimeInfo) {
-    appInfo.value = {
-      productName: runtimeInfo.productName || "Linksee Chat",
-      version: runtimeInfo.version || "",
-      electron: runtimeInfo.electron || appInfo.value.electron,
-      chrome: runtimeInfo.chrome || appInfo.value.chrome,
-      node: runtimeInfo.node || appInfo.value.node,
-      storage: runtimeInfo.storage || null,
-    };
-    applyDesktopPreferenceState(runtimeInfo);
-  }
-  if (typeof window.desktopShell?.onUpdateState === "function") {
-    detachUpdateState = window.desktopShell.onUpdateState((state) => applyDesktopUpdateState(state));
-  }
-  if (typeof window.desktopShell?.onDesktopPreferences === "function") {
-    detachDesktopPreferences = window.desktopShell.onDesktopPreferences((payload) => applyDesktopPreferenceState(payload));
-  }
-  if (typeof window.desktopShell?.onOpenConversation === "function") {
-    detachOpenConversation = window.desktopShell.onOpenConversation((payload) => {
-      handleDesktopOpenConversation(payload).catch(() => {});
-    });
-  }
-  await actions.loadProfile(auth);
-  await actions.loadContacts();
-  await reloadConversationList();
-  await friendCenter.refresh();
-  realtime.connect();
-  checkForUpdates().catch(() => {});
-});
-
-onBeforeUnmount(() => {
-  window.removeEventListener("pointerdown", handleGlobalPointer);
-  if (typeof detachUpdateState === "function") detachUpdateState();
-  if (typeof detachDesktopPreferences === "function") detachDesktopPreferences();
-  if (typeof detachOpenConversation === "function") detachOpenConversation();
-  if (typeof detachAppSettings === "function") detachAppSettings();
-  if (typeof detachSystemAppearance === "function") detachSystemAppearance();
-  window.clearTimeout(friendSearchTimer);
-  realtime.disconnect();
-});
-
-watch(
-  unreadTotal,
-  (value) => {
-    window.desktopShell?.updateUnreadCount?.(value).catch?.(() => {});
-  },
-  { immediate: true },
-);
-
-watch(searchKeyword, (value) => {
-  if (value) quickCreateOpen.value = false;
-});
-
-watch(() => friendCenter.keyword.value, () => {
-  window.clearTimeout(friendSearchTimer);
-  friendSearchTimer = window.setTimeout(() => {
-    if (friendCenter.open.value) friendCenter.refresh();
-  }, 180);
+runtime = useConversationListRuntime({
+  auth,
+  store,
+  actions,
+  realtime,
+  shell,
+  friendCenter,
+  selectConversation,
 });
 </script>
 
@@ -531,17 +60,17 @@ watch(() => friendCenter.keyword.value, () => {
           </div>
         </div>
 
-        <button class="qq-list-nav-btn" :class="{ 'is-active': activePane === 'messages' }" type="button" title="消息" @click="activePane = 'messages'">
+        <button class="qq-list-nav-btn" :class="{ 'is-active': runtime.activePane.value === 'messages' }" type="button" title="消息" @click="runtime.activePane.value = 'messages'">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H9l-4.5 3V17H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Zm0 2v7.17L8.4 15H19V7H5Z"/></svg>
-          <i v-if="unreadTotal" class="qq-list-badge">{{ unreadTotal > 99 ? "99+" : unreadTotal }}</i>
+          <i v-if="runtime.unreadTotal.value" class="qq-list-badge">{{ runtime.unreadTotal.value > 99 ? "99+" : runtime.unreadTotal.value }}</i>
         </button>
-        <button class="qq-list-nav-btn" :class="{ 'is-active': activePane === 'contacts' }" type="button" title="联系人" @click="activePane = 'contacts'">
+        <button class="qq-list-nav-btn" :class="{ 'is-active': runtime.activePane.value === 'contacts' }" type="button" title="联系人" @click="runtime.activePane.value = 'contacts'">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12a4 4 0 1 0 0-8a4 4 0 0 0 0 8Zm0 2c-4.42 0-8 2.24-8 5v1h16v-1c0-2.76-3.58-5-8-5Z"/></svg>
         </button>
-        <button class="qq-list-nav-btn" :class="{ 'is-active': activePane === 'favorites' }" type="button" title="收藏" @click="activePane = 'favorites'">
+        <button class="qq-list-nav-btn" :class="{ 'is-active': runtime.activePane.value === 'favorites' }" type="button" title="收藏" @click="runtime.activePane.value = 'favorites'">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 17.27 4.95 2.99-1.32-5.63L20 10.5l-5.76-.49L12 4.7l-2.24 5.31L4 10.5l4.37 4.13-1.32 5.63L12 17.27Z"/></svg>
         </button>
-        <button class="qq-list-nav-btn" type="button" title="设置" @click="settingsOpen = true">
+        <button class="qq-list-nav-btn" type="button" title="设置" @click="runtime.openSettings">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.18 7.18 0 0 0-1.63-.94l-.36-2.54a.5.5 0 0 0-.49-.42h-3.84a.5.5 0 0 0-.49.42l-.36 2.54c-.58.22-1.12.53-1.63.94l-2.39-.96a.5.5 0 0 0-.6.22L2.65 8.84a.5.5 0 0 0 .12.64L4.8 11.06c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32c.13.22.39.31.6.22l2.39-.96c.5.41 1.05.72 1.63.94l.36 2.54a.5.5 0 0 0 .49.42h3.84a.5.5 0 0 0 .49-.42l.36-2.54c.58-.22 1.12-.53 1.63-.94l2.39.96c.22.09.47 0 .6-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58ZM12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7Z"/></svg>
         </button>
       </div>
@@ -562,11 +91,11 @@ watch(() => friendCenter.keyword.value, () => {
               <span class="qq-list-status-pill">在线</span>
               <span class="qq-list-status-pill is-muted">
                 {{
-                  activePane === "messages"
+                  runtime.activePane.value === "messages"
                     ? `${store.filteredConversations.value.length} 个会话`
-                    : activePane === "contacts"
-                      ? `${contactRows.length} 位联系人`
-                      : `${filteredFavorites.length} 条收藏`
+                    : runtime.activePane.value === "contacts"
+                      ? `${runtime.contactRows.value.length} 位联系人`
+                      : `${runtime.filteredFavorites.value.length} 条收藏`
                 }}
               </span>
             </div>
@@ -584,17 +113,17 @@ watch(() => friendCenter.keyword.value, () => {
               <input
                 :value="store.conversationKeyword.value"
                 class="qq-list-search"
-                :placeholder="activePane === 'messages' ? '搜索会话、联系人、消息' : activePane === 'contacts' ? '搜索联系人' : '搜索收藏消息'"
-                @focus="searchFocused = true"
-                @input="handleSearchInput($event.target.value)"
-                @keydown="handleSearchKeydown"
+                :placeholder="runtime.activePane.value === 'messages' ? '搜索会话、联系人、消息' : runtime.activePane.value === 'contacts' ? '搜索联系人' : '搜索收藏消息'"
+                @focus="runtime.searchFocused.value = true"
+                @input="runtime.handleSearchInput($event.target.value)"
+                @keydown="runtime.handleSearchKeydown"
               />
               <button
                 v-if="store.conversationKeyword.value"
                 class="qq-list-search-clear"
                 type="button"
                 aria-label="清空搜索"
-                @click="clearSearchInput"
+                @click="runtime.clearSearchInput"
               >
                 <svg viewBox="0 0 24 24"><path d="m12 10.59 4.95-4.95 1.41 1.41L13.41 12l4.95 4.95-1.41 1.41L12 13.41l-4.95 4.95-1.41-1.41L10.59 12 5.64 7.05l1.41-1.41L12 10.59Z"/></svg>
               </button>
@@ -604,65 +133,65 @@ watch(() => friendCenter.keyword.value, () => {
             </label>
 
             <div class="qq-plus-action-wrap">
-              <button class="qq-plus-action-btn" type="button" title="添加好友或创建群聊" @click="quickCreateOpen = !quickCreateOpen">
+              <button class="qq-plus-action-btn" type="button" title="添加好友或创建群聊" @click="runtime.quickCreateOpen.value = !runtime.quickCreateOpen.value">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6V5Z"/></svg>
                 <i v-if="friendCenter.requestTotal.value" class="qq-plus-action-badge">
                   {{ friendCenter.requestTotal.value > 9 ? "9+" : friendCenter.requestTotal.value }}
                 </i>
               </button>
-              <QuickCreateMenu :open="quickCreateOpen" @direct="openDirectCreation" @group="openGroupCreation" />
+              <QuickCreateMenu :open="runtime.quickCreateOpen.value" @direct="runtime.openDirectCreation" @group="runtime.openGroupCreation" />
             </div>
           </div>
 
           <ListSearchPanel
-            :open="searchPanelOpen"
-            :keyword="searchKeyword"
-            :recent-keywords="recentKeywords"
-            :sections="searchSections"
-            :active-key="searchController.activeKey.value"
-            @pick="handleSearchPick"
-            @clear-recent="clearRecentKeywords"
-            @recent-pick="applyRecentKeyword"
-            @footer-pick="handleSearchFooterPick"
+            :open="runtime.searchPanelOpen.value"
+            :keyword="runtime.searchKeyword.value"
+            :recent-keywords="runtime.recentKeywords"
+            :sections="runtime.searchSections"
+            :active-key="runtime.searchActiveKey.value"
+            @pick="runtime.handleSearchPick"
+            @clear-recent="runtime.clearRecentKeywords"
+            @recent-pick="store.conversationKeyword.value = $event; runtime.searchFocused.value = true"
+            @footer-pick="runtime.handleSearchFooterPick"
           />
         </div>
       </section>
 
       <div class="qq-list-conversations-shell">
         <ConversationThreadList
-          v-if="activePane === 'messages'"
-          :rows="visibleConversations"
+          v-if="runtime.activePane.value === 'messages'"
+          :rows="runtime.visibleConversations.value"
           :selected-id="store.selectedId.value"
-          :format-time="formatConversationTime"
+          :format-time="runtime.formatConversationTime"
           :desktop="shell.isDesktop"
-          :keyword="searchKeyword"
+          :keyword="runtime.searchKeyword.value"
           :load-state="store.conversationLoadState.value"
-          @select="selectConversation"
-          @open="openConversation"
+          @select="runtime.selectConversation"
+          @open="runtime.openConversation"
           @toggle-pin="actions.toggleConversationPinById($event.id)"
-          @mark-read="markConversationRead"
-          @toggle-mute="toggleConversationMute"
-          @hide-conversation="hideConversationFromList"
-          @copy-title="copyConversationTitle"
-          @retry-load="reloadConversationList"
+          @mark-read="runtime.markConversationRead"
+          @toggle-mute="runtime.toggleConversationMute"
+          @hide-conversation="runtime.hideConversationFromList"
+          @copy-title="runtime.copyConversationTitle"
+          @retry-load="runtime.reloadConversationList"
         />
 
         <ContactDirectoryPanel
-          v-else-if="activePane === 'contacts'"
-          :contacts="filteredContacts"
+          v-else-if="runtime.activePane.value === 'contacts'"
+          :contacts="runtime.filteredContacts.value"
           :request-total="friendCenter.requestTotal.value"
-          :keyword="searchKeyword"
-          @new-friends="openNewFriendsCenter"
-          @open-contact="openDirectConversationByContact"
+          :keyword="runtime.searchKeyword.value"
+          @new-friends="runtime.openNewFriendsCenter"
+          @open-contact="runtime.openDirectConversationByContact"
         />
 
         <div v-else class="qq-thread-list">
-          <div v-if="!filteredFavorites.length" class="empty-state">暂无收藏消息</div>
+          <div v-if="!runtime.filteredFavorites.value.length" class="empty-state">暂无收藏消息</div>
           <article
-            v-for="item in filteredFavorites"
+            v-for="item in runtime.filteredFavorites.value"
             :key="`${item.id}:${item.conversationId}`"
             class="qq-thread-item is-favorite"
-            @dblclick="openFavorite(item)"
+            @dblclick="runtime.openFavorite(item)"
           >
             <div class="qq-thread-avatar is-favorite">
               <span>★</span>
@@ -672,8 +201,8 @@ watch(() => friendCenter.keyword.value, () => {
               <div class="qq-thread-head">
                 <strong>{{ item.conversationTitle }}</strong>
                 <div class="qq-thread-favorite-meta">
-                  <span class="qq-thread-time">{{ formatConversationTime(item.createdAt) }}</span>
-                  <button class="qq-thread-favorite-remove" type="button" @click.stop="removeFavorite(item)">移除</button>
+                  <span class="qq-thread-time">{{ runtime.formatConversationTime(item.createdAt) }}</span>
+                  <button class="qq-thread-favorite-remove" type="button" @click.stop="runtime.removeFavorite(item)">移除</button>
                 </div>
               </div>
               <p class="qq-thread-subtitle">{{ item.senderName }}</p>
@@ -686,91 +215,41 @@ watch(() => friendCenter.keyword.value, () => {
       </div>
     </section>
 
-    <CreateConversationDialog
-      :open="store.createDialogOpen.value"
-      :mode="store.createDialogMode.value"
-      :title="store.createDialogTitle.value"
-      :peer-id="store.selectedPeerId.value"
-      :participant-ids="store.createDialogParticipantIds.value"
-      :contacts="store.createDialogContacts.value"
-      :selected-participants="store.selectedParticipants.value"
-      :hint="store.createDialogHint.value"
-      :hint-tone="store.createDialogHintTone.value"
-      :submitting="store.createDialogSubmitting.value"
-      @close="store.closeCreateDialog"
-      @submit="actions.submitCreateConversation"
-      @update:title="store.createDialogTitle.value = $event"
-      @update:peer-id="store.createDialogPeerId.value = $event"
-      @toggle-participant="store.toggleDialogParticipant"
-    />
-
-    <NewFriendsDialog
-      :open="friendCenter.open.value"
-      :keyword="friendCenter.keyword.value"
-      :loading="friendCenter.loading.value"
-      :hint="friendCenter.hint.value"
-      :hint-tone="friendCenter.hintTone.value"
-      :recent-contacts="friendCenter.recentContacts.value"
-      :incoming-requests="friendCenter.incomingRequests.value"
-      :outgoing-requests="friendCenter.outgoingRequests.value"
-      :recommended-users="friendCenter.recommendedUsers.value"
-      :friend-contacts="friendCenter.friendContacts.value"
-      @close="friendCenter.closeCenter()"
-      @update:keyword="friendCenter.keyword.value = $event"
-      @start-chat="startChatFromNewFriends"
-      @edit-friend="openFriendRemark"
-      @remove-friend="friendCenter.removeFriend($event).catch(() => {})"
-      @send-request="friendCenter.sendRequest"
-      @accept-request="friendCenter.resolveRequest($event, 'accept', '已通过好友申请')"
-      @reject-request="friendCenter.resolveRequest($event, 'reject', '已拒绝好友申请')"
-      @cancel-request="friendCenter.resolveRequest($event, 'cancel', '已取消好友申请')"
-    />
-
-    <FriendRemarkDialog
-      :open="remarkDialogOpen"
-      :contact="remarkTarget"
-      :value="remarkDraft"
-      @close="remarkDialogOpen = false"
-      @update:value="remarkDraft = $event"
-      @submit="submitFriendRemark"
-    />
-
-    <SettingsDialog
-      :open="settingsOpen"
-      :settings="appSettings"
-      :desktop-preferences="desktopPreferences"
-      :profile-account="store.me.value?.id || auth.userId"
-      :profile-role="store.me.value?.role || auth.role"
-      :profile-name="store.profileName.value"
-      :profile-bio="store.profileBio.value"
-      :profile-hint="store.profileHint.value"
-      :profile-hint-tone="store.profileHintTone.value"
-      :password-hint="passwordChange.passwordHint.value"
-      :password-hint-tone="passwordChange.passwordHintTone.value"
-      :password-submitting="passwordChange.passwordSubmitting.value"
-      :me-avatar-url="store.meAvatarUrl.value"
-      :app-info="appInfo"
-      @close="settingsOpen = false"
-      @update:settings="persistSettings"
-      @update:desktop-preferences="persistDesktopPreferences"
+    <ConversationListDialogs
+      :store="store"
+      :actions="actions"
+      :friend-center="friendCenter"
+      :password-change="passwordChange"
+      :auth="auth"
+      :app-settings="runtime.appSettings.value"
+      :desktop-preferences="runtime.desktopPreferences.value"
+      :app-info="runtime.appInfo.value"
+      :settings-open="runtime.settingsOpen.value"
+      :remark-dialog-open="runtime.remarkDialogOpen.value"
+      :remark-draft="runtime.remarkDraft.value"
+      :remark-target="runtime.remarkTarget.value"
+      :update-prompt-open="runtime.updatePromptOpen.value"
+      @close-settings="runtime.closeSettings"
+      @update:settings="runtime.persistSettings"
+      @update:desktop-preferences="runtime.persistDesktopPreferences"
       @update:profile-name="store.profileName.value = $event"
       @update:profile-bio="store.profileBio.value = $event"
       @save-profile="actions.saveProfile"
       @submit-password="passwordChange.submitPassword"
       @logout="logout"
-      @upload-avatar="handleAvatarUpload"
-      @choose-download-dir="chooseDownloadDirectory"
-      @open-download-dir="openDownloadDirectory"
-      @clear-cache="clearDesktopCache"
-      @open-update="handleUpdateNow"
-    />
-
-    <UpdatePromptDialog
-      :open="updatePromptOpen"
-      :update="appInfo.update"
-      @update-now="handleUpdateNow"
-      @remind-later="remindUpdateLater"
-      @close="updatePromptOpen = false"
+      @upload-avatar="runtime.handleAvatarUpload"
+      @choose-download-dir="runtime.chooseDownloadDirectory"
+      @open-download-dir="runtime.openDownloadDirectory"
+      @clear-cache="runtime.clearDesktopCache"
+      @open-update="runtime.handleUpdateNow"
+      @close-update="runtime.closeUpdatePrompt"
+      @update-now="runtime.handleUpdateNow"
+      @remind-later="runtime.remindUpdateLater"
+      @close-remark="runtime.closeFriendRemark"
+      @update:remark-draft="runtime.remarkDraft.value = $event"
+      @submit-remark="runtime.submitFriendRemark"
+      @start-chat="runtime.startChatFromNewFriends"
+      @edit-friend="runtime.openFriendRemark"
     />
   </main>
 </template>
