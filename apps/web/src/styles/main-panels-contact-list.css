@@ -1,0 +1,139 @@
+.qq-contact-panel {
+  padding: 12px;
+  display: grid;
+  gap: 12px;
+}
+
+.qq-contact-entry-card {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  gap: 14px;
+  align-items: center;
+  padding: 14px;
+  border: 0;
+  border-radius: 20px;
+  background: linear-gradient(180deg, #f4f8ff 0%, #edf4ff 100%);
+  text-align: left;
+  cursor: pointer;
+}
+
+.qq-contact-entry-card:hover {
+  background: linear-gradient(180deg, #edf4ff 0%, #e4eeff 100%);
+}
+
+.qq-contact-entry-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 18px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, #5b9dff, #7d7cff);
+  color: #ffffff;
+}
+
+.qq-contact-entry-copy,
+.qq-contact-copy {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.qq-contact-entry-copy strong,
+.qq-contact-copy strong {
+  color: #202938;
+  font-size: 14px;
+}
+
+.qq-contact-entry-copy small,
+.qq-contact-copy small {
+  color: #8a95a7;
+  font-size: 12px;
+}
+
+.qq-contact-section {
+  display: grid;
+  gap: 10px;
+}
+
+.qq-contact-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 2px;
+}
+
+.qq-contact-section-head strong {
+  color: #5b6678;
+  font-size: 13px;
+}
+
+.qq-contact-section-head span {
+  color: #98a3b4;
+  font-size: 12px;
+}
+
+.qq-contact-list {
+  display: grid;
+}
+
+.qq-contact-empty {
+  display: grid;
+  gap: 10px;
+  padding: 22px 18px;
+  border: 1px dashed rgba(199, 208, 220, 0.96);
+  border-radius: 16px;
+  background: linear-gradient(180deg, #fbfcff 0%, #f4f7fc 100%);
+  text-align: center;
+}
+
+.qq-contact-empty strong {
+  color: #334155;
+  font-size: 15px;
+}
+
+.qq-contact-empty p {
+  margin: 0;
+  color: #7b8798;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.qq-contact-empty .primary-btn {
+  justify-self: center;
+}
+
+.qq-contact-item {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 10px 8px;
+  border: 0;
+  border-bottom: 1px solid rgba(237, 241, 246, 0.98);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.qq-contact-item:hover {
+  background: #f6f9ff;
+}
+
+.qq-contact-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 15px;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, var(--brand), #7ea6ff);
+  color: #ffffff;
+  font-weight: 800;
+}
+
+.qq-contact-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
