@@ -2,7 +2,7 @@ import { computed } from "vue";
 import { resolveMediaUrl } from "../../shared/media.js";
 import { formatDateTime, formatExpiry, formatFileSize, getInitials, escapeHtml } from "../../shared/utils.js";
 import { getFileExtensionLabel, isImageFileLike } from "../composables/file-attachments.js";
-import { buildDerivedReplyText, escapeDerivedSearchPattern, highlightMentionTokens } from "./chat-store-derived-utils.js";
+import { buildDerivedReplyText, buildReplyPreviewText, escapeDerivedSearchPattern, highlightMentionTokens } from "./chat-store-derived-utils.js";
 
 function buildStatusText(operationState) {
   if (operationState === "sending") return "发送中";
@@ -69,11 +69,7 @@ export function createChatStoreMessageDerived(auth, state) {
   return {
     renderedMessages,
     showReplyBar: computed(() => Boolean(state.replyTo.value)),
-    replyText: computed(() => (
-      state.replyTo.value
-        ? `回复 ${state.replyTo.value.sender?.profile?.realName || state.replyTo.value.senderId}：${state.replyTo.value.content || ""}`
-        : ""
-    )),
+    replyText: computed(() => buildReplyPreviewText(state.replyTo.value)),
     searchResultText: computed(() => (
       state.searchKeyword.value ? `搜索结果：${state.searchKeyword.value}（${state.messages.value.length} 条）` : ""
     )),

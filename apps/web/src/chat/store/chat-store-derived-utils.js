@@ -38,11 +38,15 @@ export function buildDerivedConversationPreview(row) {
 }
 
 export function buildDerivedReplyText(message) {
-  if (!message?.replyTo) return "";
-  const replySenderName = message.replyTo.sender?.profile?.realName || message.replyTo.senderId || "对方";
-  const replyContent = message.replyTo.content
-    || (Array.isArray(message.replyTo.files) && message.replyTo.files.length
-      ? message.replyTo.files.map((file) => file.name || "附件").join("、")
+  return buildReplyPreviewText(message?.replyTo);
+}
+
+export function buildReplyPreviewText(replyTo) {
+  if (!replyTo) return "";
+  const replySenderName = replyTo.sender?.profile?.realName || replyTo.senderId || "对方";
+  const replyContent = replyTo.content
+    || (Array.isArray(replyTo.files) && replyTo.files.length
+      ? replyTo.files.map((file) => file.name || "附件").join("、")
       : "");
   return `回复 ${replySenderName}：${replyContent}`;
 }

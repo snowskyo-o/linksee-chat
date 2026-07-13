@@ -7,6 +7,7 @@ const { mergeUserProfile, mergeUsersById } = await import("../../apps/web/src/ch
 const { mergeMessagesById } = await import("../../apps/web/src/chat/composables/chat-profile-merge-conversations.js");
 const { resolveImageViewerOwnerMessageId } = await import("../../apps/web/src/chat/composables/chat-image-viewer-derived.js");
 const { isMessageActionAvailable } = await import("../../apps/web/src/chat/composables/chat-message-action-rules.js");
+const { buildReplyPreviewText } = await import("../../apps/web/src/chat/store/chat-store-derived-utils.js");
 const { canDeleteMessageForCurrentUser } = await import("../../apps/web/src/chat/store/chat-store-message-derived.js");
 
 const source = "http://minio:9000/chat-files/path/file.txt?X-Amz-Signature=abc";
@@ -92,3 +93,14 @@ assert.equal(isMessageActionAvailable({ deletedAt: null, operationState: "failed
 assert.equal(isMessageActionAvailable({ deletedAt: null, operationState: "", canForward: true }, "forward"), true);
 
 console.log("[unit] failed message actions stay consistent with menu rules");
+
+assert.equal(
+  buildReplyPreviewText({
+    sender: { profile: { realName: "张三" } },
+    content: "",
+    files: [{ name: "原图.png" }, { name: "设计稿.sketch" }],
+  }),
+  "回复 张三：原图.png、设计稿.sketch",
+);
+
+console.log("[unit] reply preview keeps attachment names");
