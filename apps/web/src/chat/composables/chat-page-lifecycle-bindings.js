@@ -1,5 +1,7 @@
 import { watchSystemAppearance } from "../../shared/appearance-mode.js";
 import { subscribeAppSettings } from "../../shared/app-settings.js";
+import { setupDesktopBindings, hydrateDesktopRuntime } from "./chat-page-lifecycle-desktop.js";
+import { hydrateInitialConversation } from "./chat-page-lifecycle-hydration.js";
 
 export function createChatPageLifecycleBindings({
   auth,
@@ -23,47 +25,6 @@ export function createChatPageLifecycleBindings({
     detachUpdateState: null,
   };
 
-  async function hydrateDesktopRuntime() {
-    const runtimeInfo = await window.desktopShell?.getAppInfo?.().catch(() => null);
-    if (!runtimeInfo) return;
-    desktopControls.appInfo.value = {
-      productName: runtimeInfo.productName || "Linksee Chat",
-      version: runtimeInfo.version || "",
-      electron: runtimeInfo.electron || desktopControls.appInfo.value.electron,
-      chrome: runtimeInfo.chrome || desktopControls.appInfo.value.chrome,
-      node: runtimeInfo.node || desktopControls.appInfo.value.node,
-      storage: runtimeInfo.storage || null,
-    };
-    desktopControls.applyDesktopPreferenceState(runtimeInfo);
-  }
-
-  async function hydrateInitialConversation() {
-    if (standaloneConversationMode.value && desktopConversationId) {
-      await actions.selectConversation(desktopConversationId).catch(() => {});
-      return;
-    }
-    await reloadSelectedConversation();
-    if (!store.selectedId.value) return;
-    const draft = await actions.loadConversationDraft(store.selectedId.value);
-    store.messageInput.value = draft.text || "";
-    store.pendingFiles.value = Array.isArray(draft.files) ? draft.files : [];
-    store.updateMentionState(store.messageInput.value);
-  }
-
-  function setupDesktopBindings() {
-    if (typeof window.desktopShell?.onUpdateState === "function") {
-      state.detachUpdateState = window.desktopShell.onUpdateState((nextState) => desktopControls.applyDesktopUpdateState(nextState));
-    }
-    if (typeof window.desktopShell?.onDesktopPreferences === "function") {
-      state.detachDesktopPreferences = window.desktopShell.onDesktopPreferences((payload) => desktopControls.applyDesktopPreferenceState(payload));
-    }
-    if (typeof window.desktopShell?.onOpenConversation === "function") {
-      state.detachOpenConversation = window.desktopShell.onOpenConversation((payload) => {
-        realtimeRuntime.handleDesktopOpenConversation(payload).catch(() => {});
-      });
-    }
-  }
-
   async function mountLifecycle() {
     desktopControls.syncAppearance();
     window.addEventListener("focus", realtimeRuntime.syncReadStateIfFocused);
@@ -75,13 +36,19 @@ export function createChatPageLifecycleBindings({
     state.detachSystemAppearance = watchSystemAppearance(() => {
       if ((desktopControls.appSettings.value.appearance?.themeMode || "system") === "system") desktopControls.syncAppearance();
     });
-    await hydrateDesktopRuntime();
-    setupDesktopBindings();
+    await hydrateDesktopRuntime(desktopControls);
+    setupDesktopBindings(state, desktopControls, realtimeRuntime);
     await actions.loadProfile(auth);
     await actions.loadContacts().catch(() => {});
     await reloadConversationList();
     await stickerLibrary.refresh();
-    await hydrateInitialConversation();
+    await hydrateInitialConversation({
+      actions,
+      desktopConversationId,
+      reloadSelectedConversation,
+      standaloneConversationMode,
+      store,
+    });
     syncDesktopWindowContext();
     realtime.connect();
     desktopControls.checkForUpdates().catch(() => {});
