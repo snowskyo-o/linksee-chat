@@ -1,0 +1,89 @@
+.qq-list-conversations-shell {
+  min-height: 0;
+  background: #fff;
+  overflow: auto;
+}
+
+.qq-thread-list {
+  display: grid;
+}
+
+.qq-thread-item {
+  position: relative;
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr) auto;
+  gap: 12px;
+  padding: 10px 10px;
+  border-bottom: 1px solid rgba(237, 241, 246, 0.98);
+  cursor: pointer;
+  transition: background-color .16s ease;
+  user-select: none;
+}
+
+.qq-thread-item:hover {
+  background: #f5f9ff;
+}
+
+.qq-thread-item.is-active {
+  background: linear-gradient(180deg, #f5f9ff 0%, #eaf1ff 100%);
+}
+
+.qq-thread-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .16s ease;
+}
+
+.qq-thread-item:hover .qq-thread-actions,
+.qq-thread-item.is-active .qq-thread-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.qq-thread-action-btn {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  color: #8c98aa;
+  cursor: pointer;
+}
+
+.qq-thread-action-btn:hover {
+  background: rgba(74, 123, 235, 0.12);
+  color: #4a7beb;
+}
+
+.qq-thread-action-btn svg {
+  width: 15px;
+  height: 15px;
+  fill: currentColor;
+}
+
+.qq-thread-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 15px;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: linear-gradient(135deg, var(--brand), #7eabff);
+  font-weight: 800;
+}
+
+.qq-thread-avatar.is-favorite {
+  background: linear-gradient(135deg, #ffbe44, #ff9f1a);
+}
+
+.qq-thread-favorite-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
