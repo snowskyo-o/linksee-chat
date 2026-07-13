@@ -222,7 +222,7 @@ function writeStateCache(scope = "shared", key = "", data = null) {
   return true;
 }
 
-function saveDownloadedAsset({ fileName, bytes, conversationId = "", cacheKey = "" }) {
+async function saveDownloadedAsset({ fileName, bytes, conversationId = "", cacheKey = "", saveAs = false }) {
   const safeName = sanitizeFileName(fileName, "attachment");
   const payload = Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes || []);
   const cacheDir = ensureConversationCacheDir(conversationId);
@@ -231,10 +231,22 @@ function saveDownloadedAsset({ fileName, bytes, conversationId = "", cacheKey = 
   const extension = path.extname(safeName);
   const uniqueSuffix = `${Date.now()}-${(cacheKey && hashValue(cacheKey).slice(0, 8)) || hashValue(safeName).slice(0, 8)}`;
   const cachePath = path.join(cacheDir, `${stem}-${uniqueSuffix}${extension}`);
-  const exportPath = path.join(exports, `${stem}-${uniqueSuffix}${extension}`);
+  const defaultExportPath = path.join(exports, `${stem}-${uniqueSuffix}${extension}`);
+  let exportPath = defaultExportPath;
+  if (saveAs) {
+    const result = await dialog.showSaveDialog({
+      title: "另存为",
+      defaultPath: path.join(exports, safeName),
+    });
+    if (result.canceled || !result.filePath) {
+      return { canceled: true };
+    }
+    exportPath = result.filePath;
+  }
   fs.writeFileSync(cachePath, payload);
   fs.writeFileSync(exportPath, payload);
   return {
+    canceled: false,
     cachePath,
     exportPath,
     cacheUrl: pathToFileURL(cachePath).toString(),
@@ -329,11 +341,8 @@ function createTrayIcon() {
   const trayIconPath = resolveTrayIconPath();
   if (trayIconPath) {
     const icon = nativeImage.createFromPath(trayIconPath);
-    if (!icon.isEmpty()) {
-      return icon.resize({ width: 16, height: 16 });
-    }
+    if (!icon.isEmpty()) return icon.resize({ width: 16, height: 16 });
   }
-
   return createFallbackTrayIcon();
 }
 
@@ -518,9 +527,7 @@ function createShellWindow({
 
 function focusWindow(window) {
   if (!window || window.isDestroyed()) return;
-  if (window.isMinimized()) {
-    window.restore();
-  }
+  if (window.isMinimized()) window.restore();
   window.show();
   window.focus();
 }
@@ -630,12 +637,10 @@ function showPrimaryWindowFromTray() {
     focusWindow(listWindow);
     return;
   }
-
   if (loginWindow && !loginWindow.isDestroyed()) {
     focusWindow(loginWindow);
     return;
   }
-
   createLoginWindow();
 }
 
@@ -711,16 +716,13 @@ function buildTrayMenuTemplate() {
     { label: "打开主窗口", click: () => { showPrimaryWindowFromTray(); } },
     { label: preferences.notificationsMuted ? "关闭消息免打扰" : "消息免打扰", click: () => { updateDesktopPreferences({ notificationsMuted: !getDesktopPreferences().notificationsMuted }); } },
     { label: "退出登录", click: () => { logoutToLoginFromTray().catch(() => {}); } },
-    {
-      type: "separator",
-    },
+    { type: "separator" },
     { label: "退出程序", click: () => { quitDesktopApp(); } },
   ];
 }
 
 function ensureTray() {
   if (tray && !tray.isDestroyed?.()) return tray;
-
   tray = new Tray(createTrayIcon());
   tray.setToolTip(buildTrayTooltip());
   tray.setContextMenu(Menu.buildFromTemplate(buildTrayMenuTemplate()));
@@ -757,7 +759,6 @@ function createLoginWindow() {
     focusWindow(loginWindow);
     return loginWindow;
   }
-
   loginWindow = createShellWindow({
     width: 420,
     height: 560,
@@ -797,7 +798,6 @@ function createListWindow() {
     focusWindow(listWindow);
     return listWindow;
   }
-
   listWindow = createShellWindow({
     width: 344,
     height: 760,
@@ -838,13 +838,11 @@ function createListWindow() {
 function createChatWindow(conversationId) {
   const key = String(conversationId || "").trim();
   if (!key) return null;
-
   const existing = chatWindows.get(key);
   if (existing && !existing.isDestroyed()) {
     focusWindow(existing);
     return existing;
   }
-
   const chatWindow = createShellWindow({
     width: 1100,
     height: 820,
@@ -863,7 +861,6 @@ function createChatWindow(conversationId) {
     clearWindowContext(chatWindow);
     chatWindows.delete(key);
   });
-
   chatWindows.set(key, chatWindow);
   return chatWindow;
 }
@@ -933,12 +930,13 @@ function registerIpcHandlers() {
       return String(sourceUrl || "");
     }
   });
-  ipcMain.handle("desktop:save-downloaded-file", (_event, payload = {}) => {
+  ipcMain.handle("desktop:save-downloaded-file", async (_event, payload = {}) => {
     return saveDownloadedAsset({
       fileName: payload.fileName,
       bytes: payload.bytes,
       conversationId: payload.conversationId,
       cacheKey: payload.cacheKey,
+      saveAs: Boolean(payload.saveAs),
     });
   });
   ipcMain.handle("desktop:capture-screenshot", () => captureScreenshot());
@@ -961,6 +959,14 @@ function registerIpcHandlers() {
     }
     await shell.openPath(nextPath);
     return true;
+  });
+  ipcMain.handle("desktop:open-file", async (_event, targetPath) => {
+    const nextPath = String(targetPath || "").trim();
+    if (!nextPath || !fs.existsSync(nextPath)) return false;
+    const stat = fs.statSync(nextPath);
+    if (!stat.isFile()) return false;
+    const result = await shell.openPath(nextPath);
+    return !result;
   });
   ipcMain.handle("desktop:choose-directory", async (_event, options = {}) => {
     const result = await dialog.showOpenDialog({
@@ -1075,13 +1081,8 @@ app.whenReady().then(async () => {
   ensureStorageDirectories();
   ensureTray();
   createLoginWindow();
-
   app.on("activate", async () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      showPrimaryWindowFromTray();
-    } else {
-      showPrimaryWindowFromTray();
-    }
+    showPrimaryWindowFromTray();
   });
 }).catch((error) => {
   console.error("[desktop] startup failed", error);

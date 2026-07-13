@@ -55,6 +55,8 @@ const emit = defineEmits([
   "open-sticker-import",
   "send-sticker",
   "download-file",
+  "save-file-as",
+  "open-file",
   "open-file-location",
   "copy-image",
   "open-image",
@@ -91,13 +93,23 @@ const contextMenuItems = computed(() => {
   if (message.canDelete) items.push({ key: "delete", label: "删除", tone: "danger" });
   if (message.canRetry) items.push({ key: "retry", label: "重试发送" });
   if (message.isFileMessage) {
+    message.files
+      .filter((file) => file.transfer?.status === "saved" && file.transfer?.path)
+      .forEach((file, index) => items.push({
+        key: `open-file:${index}`,
+        label: `打开 ${file.name}`,
+        meta: file.transfer?.path || "",
+        disabled: !file.transfer?.path,
+        file,
+        action: "open-file",
+      }));
     message.files.forEach((file, index) => items.push({
-      key: `download:${index}`,
-      label: file.expired ? `${file.name} 已过期` : `下载 ${file.name}`,
+      key: `save-as:${index}`,
+      label: file.expired ? `${file.name} 已过期` : `另存为 ${file.name}`,
       meta: file.expiryText,
       disabled: file.expired,
       file,
-      action: "download",
+      action: "save-as",
     }));
     message.files
       .filter((file) => file.isImage && !file.expired && file.objectKey)
@@ -208,12 +220,17 @@ function selectContextItem(item) {
       closeFloatingPanels();
       return;
     }
+    if (item.action === "open-file") {
+      emit("open-file", item.file);
+      closeFloatingPanels();
+      return;
+    }
     if (item.action === "open-location") {
       emit("open-file-location", item.file);
       closeFloatingPanels();
       return;
     }
-    emit("download-file", item.file);
+    emit("save-file-as", item.file);
     closeFloatingPanels();
     return;
   }
@@ -483,6 +500,7 @@ onBeforeUnmount(() => {
         :message="message"
         @download-file="$emit('download-file', $event)"
         @open-image="$emit('open-image', $event)"
+        @open-file="$emit('open-file', $event)"
         @open-menu="openMessageMenu"
         @retry="$emit('message-action', { id: $event, action: 'retry' })"
       />

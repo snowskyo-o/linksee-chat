@@ -394,11 +394,13 @@ export function useChatActions(store) {
     }
   }
 
-  async function downloadFile(file) {
+  async function downloadFile(file, options = {}) {
     if (!file?.objectKey) {
       store.setComposerHint("附件已过期或下载地址不可用", "error");
       return;
     }
+    const mode = options.mode === "saveAs" ? "saveAs" : "download";
+    const openAfterSave = Boolean(options.openAfterSave);
     store.downloadingFile.value = true;
     store.downloadProgress.value = 0;
     store.downloadFileName.value = file.name || "attachment";
@@ -419,9 +421,14 @@ export function useChatActions(store) {
           bytes: Array.from(new Uint8Array(await blob.arrayBuffer())),
           conversationId: store.selectedId.value || "shared",
           cacheKey: file.objectKey,
+          saveAs: mode === "saveAs",
         });
+        if (saved?.canceled) {
+          store.setFileTransfer(file.objectKey, { status: "", progress: 0, path: "", error: "" });
+          return;
+        }
         store.pushNotification({
-          title: "已保存到本地",
+          title: mode === "saveAs" ? "已另存为" : "已保存到本地",
           message: saved?.exportPath || file.name || "附件",
           tone: "success",
           ttl: 2600,
@@ -432,6 +439,9 @@ export function useChatActions(store) {
           path: saved?.exportPath || "",
           error: "",
         });
+        if (openAfterSave && saved?.exportPath && typeof window.desktopShell?.openFile === "function") {
+          await window.desktopShell.openFile(saved.exportPath).catch(() => {});
+        }
       } else {
         const objectUrl = window.URL.createObjectURL(blob);
         const link = document.createElement("a");
@@ -473,6 +483,20 @@ export function useChatActions(store) {
       return;
     }
     await window.desktopShell.openStoragePath(targetPath);
+  }
+
+  async function openFile(file) {
+    const targetPath = String(file?.transfer?.path || "").trim();
+    if (targetPath && typeof window.desktopShell?.openFile === "function") {
+      const opened = await window.desktopShell.openFile(targetPath);
+      if (!opened) throw new Error("文件打开失败");
+      return;
+    }
+    await downloadFile(file, { openAfterSave: true });
+  }
+
+  async function saveFileAs(file) {
+    await downloadFile(file, { mode: "saveAs" });
   }
 
   async function copyImageToClipboard(file) {
@@ -751,6 +775,8 @@ export function useChatActions(store) {
     uploadFiles,
     queueFiles,
     downloadFile,
+    saveFileAs,
+    openFile,
     openFileLocation,
     copyImageToClipboard,
     handleMessageAction,

@@ -7,7 +7,15 @@ const props = defineProps({
   isMe: { type: Boolean, default: false },
 });
 
-defineEmits(["download", "open-image"]);
+const emit = defineEmits(["download", "open-image", "open-file"]);
+
+function handleFileClick() {
+  if (props.file?.transfer?.status === "saved" && props.file?.transfer?.path) {
+    emit("open-file", props.file);
+    return;
+  }
+  emit("download", props.file);
+}
 
 const imageSrc = ref("");
 const imageLoading = ref(false);
@@ -54,7 +62,7 @@ onBeforeUnmount(revokeImageSrc);
     :class="{ 'is-me': isMe, expired: file.expired, 'is-downloading': file.transfer?.status === 'downloading' }"
     type="button"
     :disabled="file.expired || file.transfer?.status === 'downloading'"
-    @click="$emit('download', file)"
+    @click="handleFileClick"
   >
     <div class="message-file-copy">
       <strong>{{ file.name }}</strong>

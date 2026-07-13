@@ -668,6 +668,8 @@ watch(
         @file-drop="handleFileDrop"
         @remove-pending-file="store.removePendingFile"
         @download-file="actions.downloadFile"
+        @save-file-as="actions.saveFileAs"
+        @open-file="actions.openFile"
         @open-file-location="actions.openFileLocation"
         @copy-image="actions.copyImageToClipboard"
         @open-image="openImageViewer"
