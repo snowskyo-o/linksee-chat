@@ -7,6 +7,7 @@ const { mergeUserProfile, mergeUsersById } = await import("../../apps/web/src/ch
 const { mergeMessagesById } = await import("../../apps/web/src/chat/composables/chat-profile-merge-conversations.js");
 const { resolveImageViewerOwnerMessageId } = await import("../../apps/web/src/chat/composables/chat-image-viewer-derived.js");
 const { isMessageActionAvailable } = await import("../../apps/web/src/chat/composables/chat-message-action-rules.js");
+const { resolveIncomingNotificationCopy } = await import("../../apps/web/src/chat/composables/chat-realtime-notifications.js");
 const { buildDerivedConversationPreview, buildReplyPreviewText } = await import("../../apps/web/src/chat/store/chat-store-derived-utils.js");
 const { canDeleteMessageForCurrentUser } = await import("../../apps/web/src/chat/store/chat-store-message-derived.js");
 
@@ -131,3 +132,17 @@ assert.equal(
 );
 
 console.log("[unit] group conversation preview keeps sender context");
+
+assert.deepEqual(
+  resolveIncomingNotificationCopy({
+    kind: "direct",
+    participants: [
+      { id: "alice", profile: { realName: "Alice" } },
+      { id: "bob", profile: { realName: "Bob" } },
+    ],
+    lastMessage: { senderId: "bob", content: "在吗", type: "text" },
+  }, "alice"),
+  { title: "Bob", body: "在吗" },
+);
+
+console.log("[unit] notification copy uses derived conversation title");

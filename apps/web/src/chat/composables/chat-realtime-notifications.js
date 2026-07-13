@@ -1,6 +1,6 @@
 import { appendAppLog } from "../../shared/app-log.js";
 import { playNotificationSound } from "../../shared/notification-sound.js";
-import { buildDerivedConversationPreview } from "../store/chat-store-derived-utils.js";
+import { buildDerivedConversationPreview, buildDerivedConversationTitle } from "../store/chat-store-derived-utils.js";
 
 export function createRealtimeFocusHelpers(store) {
   function isCurrentConversationFocused(conversationId) {
@@ -17,6 +17,14 @@ export function createRealtimeFocusHelpers(store) {
   return { isCurrentConversationFocused, syncReadStateIfFocused };
 }
 
+export function resolveIncomingNotificationCopy(conversation, currentUserId) {
+  if (!conversation) return { title: "新消息", body: "你收到一条新消息" };
+  return {
+    title: buildDerivedConversationTitle(conversation, currentUserId) || "新消息",
+    body: conversation.lastMessage ? buildDerivedConversationPreview(conversation, currentUserId) : "你收到一条新消息",
+  };
+}
+
 export function createRealtimeNotificationActions({ store, desktopControls, isCurrentConversationFocused }) {
   return {
     async notifyIncomingMessage(conversationId) {
@@ -26,8 +34,7 @@ export function createRealtimeNotificationActions({ store, desktopControls, isCu
       if (!conversationId || notificationsMuted || (!desktopEnabled && !soundEnabled)) return;
       if (isCurrentConversationFocused(conversationId)) return;
       const conversation = store.conversations.value.find((item) => String(item.id) === String(conversationId));
-      const title = conversation?.title || conversation?.displayTitle || store.chatTitle.value || "新消息";
-      const body = conversation?.lastMessage ? buildDerivedConversationPreview(conversation, store.me.value?.id || "") : "你收到一条新消息";
+      const { title, body } = resolveIncomingNotificationCopy(conversation, store.me.value?.id || "");
 
       if (soundEnabled) {
         const played = await playNotificationSound().catch(() => false);
