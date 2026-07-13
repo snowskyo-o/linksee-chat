@@ -4,14 +4,16 @@ const { createHash } = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
-const { captureScreenshot, writeImageToClipboard } = require("./desktop-media.cjs");
+const { writeImageToClipboard } = require("./desktop-media.cjs");
 const { clearDesktopCaches } = require("./cache-maintenance.cjs");
+const { createScreenshotSelectionManager } = require("./screenshot-selection.cjs");
 const { STICKER_EXTENSIONS, listStickerEntries, copyStickerIntoLibrary, walkStickerFiles, renameStickerEntry, deleteStickerEntry, moveStickerEntry } = require("./sticker-library.cjs");
 
 const DEFAULT_REMOTE_ORIGIN = "http://186.241.89.102";
 const projectRoot = path.resolve(__dirname, "../..");
 const port = process.env.DESKTOP_PORT || process.env.PORT || "3010";
 const preloadPath = path.join(__dirname, "preload.cjs");
+const screenshotSelectionPreloadPath = path.join(__dirname, "screenshot-selection-preload.cjs");
 const rendererRoot = path.join(projectRoot, "apps", "web", "dist");
 const loginPagePath = path.join(rendererRoot, "login.html");
 const listPagePath = path.join(rendererRoot, "list.html");
@@ -236,6 +238,9 @@ let updateState = {
   version: "",
   error: "",
 };
+const screenshotSelection = createScreenshotSelectionManager({
+  preloadPath: screenshotSelectionPreloadPath,
+});
 
 autoUpdater.autoDownload = false;
 autoUpdater.autoInstallOnAppQuit = false;
@@ -874,7 +879,15 @@ function registerIpcHandlers() {
       saveAs: Boolean(payload.saveAs),
     });
   });
-  ipcMain.handle("desktop:capture-screenshot", () => captureScreenshot());
+  ipcMain.handle("desktop:capture-screenshot", async () => {
+    return screenshotSelection.captureRegionScreenshot();
+  });
+  ipcMain.handle("desktop:complete-screenshot-selection", (_event, payload = {}) => {
+    return screenshotSelection.completeScreenshotSelection(payload);
+  });
+  ipcMain.handle("desktop:cancel-screenshot-selection", () => {
+    return screenshotSelection.cancelScreenshotSelection();
+  });
   ipcMain.handle("desktop:write-image-to-clipboard", (_event, payload = {}) => {
     return writeImageToClipboard(payload);
   });

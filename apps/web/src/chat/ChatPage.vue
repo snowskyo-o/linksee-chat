@@ -468,6 +468,7 @@ async function captureScreenshot() {
   }
   try {
     const payload = await window.desktopShell.captureScreenshot();
+    if (payload?.canceled) return;
     const bytes = new Uint8Array(Array.isArray(payload?.bytes) ? payload.bytes : []);
     if (!bytes.length) throw new Error("截图结果为空");
     const file = new File([bytes], payload?.fileName || `截图-${Date.now()}.png`, {
