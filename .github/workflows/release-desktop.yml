@@ -15,7 +15,7 @@ jobs:
       ELECTRON_BUILDER_BINARIES_MIRROR: "https://npmmirror.com/mirrors/electron-builder-binaries/"
       UPDATE_SSH_HOST: ${{ secrets.UPDATE_SSH_HOST }}
       UPDATE_SSH_USER: ${{ secrets.UPDATE_SSH_USER }}
-      UPDATE_SSH_KEY: ${{ secrets.UPDATE_SSH_KEY }}
+      UPDATE_SSH_KEY_B64: ${{ secrets.UPDATE_SSH_KEY_B64 }}
       UPDATE_SSH_PORT: ${{ secrets.UPDATE_SSH_PORT }}
       UPDATE_SSH_TARGET: ${{ secrets.UPDATE_SSH_TARGET }}
 
@@ -96,7 +96,8 @@ jobs:
           $remote = "$($env:UPDATE_SSH_USER)@$($env:UPDATE_SSH_HOST)"
           $sshOptions = @("-i", $keyPath, "-p", $port, "-o", "BatchMode=yes", "-o", "ConnectTimeout=20", "-o", "ServerAliveInterval=15", "-o", "ServerAliveCountMax=2", "-o", "StrictHostKeyChecking=no")
           $scpOptions = @("-i", $keyPath, "-P", $port, "-o", "BatchMode=yes", "-o", "ConnectTimeout=20", "-o", "ServerAliveInterval=15", "-o", "ServerAliveCountMax=2", "-o", "StrictHostKeyChecking=no")
-          [System.IO.File]::WriteAllText($keyPath, $env:UPDATE_SSH_KEY.Replace("`r`n", "`n"))
+          $keyBytes = [System.Convert]::FromBase64String($env:UPDATE_SSH_KEY_B64)
+          [System.IO.File]::WriteAllBytes($keyPath, $keyBytes)
 
           $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
           $acl = Get-Acl $keyPath
