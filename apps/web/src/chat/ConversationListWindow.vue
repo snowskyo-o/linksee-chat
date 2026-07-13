@@ -588,6 +588,7 @@ watch(() => friendCenter.keyword.value, () => {
           v-else-if="activePane === 'contacts'"
           :contacts="filteredContacts"
           :request-total="friendCenter.requestTotal.value"
+          :keyword="searchKeyword"
           @new-friends="openNewFriendsCenter"
           @open-contact="openDirectConversationByContact"
         />

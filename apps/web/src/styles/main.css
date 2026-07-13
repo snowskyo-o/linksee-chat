@@ -1358,6 +1358,28 @@ html body .desktop-page-shell { min-height: 100vh; }
 .qq-contact-list {
   display: grid;
 }
+.qq-contact-empty {
+  display: grid;
+  gap: 10px;
+  padding: 22px 18px;
+  border: 1px dashed rgba(199, 208, 220, 0.96);
+  border-radius: 16px;
+  background: linear-gradient(180deg, #fbfcff 0%, #f4f7fc 100%);
+  text-align: center;
+}
+.qq-contact-empty strong {
+  color: #334155;
+  font-size: 15px;
+}
+.qq-contact-empty p {
+  margin: 0;
+  color: #7b8798;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.qq-contact-empty .primary-btn {
+  justify-self: center;
+}
 
 .qq-contact-item {
   display: grid;

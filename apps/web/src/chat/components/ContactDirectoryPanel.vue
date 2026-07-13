@@ -4,6 +4,7 @@ import AvatarImage from "../../shared/components/AvatarImage.vue";
 defineProps({
   contacts: { type: Array, default: () => [] },
   requestTotal: { type: Number, default: 0 },
+  keyword: { type: String, default: "" },
 });
 
 defineEmits(["open-contact", "new-friends"]);
@@ -27,7 +28,15 @@ defineEmits(["open-contact", "new-friends"]);
         <span>{{ contacts.length }}</span>
       </div>
 
-      <div class="qq-contact-list">
+      <div v-if="!contacts.length" class="qq-contact-empty">
+        <strong>{{ keyword ? "没有匹配的联系人" : "暂无联系人" }}</strong>
+        <p>{{ keyword ? "试试更换搜索词，或者先添加新的联系人。" : "添加一个联系人，就可以从这里快速开始聊天。" }}</p>
+        <button class="primary-btn compact-btn" type="button" @click="$emit('new-friends')">
+          {{ keyword ? "添加联系人" : "去添加联系人" }}
+        </button>
+      </div>
+
+      <div v-else class="qq-contact-list">
         <button
           v-for="contact in contacts"
           :key="contact.id"
