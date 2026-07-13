@@ -58,6 +58,8 @@ const showStandaloneInfoSidebar = computed(() => (
 const unreadTotal = computed(() => store.conversations.value.reduce((sum, row) => {
   return sum + Number(row.unreadCount || 0) + Number(row.unreadMentionCount || 0);
 }, 0));
+const hadRealtimeConnected = ref(false);
+const networkBannerText = ref("");
 const imageViewerActiveFile = computed(() => {
   const objectKey = String(imageViewerFile.value?.objectKey || "").trim();
   if (!objectKey) return imageViewerFile.value;
@@ -550,6 +552,20 @@ watch(() => store.selectedId.value, () => {
 });
 
 watch(
+  () => store.socketOnline.value,
+  (online, previousOnline) => {
+    if (online) {
+      hadRealtimeConnected.value = true;
+      networkBannerText.value = "";
+      return;
+    }
+    if (previousOnline && hadRealtimeConnected.value) {
+      networkBannerText.value = "网络已断开，正在重新连接……";
+    }
+  },
+);
+
+watch(
   unreadTotal,
   (value) => {
     window.desktopShell?.updateUnreadCount?.(value).catch?.(() => {});
@@ -612,6 +628,7 @@ watch(
         :participant-count="store.selectedConversation.value?.participantIds?.length || store.participants.value.length"
         :message-keyword="store.messageKeyword.value"
         :socket-online="store.socketOnline.value"
+        :network-banner-text="networkBannerText"
         :search-result-text="store.searchResultText.value"
         :searching="Boolean(store.searchKeyword.value)"
         :messages="store.renderedMessages.value"

@@ -2031,6 +2031,24 @@ html body .desktop-page-shell { min-height: 100vh; }
   border-bottom: 1px solid rgba(236, 240, 246, 0.98);
   user-select: none;
 }
+.chat-network-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 22px;
+  background: rgba(255, 214, 102, 0.18);
+  color: #8a5200;
+  border-bottom: 1px solid rgba(201, 135, 16, 0.16);
+  font-size: 13px;
+  font-weight: 500;
+}
+.chat-network-banner__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: currentColor;
+  box-shadow: 0 0 0 4px rgba(201, 135, 16, 0.14);
+}
 .chat-toolbar-search-inner {
   display: flex;
   align-items: center;

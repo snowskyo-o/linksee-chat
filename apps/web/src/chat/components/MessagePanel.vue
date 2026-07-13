@@ -16,6 +16,7 @@ const props = defineProps({
   participantCount: { type: Number, default: 0 },
   messageKeyword: { type: String, default: "" },
   socketOnline: { type: Boolean, default: false },
+  networkBannerText: { type: String, default: "" },
   searchResultText: { type: String, default: "" },
   searching: { type: Boolean, default: false },
   messages: { type: Array, default: () => [] },
@@ -435,6 +436,11 @@ onBeforeUnmount(() => {
         <h2>{{ displayChatTitle }}</h2>
       </div>
     </header>
+
+    <div v-if="networkBannerText" class="chat-network-banner">
+      <span class="chat-network-banner__dot" aria-hidden="true"></span>
+      <span>{{ networkBannerText }}</span>
+    </div>
 
     <div class="chat-toolbar-search">
       <div class="chat-toolbar-search-inner">
