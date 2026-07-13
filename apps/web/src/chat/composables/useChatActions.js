@@ -46,6 +46,21 @@ export function useChatActions(store) {
     store.openCreateDialog("group");
   }
 
+  async function openOrCreateDirectConversation(peerId) {
+    const targetPeerId = String(peerId || "").trim();
+    if (!targetPeerId) return "";
+    const payload = await chatApi.postJson("/api/v1/conversations", {
+      kind: "direct",
+      peerId: targetPeerId,
+    });
+    const conversationId = String(payload.data?.id || "");
+    if (!conversationId) return "";
+    store.selectedId.value = conversationId;
+    await dataActions.loadConversations();
+    await dataActions.selectConversation(conversationId);
+    return conversationId;
+  }
+
   async function submitCreateConversation() {
     store.createDialogSubmitting.value = true;
     store.setCreateDialogHint("", "");
@@ -495,6 +510,7 @@ export function useChatActions(store) {
     selectConversation: dataActions.selectConversation,
     createDirectConversation,
     createGroupConversation,
+    openOrCreateDirectConversation,
     submitCreateConversation,
     searchMessages: dataActions.searchMessages,
     sendAnnouncement,

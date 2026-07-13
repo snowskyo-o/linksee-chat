@@ -47,6 +47,8 @@ let listWindow = null;
 const chatWindows = new Map();
 let tray = null;
 let isQuitting = false;
+let listWindowBoundsSnapshot = null;
+let listWindowAnimating = false;
 
 function createFallbackTrayIcon() {
   const svg = `
@@ -177,6 +179,86 @@ function focusWindow(window) {
   window.focus();
 }
 
+function snapshotWindowBounds(window) {
+  if (!window || window.isDestroyed()) return null;
+  const bounds = window.getBounds();
+  return { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height };
+}
+
+function animateWindowBounds(window, fromBounds, toBounds, { duration = 180, onDone } = {}) {
+  if (!window || window.isDestroyed()) {
+    if (typeof onDone === "function") onDone();
+    return;
+  }
+
+  const start = Date.now();
+  const tick = () => {
+    if (!window || window.isDestroyed()) {
+      if (typeof onDone === "function") onDone();
+      return;
+    }
+
+    const elapsed = Date.now() - start;
+    const progress = Math.min(1, elapsed / duration);
+    const eased = 1 - Math.pow(1 - progress, 3);
+    const nextBounds = {
+      x: Math.round(fromBounds.x + ((toBounds.x - fromBounds.x) * eased)),
+      y: Math.round(fromBounds.y + ((toBounds.y - fromBounds.y) * eased)),
+      width: Math.round(fromBounds.width + ((toBounds.width - fromBounds.width) * eased)),
+      height: Math.round(fromBounds.height + ((toBounds.height - fromBounds.height) * eased)),
+    };
+
+    window.setBounds(nextBounds, false);
+    if (progress >= 1) {
+      if (typeof onDone === "function") onDone();
+      return;
+    }
+    setTimeout(tick, 12);
+  };
+
+  tick();
+}
+
+function slideOutListWindow() {
+  if (!listWindow || listWindow.isDestroyed() || listWindowAnimating) return;
+  if (!listWindow.isVisible()) return;
+
+  listWindowAnimating = true;
+  listWindowBoundsSnapshot = snapshotWindowBounds(listWindow) || listWindowBoundsSnapshot;
+  const fromBounds = snapshotWindowBounds(listWindow);
+  if (!fromBounds) {
+    listWindowAnimating = false;
+    return;
+  }
+
+  const toBounds = {
+    ...fromBounds,
+    x: fromBounds.x + Math.round(fromBounds.width * 0.72),
+  };
+
+  animateWindowBounds(listWindow, fromBounds, toBounds, {
+    duration: 180,
+    onDone: () => {
+      if (listWindow && !listWindow.isDestroyed()) {
+        listWindow.hide();
+        if (listWindowBoundsSnapshot) {
+          listWindow.setBounds(listWindowBoundsSnapshot, false);
+        }
+      }
+      listWindowAnimating = false;
+    },
+  });
+}
+
+function restoreListWindowPosition() {
+  if (!listWindow || listWindow.isDestroyed()) return;
+  if (!listWindowBoundsSnapshot) {
+    listWindowBoundsSnapshot = snapshotWindowBounds(listWindow);
+    return;
+  }
+  listWindow.setBounds(listWindowBoundsSnapshot, false);
+}
+
 function hideWindowToTray(window) {
   if (!window || window.isDestroyed()) return;
   window.hide();
@@ -198,6 +280,7 @@ function hideAllChatWindows() {
 
 function showPrimaryWindowFromTray() {
   if (listWindow && !listWindow.isDestroyed()) {
+    restoreListWindowPosition();
     focusWindow(listWindow);
     return;
   }
@@ -339,6 +422,11 @@ function createListWindow() {
     hideAllChatWindows();
   });
 
+  listWindow.on("move", () => {
+    if (listWindowAnimating || !listWindow || listWindow.isDestroyed() || !listWindow.isVisible()) return;
+    listWindowBoundsSnapshot = snapshotWindowBounds(listWindow);
+  });
+
   listWindow.on("closed", () => {
     listWindow = null;
   });
@@ -430,6 +518,7 @@ function registerIpcHandlers() {
   });
   ipcMain.handle("desktop:open-chat-window", (_event, conversationId) => {
     createChatWindow(conversationId);
+    slideOutListWindow();
     return true;
   });
   ipcMain.handle("desktop:logout", () => {

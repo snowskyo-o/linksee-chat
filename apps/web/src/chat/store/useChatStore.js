@@ -1,5 +1,6 @@
 import { computed, ref } from "vue";
 import { resolveMediaUrl } from "../../shared/media.js";
+import { loadConversationPreferences, saveConversationPreferences } from "../../shared/conversation-preferences.js";
 import { escapeHtml, formatDateTime, formatExpiry, formatFileSize, getInitials } from "../../shared/utils.js";
 
 const FAVORITES_STORAGE_KEY = "linksee_chat_favorite_messages";
@@ -76,9 +77,12 @@ function buildReplyText(message) {
 }
 
 export function useChatStore(auth) {
+  const initialConversationPreferences = loadConversationPreferences();
   const me = ref(null);
   const contacts = ref([]);
   const conversations = ref([]);
+  const mutedConversationIds = ref(initialConversationPreferences.mutedConversationIds);
+  const hiddenConversationIds = ref(initialConversationPreferences.hiddenConversationIds);
   const selectedId = ref("");
   const participants = ref([]);
   const messages = ref([]);
@@ -157,9 +161,8 @@ export function useChatStore(auth) {
     return `正在下载 ${downloadFileName.value} · ${downloadProgress.value}%`;
   });
 
-  const filteredConversations = computed(() => {
-    const keyword = conversationKeyword.value.trim().toLowerCase();
-    return conversations.value
+  const conversationRows = computed(() => (
+    conversations.value
       .map((row) => {
         const title = buildConversationTitle(row, auth.userId);
         const subtitle = buildConversationSubtitle(row, auth.userId);
@@ -171,14 +174,11 @@ export function useChatStore(auth) {
           ...row,
           displayTitle: title,
           displaySubtitle: subtitle,
+          isMuted: mutedConversationIds.value.includes(String(row.id || "")),
+          isHidden: hiddenConversationIds.value.includes(String(row.id || "")),
           avatarUrl: row.kind === "direct" ? resolveMediaUrl(peer?.profile?.avatarUrl || "") : "",
           preview: buildPreview(row),
         };
-      })
-      .filter((row) => {
-        if (!keyword) return true;
-        return [row.displayTitle, row.displaySubtitle, row.preview]
-          .some((value) => String(value || "").toLowerCase().includes(keyword));
       })
       .sort((a, b) => {
         const aRank = conversationRank(a);
@@ -187,7 +187,17 @@ export function useChatStore(auth) {
         if (aRank.mentionRank !== bRank.mentionRank) return bRank.mentionRank - aRank.mentionRank;
         if (aRank.unreadRank !== bRank.unreadRank) return bRank.unreadRank - aRank.unreadRank;
         return bRank.timeRank - aRank.timeRank;
-      });
+      })
+  ));
+
+  const filteredConversations = computed(() => {
+    const keyword = conversationKeyword.value.trim().toLowerCase();
+    const visibleRows = conversationRows.value.filter((row) => !row.isHidden);
+    if (!keyword) return visibleRows;
+    return visibleRows.filter((row) => (
+      [row.displayTitle, row.displaySubtitle, row.preview]
+        .some((value) => String(value || "").toLowerCase().includes(keyword))
+    ));
   });
 
   const chatTitle = computed(() => buildConversationTitle(selectedConversation.value, auth.userId) || "请选择会话");
@@ -279,6 +289,41 @@ export function useChatStore(auth) {
 
   function dismissNotification(id) {
     notifications.value = notifications.value.filter((item) => item.id !== id);
+  }
+
+  function persistConversationPreferences() {
+    const saved = saveConversationPreferences({
+      mutedConversationIds: mutedConversationIds.value,
+      hiddenConversationIds: hiddenConversationIds.value,
+    });
+    mutedConversationIds.value = saved.mutedConversationIds;
+    hiddenConversationIds.value = saved.hiddenConversationIds;
+  }
+
+  function toggleConversationMuted(conversationId) {
+    const targetId = String(conversationId || "");
+    if (!targetId) return false;
+    mutedConversationIds.value = mutedConversationIds.value.includes(targetId)
+      ? mutedConversationIds.value.filter((item) => item !== targetId)
+      : [...mutedConversationIds.value, targetId];
+    persistConversationPreferences();
+    return mutedConversationIds.value.includes(targetId);
+  }
+
+  function hideConversation(conversationId) {
+    const targetId = String(conversationId || "");
+    if (!targetId) return;
+    hiddenConversationIds.value = hiddenConversationIds.value.includes(targetId)
+      ? hiddenConversationIds.value
+      : [...hiddenConversationIds.value, targetId];
+    persistConversationPreferences();
+  }
+
+  function showConversation(conversationId) {
+    const targetId = String(conversationId || "");
+    if (!targetId) return;
+    hiddenConversationIds.value = hiddenConversationIds.value.filter((item) => item !== targetId);
+    persistConversationPreferences();
   }
 
   function setComposerHint(message, tone = "") {
@@ -446,6 +491,8 @@ export function useChatStore(auth) {
     participants,
     messages,
     notifications,
+    mutedConversationIds,
+    hiddenConversationIds,
     hasMoreMessages,
     loadingMoreMessages,
     replyTo,
@@ -506,6 +553,7 @@ export function useChatStore(auth) {
     meAvatar,
     meAvatarUrl,
     selectedConversation,
+    conversationRows,
     filteredConversations,
     chatTitle,
     chatSubtitle,
@@ -515,6 +563,9 @@ export function useChatStore(auth) {
     searchResultText,
     pushNotification,
     dismissNotification,
+    toggleConversationMuted,
+    hideConversation,
+    showConversation,
     setComposerHint,
     setCreateDialogHint,
     setAnnouncementHint,

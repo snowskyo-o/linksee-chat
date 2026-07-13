@@ -1,6 +1,12 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import AvatarImage from "../shared/components/AvatarImage.vue";
+import ContactDirectoryPanel from "./components/ContactDirectoryPanel.vue";
+import ConversationThreadList from "./components/ConversationThreadList.vue";
+import CreateConversationDialog from "./components/CreateConversationDialog.vue";
+import ListSearchPanel from "./components/ListSearchPanel.vue";
+import NewFriendsDialog from "./components/NewFriendsDialog.vue";
+import QuickCreateMenu from "./components/QuickCreateMenu.vue";
 import SettingsDialog from "./components/SettingsDialog.vue";
 import { useDesktopShell } from "../shared/useDesktopShell.js";
 import { clearAppLogs, onAppLogsUpdated, readAppLogs } from "../shared/app-log.js";
@@ -8,14 +14,26 @@ import { getAuth, logout } from "../shared/session.js";
 import { loadAppSettings, saveAppSettings } from "../shared/app-settings.js";
 import { useChatStore } from "./store/useChatStore.js";
 import { useChatActions } from "./composables/useChatActions.js";
-
+import { useConversationSearchSections } from "./composables/useConversationSearchSections.js";
+import { useFriendCenter } from "./composables/useFriendCenter.js";
+import { useListSearch } from "./composables/useListSearch.js";
+import { formatConversationTime, useRecentKeywords } from "./composables/useRecentKeywords.js";
 const shell = useDesktopShell();
 const auth = getAuth();
 const store = useChatStore(auth);
 const actions = useChatActions(store);
+const friendCenter = useFriendCenter(store, {
+  async onChanged() {
+    await actions.loadContacts().catch(() => {});
+    await actions.loadConversations().catch(() => {});
+  },
+});
 const settingsOpen = ref(false);
+const searchFocused = ref(false);
+const quickCreateOpen = ref(false);
 const appSettings = ref(loadAppSettings());
 const appLogs = ref(readAppLogs());
+const { recentKeywords, pushRecentKeyword, clearRecentKeywords } = useRecentKeywords();
 const appInfo = ref({
   productName: "Linksee Chat",
   version: "",
@@ -35,52 +53,211 @@ const filteredFavorites = computed(() => {
       .some((value) => String(value || "").toLowerCase().includes(keyword));
   });
 });
+const searchKeyword = computed(() => store.conversationKeyword.value.trim());
+const contactRows = computed(() => store.createDialogContacts.value.map((contact) => ({
+  key: `contact:${contact.id}`,
+  id: contact.id,
+  title: contact.name,
+  subtitle: contact.bio || "联系人",
+  meta: "联系人",
+  kind: "contact",
+  avatarUrl: contact.avatarUrl,
+  avatarText: contact.name.slice(0, 2).toUpperCase(),
+})));
+const filteredContacts = computed(() => {
+  const keyword = searchKeyword.value.toLowerCase();
+  if (!keyword) return contactRows.value;
+  return contactRows.value.filter((row) => (
+    [row.title, row.subtitle].some((value) => String(value || "").toLowerCase().includes(keyword))
+  ));
+});
+const searchPanelOpen = computed(() => searchFocused.value || Boolean(searchKeyword.value));
+const visibleConversations = computed(() => (
+  searchPanelOpen.value ? store.conversationRows.value : store.filteredConversations.value
+));
+const searchSections = useConversationSearchSections(store, searchKeyword, contactRows);
+const searchController = useListSearch({
+  openRef: searchPanelOpen,
+  keywordRef: searchKeyword,
+  recentKeywordsRef: recentKeywords,
+  sectionsRef: searchSections,
+  onPick: (item) => handleSearchPick(item),
+  onRecentPick: (value) => applyRecentKeyword(value),
+  onFooterPick: () => handleSearchFooterPick(),
+});
+
 let detachLogs = null;
-
-function formatConversationTime(value) {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  const now = new Date();
-  if (date.toDateString() === now.toDateString()) {
-    return date.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
-  }
-  return date.toLocaleDateString("zh-CN", { month: "2-digit", day: "2-digit" });
-}
-
-function selectConversation(id) {
-  store.selectedId.value = id;
-}
+let friendSearchTimer = 0;
+const selectConversation = (id) => { store.selectedId.value = id; };
 
 async function openConversation(id) {
+  store.showConversation(id);
   store.selectedId.value = id;
-  if (typeof window.desktopShell?.openChatWindow === "function") {
-    await window.desktopShell.openChatWindow(id);
-  }
+  if (typeof window.desktopShell?.openChatWindow === "function") await window.desktopShell.openChatWindow(id);
 }
-
 async function openFavorite(item) {
   if (!item?.conversationId) return;
   activePane.value = "messages";
   await openConversation(item.conversationId);
 }
 
-function removeFavorite(item) {
-  store.removeFavoriteMessage(item?.id);
-}
-
-function persistSettings(nextSettings) {
-  appSettings.value = saveAppSettings(nextSettings);
-}
-
-function handleAvatarUpload(event) {
-  actions.uploadAvatar(event.target?.files?.[0]).catch((error) => {
-    store.profileHint.value = error?.message || "头像上传失败";
-    store.profileHintTone.value = "error";
+const removeFavorite = (item) => store.removeFavoriteMessage(item?.id);
+const persistSettings = (nextSettings) => { appSettings.value = saveAppSettings(nextSettings); };
+const handleAvatarUpload = (event) => actions.uploadAvatar(event.target?.files?.[0]).catch((error) => {
+  store.profileHint.value = error?.message || "头像上传失败";
+  store.profileHintTone.value = "error";
+});
+const copyConversationTitle = async (row) => {
+  const title = String(row?.displayTitle || row?.title || "").trim();
+  if (!title) return;
+  try {
+    await navigator.clipboard.writeText(title);
+    store.pushNotification({ title: "已复制", message: `“${title}”`, tone: "success", ttl: 1600 });
+  } catch (error) {
+    store.pushNotification({ title: "复制失败", message: error?.message || "当前环境不支持剪贴板", tone: "error" });
+  }
+};
+const toggleConversationMute = (row) => {
+  const muted = store.toggleConversationMuted(row?.id);
+  store.pushNotification({
+    title: muted ? "已开启免打扰" : "已取消免打扰",
+    message: row?.displayTitle || "会话",
+    tone: "success",
+    ttl: 1600,
   });
+};
+const hideConversationFromList = (row) => {
+  if (!row?.id) return;
+  store.hideConversation(row.id);
+  if (store.selectedId.value === row.id) {
+    store.selectedId.value = store.filteredConversations.value[0]?.id || "";
+  }
+  store.pushNotification({
+    title: "已从列表隐藏",
+    message: `${row.displayTitle || "会话"} 仍可通过搜索重新打开`,
+    tone: "success",
+    ttl: 2200,
+  });
+};
+
+function handleGlobalPointer(event) {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) return;
+  if (target.closest(".qq-list-search-cluster") || target.closest(".qq-search-panel") || target.closest(".qq-plus-action-wrap") || target.closest(".qq-quick-create-menu") || target.closest(".new-friends-dialog-card")) return;
+  searchFocused.value = false;
+  quickCreateOpen.value = false;
 }
+
+const handleSearchInput = (value) => { store.conversationKeyword.value = value; searchFocused.value = true; };
+
+function clearSearchInput() {
+  store.conversationKeyword.value = "";
+  searchFocused.value = true;
+  searchController.resetActive();
+}
+
+function handleSearchPick(item) {
+  pushRecentKeyword(searchKeyword.value || item.title);
+  if (item.action === "conversation") {
+    store.showConversation(item.id);
+    selectConversation(item.id);
+    openConversation(item.id);
+  } else if (item.action === "contact") openDirectConversationByContact(item.id);
+  else if (item.action === "favorite") openFavorite(item);
+  searchFocused.value = false;
+}
+
+function handleSearchFooterPick() {
+  const keyword = searchKeyword.value.trim();
+  if (!keyword) {
+    activePane.value = "messages";
+    searchFocused.value = false;
+    return;
+  }
+
+  const firstConversation = searchSections.value.find((section) => section.key === "conversations")?.items?.[0];
+  const firstContact = searchSections.value.find((section) => section.key === "contacts")?.items?.[0];
+  const firstFavorite = searchSections.value.find((section) => section.key === "favorites")?.items?.[0];
+
+  if (firstConversation) {
+    handleSearchPick(firstConversation);
+    return;
+  }
+  if (firstContact) {
+    handleSearchPick(firstContact);
+    return;
+  }
+  if (firstFavorite) {
+    handleSearchPick(firstFavorite);
+    return;
+  }
+
+  activePane.value = "contacts";
+  openNewFriendsCenter();
+  friendCenter.keyword.value = keyword;
+  friendCenter.refresh();
+}
+
+const applyRecentKeyword = (value) => {
+  store.conversationKeyword.value = value;
+  searchFocused.value = true;
+};
+
+function handleSearchKeydown(event) {
+  if (!searchPanelOpen.value) return;
+  if (event.key === "ArrowDown") {
+    event.preventDefault();
+    searchController.move(1);
+    return;
+  }
+  if (event.key === "ArrowUp") {
+    event.preventDefault();
+    searchController.move(-1);
+    return;
+  }
+  if (event.key === "Enter") {
+    event.preventDefault();
+    searchController.triggerActive();
+    return;
+  }
+  if (event.key === "Escape") {
+    event.preventDefault();
+    searchFocused.value = false;
+    quickCreateOpen.value = false;
+  }
+}
+
+const openDirectCreation = () => { quickCreateOpen.value = false; searchFocused.value = false; openNewFriendsCenter(); };
+function openNewFriendsCenter() {
+  quickCreateOpen.value = false;
+  searchFocused.value = false;
+  friendCenter.keyword.value = "";
+  friendCenter.openCenter();
+}
+
+function openDirectConversationByContact(contactId) {
+  actions.openOrCreateDirectConversation(contactId).catch((error) => {
+    store.pushNotification({
+      title: "无法打开会话",
+      message: error?.message || "暂时无法打开这个联系人",
+      tone: "error",
+    });
+  });
+  activePane.value = "messages";
+}
+
+const startChatFromNewFriends = (contactId) => {
+  activePane.value = "contacts";
+  friendCenter.openDirectChat(contactId);
+};
+const openGroupCreation = () => {
+  quickCreateOpen.value = false;
+  searchFocused.value = false;
+  actions.createGroupConversation();
+};
 
 onMounted(async () => {
+  window.addEventListener("pointerdown", handleGlobalPointer);
   detachLogs = onAppLogsUpdated((logs) => {
     appLogs.value = logs;
   });
@@ -97,10 +274,24 @@ onMounted(async () => {
   await actions.loadProfile(auth);
   await actions.loadContacts();
   await actions.loadConversations();
+  await friendCenter.refresh();
 });
 
 onBeforeUnmount(() => {
+  window.removeEventListener("pointerdown", handleGlobalPointer);
   if (typeof detachLogs === "function") detachLogs();
+  window.clearTimeout(friendSearchTimer);
+});
+
+watch(searchKeyword, (value) => {
+  if (value) quickCreateOpen.value = false;
+});
+
+watch(() => friendCenter.keyword.value, () => {
+  window.clearTimeout(friendSearchTimer);
+  friendSearchTimer = window.setTimeout(() => {
+    if (friendCenter.open.value) friendCenter.refresh();
+  }, 180);
 });
 </script>
 
@@ -120,7 +311,7 @@ onBeforeUnmount(() => {
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H9l-4.5 3V17H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Zm0 2v7.17L8.4 15H19V7H5Z"/></svg>
           <i v-if="unreadTotal" class="qq-list-badge">{{ unreadTotal > 99 ? "99+" : unreadTotal }}</i>
         </button>
-        <button class="qq-list-nav-btn" type="button" title="联系人">
+        <button class="qq-list-nav-btn" :class="{ 'is-active': activePane === 'contacts' }" type="button" title="联系人" @click="activePane = 'contacts'">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12a4 4 0 1 0 0-8a4 4 0 0 0 0 8Zm0 2c-4.42 0-8 2.24-8 5v1h16v-1c0-2.76-3.58-5-8-5Z"/></svg>
         </button>
         <button class="qq-list-nav-btn" :class="{ 'is-active': activePane === 'favorites' }" type="button" title="收藏" @click="activePane = 'favorites'">
@@ -146,7 +337,13 @@ onBeforeUnmount(() => {
               <strong>{{ store.meName.value }}</strong>
               <span class="qq-list-status-pill">在线</span>
               <span class="qq-list-status-pill is-muted">
-                {{ activePane === "messages" ? `${store.filteredConversations.value.length} 个会话` : `${filteredFavorites.length} 条收藏` }}
+                {{
+                  activePane === "messages"
+                    ? `${store.filteredConversations.value.length} 个会话`
+                    : activePane === "contacts"
+                      ? `${contactRows.length} 位联系人`
+                      : `${filteredFavorites.length} 条收藏`
+                }}
               </span>
             </div>
           </div>
@@ -158,54 +355,78 @@ onBeforeUnmount(() => {
         </header>
 
         <div class="qq-list-search-row">
-          <label class="qq-list-search-box">
-            <input
-              :value="store.conversationKeyword.value"
-              class="qq-list-search"
-              :placeholder="activePane === 'messages' ? '搜索会话' : '搜索收藏消息'"
-              @input="store.conversationKeyword.value = $event.target.value"
-            />
-            <span class="qq-list-search-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24"><path d="M10.5 4a6.5 6.5 0 1 1 0 13a6.5 6.5 0 0 1 0-13Zm0 2a4.5 4.5 0 1 0 0 9a4.5 4.5 0 0 0 0-9Zm8.91 11.5 2.8 2.79-1.42 1.42-2.79-2.8 1.41-1.41Z"/></svg>
-            </span>
-          </label>
+          <div class="qq-list-search-cluster">
+            <label class="qq-list-search-box">
+              <input
+                :value="store.conversationKeyword.value"
+                class="qq-list-search"
+                :placeholder="activePane === 'messages' ? '搜索会话、联系人、消息' : activePane === 'contacts' ? '搜索联系人' : '搜索收藏消息'"
+                @focus="searchFocused = true"
+                @input="handleSearchInput($event.target.value)"
+                @keydown="handleSearchKeydown"
+              />
+              <button
+                v-if="store.conversationKeyword.value"
+                class="qq-list-search-clear"
+                type="button"
+                aria-label="清空搜索"
+                @click="clearSearchInput"
+              >
+                <svg viewBox="0 0 24 24"><path d="m12 10.59 4.95-4.95 1.41 1.41L13.41 12l4.95 4.95-1.41 1.41L12 13.41l-4.95 4.95-1.41-1.41L10.59 12 5.64 7.05l1.41-1.41L12 10.59Z"/></svg>
+              </button>
+              <span class="qq-list-search-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M10.5 4a6.5 6.5 0 1 1 0 13a6.5 6.5 0 0 1 0-13Zm0 2a4.5 4.5 0 1 0 0 9a4.5 4.5 0 0 0 0-9Zm8.91 11.5 2.8 2.79-1.42 1.42-2.79-2.8 1.41-1.41Z"/></svg>
+              </span>
+            </label>
+
+            <div class="qq-plus-action-wrap">
+              <button class="qq-plus-action-btn" type="button" title="添加好友或创建群聊" @click="quickCreateOpen = !quickCreateOpen">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6V5Z"/></svg>
+                <i v-if="friendCenter.requestTotal.value" class="qq-plus-action-badge">
+                  {{ friendCenter.requestTotal.value > 9 ? "9+" : friendCenter.requestTotal.value }}
+                </i>
+              </button>
+              <QuickCreateMenu :open="quickCreateOpen" @direct="openDirectCreation" @group="openGroupCreation" />
+            </div>
+          </div>
+
+          <ListSearchPanel
+            :open="searchPanelOpen"
+            :keyword="searchKeyword"
+            :recent-keywords="recentKeywords"
+            :sections="searchSections"
+            :active-key="searchController.activeKey.value"
+            @pick="handleSearchPick"
+            @clear-recent="clearRecentKeywords"
+            @recent-pick="applyRecentKeyword"
+            @footer-pick="handleSearchFooterPick"
+          />
         </div>
       </section>
 
       <div class="qq-list-conversations-shell">
-        <div v-if="activePane === 'messages'" class="qq-thread-list">
-          <div v-if="!store.filteredConversations.value.length" class="empty-state">暂无会话</div>
-          <article
-            v-for="row in store.filteredConversations.value"
-            :key="row.id"
-            class="qq-thread-item"
-            :class="{ 'is-active': row.id === store.selectedId.value }"
-            @click="selectConversation(row.id)"
-            @dblclick="openConversation(row.id)"
-          >
-            <div class="qq-thread-avatar">
-              <AvatarImage :src="row.avatarUrl" alt="">
-                <span>{{ (row.displayTitle || "?").slice(0, 2).toUpperCase() }}</span>
-              </AvatarImage>
-            </div>
+        <ConversationThreadList
+          v-if="activePane === 'messages'"
+          :rows="visibleConversations"
+          :selected-id="store.selectedId.value"
+          :format-time="formatConversationTime"
+          :desktop="shell.isDesktop"
+          @select="selectConversation"
+          @open="openConversation"
+          @toggle-pin="actions.toggleConversationPinById($event.id)"
+          @toggle-mute="toggleConversationMute"
+          @hide-conversation="hideConversationFromList"
+          @copy-title="copyConversationTitle"
+        />
 
-            <div class="qq-thread-copy">
-              <div class="qq-thread-head">
-                <strong>{{ row.displayTitle }}</strong>
-                <span class="qq-thread-time">{{ formatConversationTime(row.updatedAt || row.lastMessage?.createdAt) }}</span>
-              </div>
+        <ContactDirectoryPanel
+          v-else-if="activePane === 'contacts'"
+          :contacts="filteredContacts"
+          :request-total="friendCenter.requestTotal.value"
+          @new-friends="openNewFriendsCenter"
+          @open-contact="openDirectConversationByContact"
+        />
 
-              <p class="qq-thread-subtitle">{{ row.kind === "group" ? "群聊" : "单聊" }}</p>
-              <div class="qq-thread-preview-row">
-                <p class="qq-thread-preview">{{ row.preview }}</p>
-                <span v-if="row.unreadMentionCount" class="badge mention-badge">@{{ row.unreadMentionCount }}</span>
-                <span v-else-if="row.unreadCount" class="badge">{{ row.unreadCount }}</span>
-              </div>
-            </div>
-
-            <span v-if="row.pinnedAt" class="conversation-pin-dot" aria-hidden="true"></span>
-          </article>
-        </div>
         <div v-else class="qq-thread-list">
           <div v-if="!filteredFavorites.length" class="empty-state">暂无收藏消息</div>
           <article
@@ -235,6 +456,44 @@ onBeforeUnmount(() => {
         </div>
       </div>
     </section>
+
+    <CreateConversationDialog
+      :open="store.createDialogOpen.value"
+      :mode="store.createDialogMode.value"
+      :title="store.createDialogTitle.value"
+      :peer-id="store.selectedPeerId.value"
+      :participant-ids="store.createDialogParticipantIds.value"
+      :contacts="store.createDialogContacts.value"
+      :selected-participants="store.selectedParticipants.value"
+      :hint="store.createDialogHint.value"
+      :hint-tone="store.createDialogHintTone.value"
+      :submitting="store.createDialogSubmitting.value"
+      @close="store.closeCreateDialog"
+      @submit="actions.submitCreateConversation"
+      @update:title="store.createDialogTitle.value = $event"
+      @update:peer-id="store.createDialogPeerId.value = $event"
+      @toggle-participant="store.toggleDialogParticipant"
+    />
+
+    <NewFriendsDialog
+      :open="friendCenter.open.value"
+      :keyword="friendCenter.keyword.value"
+      :loading="friendCenter.loading.value"
+      :hint="friendCenter.hint.value"
+      :hint-tone="friendCenter.hintTone.value"
+      :recent-contacts="friendCenter.recentContacts.value"
+      :incoming-requests="friendCenter.incomingRequests.value"
+      :outgoing-requests="friendCenter.outgoingRequests.value"
+      :recommended-users="friendCenter.recommendedUsers.value"
+      :friend-contacts="friendCenter.friendContacts.value"
+      @close="friendCenter.closeCenter()"
+      @update:keyword="friendCenter.keyword.value = $event"
+      @start-chat="startChatFromNewFriends"
+      @send-request="friendCenter.sendRequest"
+      @accept-request="friendCenter.resolveRequest($event, 'accept', '已通过好友申请')"
+      @reject-request="friendCenter.resolveRequest($event, 'reject', '已拒绝好友申请')"
+      @cancel-request="friendCenter.resolveRequest($event, 'cancel', '已取消好友申请')"
+    />
 
     <SettingsDialog
       :open="settingsOpen"

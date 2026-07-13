@@ -39,9 +39,45 @@ export async function findUserById(userId) {
 }
 
 export async function findContacts(userId) {
+  const [friendships, directConversations] = await Promise.all([
+    prisma.chatFriendship.findMany({
+      where: {
+        OR: [
+          { userLowId: userId },
+          { userHighId: userId },
+        ],
+      },
+    }),
+    prisma.chatConversation.findMany({
+      where: {
+        kind: "direct",
+        members: { some: { userId } },
+      },
+      include: {
+        members: {
+          include: {
+            user: { include: { profile: true } },
+          },
+        },
+      },
+    }),
+  ]);
+
+  const contactIds = new Set(
+    friendships.map((row) => (row.userLowId === userId ? row.userHighId : row.userLowId)),
+  );
+
+  directConversations.forEach((conversation) => {
+    conversation.members.forEach((member) => {
+      if (member.userId !== userId) contactIds.add(member.userId);
+    });
+  });
+
+  if (!contactIds.size) return [];
+
   const users = await prisma.user.findMany({
     where: {
-      id: { not: userId },
+      id: { in: Array.from(contactIds) },
       isActive: true,
     },
     orderBy: { id: "asc" },

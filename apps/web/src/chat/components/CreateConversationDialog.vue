@@ -1,7 +1,8 @@
 <script setup>
+import { computed, ref, watch } from "vue";
 import AvatarImage from "../../shared/components/AvatarImage.vue";
 
-defineProps({
+const props = defineProps({
   open: { type: Boolean, default: false },
   mode: { type: String, default: "direct" },
   title: { type: String, default: "" },
@@ -21,6 +22,30 @@ defineEmits([
   "update:peerId",
   "toggle-participant",
 ]);
+
+const keyword = ref("");
+
+const filteredContacts = computed(() => {
+  const search = keyword.value.trim().toLowerCase();
+  if (!search) return props.contacts;
+  return props.contacts.filter((contact) => (
+    [contact.name, contact.bio].some((value) => String(value || "").toLowerCase().includes(search))
+  ));
+});
+
+const selectionSummary = computed(() => {
+  if (props.mode === "direct") {
+    return props.peerId ? "已选择 1 位联系人" : "请选择 1 位联系人";
+  }
+  return props.participantIds.length ? `已选择 ${props.participantIds.length} 位成员` : "至少选择 2 位成员";
+});
+
+watch(
+  () => props.open,
+  (open) => {
+    if (open) keyword.value = "";
+  },
+);
 </script>
 
 <template>
@@ -39,9 +64,19 @@ defineEmits([
         <input :value="title" placeholder="例如：项目讨论" @input="$emit('update:title', $event.target.value)" />
       </div>
 
+      <div class="field field-quiet create-dialog-search-field">
+        <span>搜索联系人</span>
+        <input v-model="keyword" placeholder="按昵称或简介筛选" />
+      </div>
+
+      <div class="create-dialog-summary">
+        <span>{{ selectionSummary }}</span>
+        <strong>{{ filteredContacts.length }} 位可选</strong>
+      </div>
+
       <div class="dialog-contact-list">
         <button
-          v-for="contact in contacts"
+          v-for="contact in filteredContacts"
           :key="contact.id"
           class="dialog-contact-item"
           :class="{
@@ -60,6 +95,7 @@ defineEmits([
             <p>{{ contact.bio || '这个人很低调' }}</p>
           </div>
         </button>
+        <div v-if="!filteredContacts.length" class="empty-state">没有匹配的联系人</div>
       </div>
 
       <div v-if="mode === 'group' && selectedParticipants.length" class="dialog-selected-strip">

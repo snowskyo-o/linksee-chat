@@ -25,7 +25,6 @@ const props = defineProps({
   uploadingFiles: { type: Boolean, default: false },
   uploadProgressText: { type: String, default: "" },
   downloadProgressText: { type: String, default: "" },
-  isPinned: { type: Boolean, default: false },
   hasMoreMessages: { type: Boolean, default: false },
   loadingMoreMessages: { type: Boolean, default: false },
   standaloneMode: { type: Boolean, default: false },
@@ -36,7 +35,6 @@ const emit = defineEmits([
   "search",
   "clear-search",
   "announcement",
-  "toggle-pin",
   "cancel-edit",
   "update:messageInput",
   "message-keydown",
@@ -400,9 +398,6 @@ onBeforeUnmount(() => {
         </button>
         <button class="qq-chat-icon-btn" type="button" title="公告" @click="$emit('announcement')">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10.5v3c0 .83.67 1.5 1.5 1.5H6l2 4h2l-1.5-4H12l6 3V6l-6 3H4.5c-.83 0-1.5.67-1.5 1.5Zm9-.28 4-2v7.56l-4-2V10.22Z"/></svg>
-        </button>
-        <button class="qq-chat-icon-btn" type="button" title="置顶会话" @click="$emit('toggle-pin')">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3 9 8l2 2-4 6v2h10v-2l-4-6 2-2 4 4V5l-5-2Z"/></svg>
         </button>
         <div class="socket-pill" :class="socketOnline ? 'online' : 'offline'">
           {{ socketOnline ? "在线" : "离线" }}

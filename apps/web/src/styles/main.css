@@ -809,6 +809,15 @@ html body .desktop-page-shell { min-height: 100vh; }
   margin-top: 10px;
   display: block;
   -webkit-app-region: no-drag;
+  position: relative;
+  z-index: 8;
+}
+
+.qq-list-search-cluster {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 44px;
+  gap: 10px;
+  align-items: center;
 }
 
 .qq-list-search-box {
@@ -839,7 +848,7 @@ html body .desktop-page-shell { min-height: 100vh; }
   height: 42px;
   border: 0;
   border-radius: 14px;
-  padding: 0 44px 0 16px;
+  padding: 0 72px 0 16px;
   background: rgba(255, 255, 255, 0.2);
   color: #fff;
 }
@@ -858,6 +867,592 @@ html body .desktop-page-shell { min-height: 100vh; }
   background: rgba(255, 255, 255, 0.28);
 }
 
+.qq-plus-action-wrap {
+  position: relative;
+}
+
+.qq-plus-action-btn {
+  position: relative;
+  width: 44px;
+  height: 42px;
+  border: 0;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+  cursor: pointer;
+}
+
+.qq-plus-action-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.qq-plus-action-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #ff5a68;
+  color: #ffffff;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 700;
+  line-height: 1;
+  box-shadow: 0 6px 16px rgba(255, 90, 104, 0.28);
+}
+
+.qq-plus-action-btn svg,
+.qq-search-clear-btn svg,
+.qq-search-item-avatar svg,
+.qq-quick-create-icon svg {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+}
+
+.qq-quick-create-menu,
+.qq-search-panel {
+  position: absolute;
+  right: 0;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.98);
+  border: 1px solid rgba(215, 225, 238, 0.98);
+  box-shadow: 0 22px 48px rgba(15, 23, 42, 0.18);
+}
+
+.qq-quick-create-menu {
+  top: calc(100% + 10px);
+  width: 252px;
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.qq-quick-create-item {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border: 0;
+  border-radius: 16px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.qq-quick-create-item:hover {
+  background: #f4f8ff;
+}
+
+.qq-quick-create-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  background: rgba(47, 107, 255, 0.12);
+  color: var(--brand);
+}
+
+.qq-quick-create-icon.is-group {
+  background: rgba(34, 160, 107, 0.12);
+  color: var(--ok);
+}
+
+.qq-quick-create-copy {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.qq-quick-create-copy strong,
+.qq-search-item-copy strong {
+  font-size: 14px;
+  color: #1c2431;
+}
+
+.qq-quick-create-copy small,
+.qq-search-item-copy small {
+  color: #8a95a7;
+  font-size: 12px;
+}
+
+.qq-search-panel {
+  top: calc(100% + 12px);
+  left: 0;
+  width: min(100%, 560px);
+  padding: 14px;
+  display: grid;
+  gap: 14px;
+}
+
+.qq-search-overview {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 2px 0;
+}
+
+.qq-search-overview-copy {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.qq-search-overview-copy strong {
+  font-size: 14px;
+  color: #1d2735;
+}
+
+.qq-search-overview-copy small {
+  color: #8a95a7;
+  font-size: 12px;
+}
+
+.qq-search-overview-tag {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: #eff4ff;
+  color: #4d74d8;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.qq-search-section {
+  display: grid;
+  gap: 10px;
+}
+
+.qq-search-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 2px;
+}
+
+.qq-search-section-head strong {
+  font-size: 13px;
+  color: #5e6879;
+}
+
+.qq-search-section-head span {
+  color: #9aa6b8;
+  font-size: 12px;
+}
+
+.qq-search-clear-btn {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: #7b8798;
+  cursor: pointer;
+}
+
+.qq-search-clear-btn:hover {
+  background: #f3f6fb;
+}
+
+.qq-search-recent-list,
+.qq-search-result-list {
+  display: grid;
+  gap: 8px;
+}
+
+.qq-search-recent-item,
+.qq-search-result-item,
+.qq-search-footer {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 18px;
+  background: transparent;
+  text-align: left;
+}
+
+.qq-search-recent-item,
+.qq-search-result-item {
+  cursor: pointer;
+}
+
+.qq-search-recent-item:hover,
+.qq-search-result-item:hover,
+.qq-search-footer:hover {
+  background: #f4f8ff;
+}
+
+.qq-search-recent-item.is-active,
+.qq-search-result-item.is-active,
+.qq-search-footer.is-active {
+  background: linear-gradient(180deg, #f2f7ff 0%, #eaf2ff 100%);
+  box-shadow: inset 0 0 0 1px rgba(94, 137, 255, 0.18);
+}
+
+.qq-search-item-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 16px;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, var(--brand), #7ea6ff);
+  color: #ffffff;
+  font-weight: 800;
+}
+
+.qq-search-item-avatar.is-contact {
+  background: linear-gradient(135deg, #45a5ff, #6ac4ff);
+}
+
+.qq-search-item-avatar.is-group {
+  background: linear-gradient(135deg, #38c172, #5fd59a);
+}
+
+.qq-search-item-avatar.is-favorite {
+  background: linear-gradient(135deg, #ffb944, #ff9f1a);
+}
+
+.qq-search-item-avatar.is-recent,
+.qq-search-item-avatar.is-entry {
+  background: #e8efff;
+  color: #4f77d9;
+}
+
+.qq-search-item-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.qq-search-item-copy {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.qq-search-item-copy strong,
+.qq-search-item-copy small {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.qq-search-item-meta {
+  color: #98a3b4;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.qq-search-empty {
+  padding: 10px 12px;
+  border-radius: 18px;
+  background: #f8fbff;
+  color: #7f8b9d;
+  display: grid;
+  gap: 4px;
+}
+
+.qq-search-empty strong {
+  color: #2a3442;
+  font-size: 14px;
+}
+
+.qq-search-footer {
+  cursor: pointer;
+}
+
+.qq-list-search-clear {
+  position: absolute;
+  top: 50%;
+  right: 36px;
+  width: 22px;
+  height: 22px;
+  transform: translateY(-50%);
+  border: 0;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.18);
+  color: rgba(255, 255, 255, 0.92);
+  cursor: pointer;
+}
+
+.qq-list-search-clear:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.qq-list-search-clear svg {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+}
+
+.qq-contact-panel {
+  padding: 12px;
+  display: grid;
+  gap: 12px;
+}
+
+.qq-contact-entry-card {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  gap: 14px;
+  align-items: center;
+  padding: 14px;
+  border: 0;
+  border-radius: 20px;
+  background: linear-gradient(180deg, #f4f8ff 0%, #edf4ff 100%);
+  text-align: left;
+  cursor: pointer;
+}
+
+.qq-contact-entry-card:hover {
+  background: linear-gradient(180deg, #edf4ff 0%, #e4eeff 100%);
+}
+
+.qq-contact-entry-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 18px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, #5b9dff, #7d7cff);
+  color: #ffffff;
+}
+
+.qq-contact-entry-copy,
+.qq-contact-copy {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.qq-contact-entry-copy strong,
+.qq-contact-copy strong {
+  color: #202938;
+  font-size: 14px;
+}
+
+.qq-contact-entry-copy small,
+.qq-contact-copy small {
+  color: #8a95a7;
+  font-size: 12px;
+}
+
+.qq-contact-section {
+  display: grid;
+  gap: 10px;
+}
+
+.qq-contact-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 2px;
+}
+
+.qq-contact-section-head strong {
+  color: #5b6678;
+  font-size: 13px;
+}
+
+.qq-contact-section-head span {
+  color: #98a3b4;
+  font-size: 12px;
+}
+
+.qq-contact-list {
+  display: grid;
+}
+
+.qq-contact-item {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 10px 8px;
+  border: 0;
+  border-bottom: 1px solid rgba(237, 241, 246, 0.98);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.qq-contact-item:hover {
+  background: #f6f9ff;
+}
+
+.qq-contact-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 15px;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, var(--brand), #7ea6ff);
+  color: #ffffff;
+  font-weight: 800;
+}
+
+.qq-contact-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.new-friends-dialog-card {
+  width: min(720px, calc(100vw - 48px));
+  max-height: min(78vh, 760px);
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 14px;
+}
+
+.new-friends-search-field {
+  gap: 8px;
+}
+
+.new-friends-list {
+  min-height: 0;
+  display: grid;
+  gap: 8px;
+  overflow: auto;
+}
+
+.new-friends-banner {
+  padding: 10px 12px;
+  border-radius: 16px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.new-friends-banner.is-success {
+  background: #edf8f1;
+  color: #208653;
+}
+
+.new-friends-banner.is-error {
+  background: #fff1f1;
+  color: #c74b52;
+}
+
+.new-friends-banner.is-info {
+  background: #f5f8ff;
+  color: #5c6a80;
+}
+
+.new-friends-group {
+  display: grid;
+  gap: 8px;
+}
+
+.new-friends-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 2px 2px 0;
+}
+
+.new-friends-group-head strong {
+  color: #556173;
+  font-size: 13px;
+}
+
+.new-friends-group-head span {
+  color: #97a4b6;
+  font-size: 12px;
+}
+
+.new-friends-item {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  padding: 12px;
+  border-radius: 18px;
+  background: #f9fbff;
+  border: 1px solid rgba(228, 234, 243, 0.96);
+}
+
+.new-friends-item.is-recent {
+  background: linear-gradient(180deg, #f5f9ff 0%, #edf4ff 100%);
+}
+
+.new-friends-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 18px;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, var(--brand), #7ea6ff);
+  color: #ffffff;
+  font-weight: 800;
+}
+
+.new-friends-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.new-friends-copy {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.new-friends-copy strong {
+  color: #1e2837;
+  font-size: 14px;
+}
+
+.new-friends-copy p {
+  margin: 0;
+  color: #8a95a7;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.new-friends-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.new-friends-tag {
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: #edf3ff;
+  color: #4f77d9;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
 .qq-list-conversations-shell {
   min-height: 0;
   background: #fff;
@@ -871,7 +1466,7 @@ html body .desktop-page-shell { min-height: 100vh; }
 .qq-thread-item {
   position: relative;
   display: grid;
-  grid-template-columns: 46px minmax(0, 1fr);
+  grid-template-columns: 46px minmax(0, 1fr) auto;
   gap: 12px;
   padding: 10px 10px;
   border-bottom: 1px solid rgba(237, 241, 246, 0.98);
@@ -886,6 +1481,44 @@ html body .desktop-page-shell { min-height: 100vh; }
 
 .qq-thread-item.is-active {
   background: linear-gradient(180deg, #f5f9ff 0%, #eaf1ff 100%);
+}
+
+.qq-thread-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .16s ease;
+}
+
+.qq-thread-item:hover .qq-thread-actions,
+.qq-thread-item.is-active .qq-thread-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.qq-thread-action-btn {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  color: #8c98aa;
+  cursor: pointer;
+}
+
+.qq-thread-action-btn:hover {
+  background: rgba(74, 123, 235, 0.12);
+  color: #4a7beb;
+}
+
+.qq-thread-action-btn svg {
+  width: 15px;
+  height: 15px;
+  fill: currentColor;
 }
 
 .qq-thread-avatar {
@@ -939,6 +1572,12 @@ html body .desktop-page-shell { min-height: 100vh; }
   gap: 10px;
 }
 
+.qq-thread-head-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .qq-thread-head strong {
   min-width: 0;
   font-size: 13px;
@@ -951,6 +1590,18 @@ html body .desktop-page-shell { min-height: 100vh; }
   flex: none;
   color: #97a2b3;
   font-size: 12px;
+}
+
+.qq-thread-muted-dot {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: #eef3fb;
+  color: #6f7f98;
+  font-size: 11px;
+  white-space: nowrap;
 }
 
 .qq-thread-subtitle {
@@ -967,6 +1618,45 @@ html body .desktop-page-shell { min-height: 100vh; }
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.qq-thread-context-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+}
+
+.qq-thread-context-menu {
+  position: fixed;
+  min-width: 164px;
+  padding: 8px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.98);
+  border: 1px solid rgba(217, 225, 236, 0.96);
+  box-shadow: 0 16px 38px rgba(15, 23, 42, 0.18);
+}
+
+.qq-thread-context-item {
+  width: 100%;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  text-align: left;
+  color: #243041;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.qq-thread-context-item:hover {
+  background: #f4f8ff;
+  color: #3267df;
+}
+
+.qq-thread-context-item.is-danger:hover {
+  background: #fff1f1;
+  color: #cf5258;
 }
 
 @media (max-width: 760px) {
@@ -1988,6 +2678,30 @@ html body .desktop-page-shell { min-height: 100vh; }
   margin: 0;
 }
 
+.create-dialog-search-field {
+  margin-top: 12px;
+  gap: 8px;
+}
+
+.create-dialog-summary {
+  margin-top: 14px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: #f6f9ff;
+  border: 1px solid rgba(223, 231, 242, 0.96);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: #6e7b8f;
+  font-size: 13px;
+}
+
+.create-dialog-summary strong {
+  color: #344156;
+  font-size: 12px;
+}
+
 .dialog-contact-list {
   display: grid;
   gap: 10px;
@@ -2139,6 +2853,18 @@ html body .desktop-page-shell { min-height: 100vh; }
 .qq-list-nav *,
 .qq-list-search-box,
 .qq-list-search-box *,
+.qq-list-search-cluster,
+.qq-list-search-cluster *,
+.qq-search-panel,
+.qq-search-panel *,
+.qq-plus-action-wrap,
+.qq-plus-action-wrap *,
+.qq-quick-create-menu,
+.qq-quick-create-menu *,
+.qq-contact-panel,
+.qq-contact-panel *,
+.new-friends-dialog-card,
+.new-friends-dialog-card *,
 .chat-window-actions,
 .chat-window-actions *,
 .qq-chat-head-actions,

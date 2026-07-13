@@ -17,6 +17,13 @@ enum ConversationKind {
   group
 }
 
+enum FriendRequestStatus {
+  pending
+  accepted
+  rejected
+  canceled
+}
+
 model User {
   id           String                   @id @db.VarChar(32)
   passwordHash String                   @db.VarChar(255)
@@ -32,6 +39,10 @@ model User {
   chatMessages        ChatMessage[]
   chatReads           ChatConversationRead[]
   conversationPins    ChatConversationPin[]
+  sentFriendRequests      ChatFriendRequest[] @relation("FriendRequestSender")
+  receivedFriendRequests  ChatFriendRequest[] @relation("FriendRequestReceiver")
+  friendshipsLow          ChatFriendship[]    @relation("FriendshipLow")
+  friendshipsHigh         ChatFriendship[]    @relation("FriendshipHigh")
 
   @@map("users")
 }
@@ -154,4 +165,39 @@ model ChatConversationPin {
   @@id([conversationId, userId])
   @@index([userId, pinnedAt])
   @@map("chat_conversation_pins")
+}
+
+model ChatFriendRequest {
+  id          BigInt              @id @default(autoincrement()) @db.UnsignedBigInt
+  senderId    String              @db.VarChar(32)
+  receiverId  String              @db.VarChar(32)
+  message     String?             @db.VarChar(200)
+  status      FriendRequestStatus @default(pending)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  processedAt DateTime?
+
+  sender   User @relation("FriendRequestSender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver User @relation("FriendRequestReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@unique([senderId, receiverId])
+  @@index([receiverId, status, updatedAt])
+  @@index([senderId, status, updatedAt])
+  @@map("chat_friend_requests")
+}
+
+model ChatFriendship {
+  id         BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  userLowId  String   @db.VarChar(32)
+  userHighId String   @db.VarChar(32)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  userLow  User @relation("FriendshipLow", fields: [userLowId], references: [id], onDelete: Cascade)
+  userHigh User @relation("FriendshipHigh", fields: [userHighId], references: [id], onDelete: Cascade)
+
+  @@unique([userLowId, userHighId])
+  @@index([userLowId, updatedAt])
+  @@index([userHighId, updatedAt])
+  @@map("chat_friendships")
 }
