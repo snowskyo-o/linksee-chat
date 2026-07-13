@@ -10,6 +10,12 @@ function buildStatusText(operationState) {
   return "";
 }
 
+export function canDeleteMessageForCurrentUser(message, currentUserId) {
+  if (message?.deletedAt) return false;
+  if (!message?.operationState) return true;
+  return message.operationState === "failed" && String(message.senderId) === String(currentUserId);
+}
+
 export function createChatStoreMessageDerived(auth, state) {
   const renderedMessages = computed(() => state.messages.value.map((message) => {
     const senderName = message.sender?.profile?.realName || message.senderId || "未知用户";
@@ -38,7 +44,7 @@ export function createChatStoreMessageDerived(auth, state) {
       canRecall: String(message.senderId) === String(auth.userId) && !deleted && !message.operationState,
       canCopy: !deleted && Boolean(textContent),
       canRetry: String(message.senderId) === String(auth.userId) && message.operationState === "failed",
-      canDelete: String(message.senderId) === String(auth.userId) && !deleted && (!message.operationState || message.operationState === "failed"),
+      canDelete: canDeleteMessageForCurrentUser(message, auth.userId),
       canForward: !deleted && !message.operationState && (message.type === "text" || isFileMessage),
       hasTextContent: !deleted && !isFileMessage && Boolean(textContent),
       isFavorite: state.favoriteMessages.value.some((item) => item.id === String(message.id)),
