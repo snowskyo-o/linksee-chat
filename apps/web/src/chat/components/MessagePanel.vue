@@ -61,6 +61,7 @@ const emojiOpen = ref(false);
 const stickerOpen = ref(false);
 const messageListRef = ref(null);
 const workspaceRef = ref(null);
+const composerInputRef = ref(null);
 const pendingIncomingCount = ref(0);
 const dragActive = ref(false);
 const searchMatchIndex = ref(-1);
@@ -82,17 +83,14 @@ const contextMenuItems = computed(() => {
   if (message.canDelete) items.push({ key: "delete", label: "删除", tone: "danger" });
   if (message.canRetry) items.push({ key: "retry", label: "重试发送" });
   if (message.isFileMessage) {
-    message.files.forEach((file, index) => {
-      items.push({
-        key: `download:${index}`,
-        label: file.expired ? `${file.name} 已过期` : `下载 ${file.name}`,
-        meta: file.expiryText,
-        disabled: file.expired,
-        file,
-      });
-    });
+    message.files.forEach((file, index) => items.push({
+      key: `download:${index}`,
+      label: file.expired ? `${file.name} 已过期` : `下载 ${file.name}`,
+      meta: file.expiryText,
+      disabled: file.expired,
+      file,
+    }));
   }
-
   return items;
 });
 
@@ -117,9 +115,7 @@ function handleGlobalPointer(event) {
 }
 
 function handleGlobalKeydown(event) {
-  if (event.key === "Escape") {
-    closeFloatingPanels();
-  }
+  if (event.key === "Escape") closeFloatingPanels();
 }
 
 window.addEventListener("pointerdown", handleGlobalPointer);
@@ -134,6 +130,9 @@ function toggleEmojiPicker() {
   messageMenu.value.open = false;
   stickerOpen.value = false;
   emojiOpen.value = !emojiOpen.value;
+  if (emojiOpen.value) {
+    nextTick(() => composerInputRef.value?.focus());
+  }
 }
 
 function toggleStickerPicker() {
@@ -145,11 +144,13 @@ function toggleStickerPicker() {
 function appendEmoji(emoji) {
   emit("update:messageInput", `${props.messageInput || ""}${emoji}`);
   emojiOpen.value = false;
+  nextTick(() => composerInputRef.value?.focus());
 }
 
 function sendSticker(sticker) {
   emit("send-sticker", sticker);
   stickerOpen.value = false;
+  nextTick(() => composerInputRef.value?.focus());
 }
 
 function openMessageMenu(payload) {
@@ -195,22 +196,15 @@ function collectSearchMatches() {
     return;
   }
   if (searchMatchIndex.value < 0 || searchMatchIndex.value >= searchMatches.value.length) searchMatchIndex.value = 0;
-  searchMatches.value.forEach((node, index) => {
-    node.classList.toggle("is-active", index === searchMatchIndex.value);
-  });
+  searchMatches.value.forEach((node, index) => node.classList.toggle("is-active", index === searchMatchIndex.value));
 }
 
 function focusSearchMatch(index) {
   if (!searchMatches.value.length) return;
   const safeIndex = ((index % searchMatches.value.length) + searchMatches.value.length) % searchMatches.value.length;
   searchMatchIndex.value = safeIndex;
-  searchMatches.value.forEach((node, nextIndex) => {
-    node.classList.toggle("is-active", nextIndex === safeIndex);
-  });
-  searchMatches.value[safeIndex]?.scrollIntoView({
-    behavior: "smooth",
-    block: "center",
-  });
+  searchMatches.value.forEach((node, nextIndex) => node.classList.toggle("is-active", nextIndex === safeIndex));
+  searchMatches.value[safeIndex]?.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
 function jumpSearchMatch(step) {
@@ -243,9 +237,7 @@ function scrollMessageListToBottom(behavior = "auto") {
 }
 
 function handleMessageListScroll() {
-  if (isNearBottom()) {
-    clearIncomingIndicator();
-  }
+  if (isNearBottom()) clearIncomingIndicator();
 }
 
 function isFileDrag(event) {
@@ -315,7 +307,6 @@ onMounted(() => {
     messageListRef.value?.addEventListener("scroll", handleMessageListScroll, { passive: true });
   });
 });
-
 watch(
   () => props.chatTitle,
   async () => {
@@ -324,7 +315,13 @@ watch(
     scrollMessageListToBottom("auto");
   },
 );
-
+watch(
+  () => props.showReplyBar,
+  (nextValue, previousValue) => {
+    if (!nextValue || nextValue === previousValue) return;
+    nextTick(() => composerInputRef.value?.focus());
+  },
+);
 watch(
   () => props.messages[props.messages.length - 1]?.id || "",
   async (nextId, previousId) => {
@@ -339,7 +336,6 @@ watch(
     pendingIncomingCount.value += 1;
   },
 );
-
 watch(
   () => [props.searching, props.searchResultText, props.messages.length],
   async () => {
@@ -348,7 +344,6 @@ watch(
   },
   { deep: true },
 );
-
 onBeforeUnmount(() => {
   window.removeEventListener("dragover", handleWindowDragOver);
   window.removeEventListener("drop", handleWindowDragEnd);
@@ -502,6 +497,7 @@ onBeforeUnmount(() => {
       />
 
       <textarea
+        ref="composerInputRef"
         :value="messageInput"
         class="message-input desktop-message-input"
         rows="4"
