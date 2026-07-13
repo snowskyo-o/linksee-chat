@@ -17,6 +17,7 @@ import {
   replaceMessageLocally,
   syncConversationPreview,
 } from "./message-operations.js";
+import { pickVisibleConversationPreview, rememberLocallyDeletedMessage } from "./message-visibility-cache.js";
 
 export function useChatActions(store) {
   const dataActions = createChatDataActions(store, chatApi);
@@ -662,21 +663,15 @@ export function useChatActions(store) {
   async function deleteMessage(messageId) {
     const message = findMessage(store, messageId);
     if (!message || message.operationState) return;
-    patchMessageLocally(store, messageId, { operationState: "recalling", sendError: "" });
-    try {
-      const payload = await chatApi.delete(
-        `/api/v1/conversations/${encodeURIComponent(store.selectedId.value)}/messages/${encodeURIComponent(messageId)}`,
-      );
-      if (payload.data) {
-        const normalized = normalizeMessage(payload.data);
-        replaceMessageLocally(store, messageId, normalized);
-        syncConversationPreview(store, store.selectedId.value, normalized);
-        appendAppLog({ level: "info", category: "message", message: "消息已删除" });
-      }
-    } catch (error) {
-      patchMessageLocally(store, messageId, { operationState: "", sendError: "" });
-      throw error;
-    }
+    const userId = store.me.value?.id || localStorage.getItem("chat_user_id") || "guest";
+    const fallbackPreview = pickVisibleConversationPreview(store.messages.value, messageId);
+    rememberLocallyDeletedMessage(userId, store.selectedId.value, messageId, fallbackPreview);
+    removeMessageLocally(store, messageId);
+    patchConversationLocally(store, store.selectedId.value, {
+      lastMessage: fallbackPreview,
+      updatedAt: fallbackPreview?.createdAt || new Date().toISOString(),
+    });
+    appendAppLog({ level: "info", category: "message", message: "消息已从当前账号删除" });
   }
 
   async function submitForwardMessage() {

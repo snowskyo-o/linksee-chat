@@ -2,6 +2,7 @@ import { normalizeMessage, normalizeUser, patchConversationLocally } from "./mes
 import { readDraftAttachments, writeDraftAttachments } from "./draft-attachments-cache.js";
 import { restorePendingAttachment } from "./file-attachments.js";
 import { readChatCache, writeChatCache } from "./local-chat-cache.js";
+import { applyLocalConversationVisibility, filterLocallyVisibleMessages } from "./message-visibility-cache.js";
 
 function pickVersionedField(cachedValue, serverValue, shouldUseServer, fallbackValue = "") {
   if (shouldUseServer) return serverValue || fallbackValue;
@@ -108,12 +109,12 @@ export function createChatDataActions(store, chatApi) {
     if (!store.conversations.value.length) setLoadState(store.conversationLoadState, "loading");
     const cached = await readChatCache(cacheUserId(), "conversations");
     if (Array.isArray(cached?.data) && cached.data.length && !store.conversations.value.length) {
-      store.conversations.value = cached.data;
+      store.conversations.value = applyLocalConversationVisibility(cacheUserId(), cached.data);
       setLoadState(store.conversationLoadState, "ready");
     }
     try {
       const payload = await chatApi.getJson("/api/v1/conversations");
-      store.conversations.value = Array.isArray(payload.data) ? payload.data : [];
+      store.conversations.value = applyLocalConversationVisibility(cacheUserId(), payload.data);
       writeChatCache(cacheUserId(), "conversations", { data: store.conversations.value, cachedAt: new Date().toISOString() }).catch(() => {});
       setLoadState(store.conversationLoadState, "ready");
       if (!store.selectedId.value && store.conversations.value.length) {
@@ -159,7 +160,7 @@ export function createChatDataActions(store, chatApi) {
     if (canUseCache) {
       const cached = await readChatCache(cacheUserId(), `messages-${store.selectedId.value}`);
       if (Array.isArray(cached?.data) && cached.data.length && !store.messages.value.length) {
-        store.messages.value = cached.data.map(normalizeMessage);
+        store.messages.value = filterLocallyVisibleMessages(cacheUserId(), store.selectedId.value, cached.data).map(normalizeMessage);
         store.hasMoreMessages.value = Boolean(cached?.hasMoreMessages);
         setLoadState(store.messageLoadState, "ready");
       }
@@ -169,12 +170,13 @@ export function createChatDataActions(store, chatApi) {
       : `/api/v1/conversations/${encodeURIComponent(store.selectedId.value)}/messages?limit=50`;
     try {
       const payload = await chatApi.getJson(path);
-      store.messages.value = (Array.isArray(payload.data) ? payload.data : []).map(normalizeMessage);
+      const visibleMessages = filterLocallyVisibleMessages(cacheUserId(), store.selectedId.value, payload.data);
+      store.messages.value = visibleMessages.map(normalizeMessage);
       store.hasMoreMessages.value = !store.searchKeyword.value && store.messages.value.length >= 50;
       setLoadState(store.messageLoadState, "ready");
       if (!store.searchKeyword.value) {
         writeChatCache(cacheUserId(), `messages-${store.selectedId.value}`, {
-          data: payload.data || [],
+          data: visibleMessages,
           hasMoreMessages: store.hasMoreMessages.value,
           cachedAt: new Date().toISOString(),
         }).catch(() => {});
@@ -196,7 +198,7 @@ export function createChatDataActions(store, chatApi) {
       const payload = await chatApi.getJson(
         `/api/v1/conversations/${encodeURIComponent(store.selectedId.value)}/messages?beforeId=${encodeURIComponent(oldest.id)}&limit=50`,
       );
-      const older = (Array.isArray(payload.data) ? payload.data : []).map(normalizeMessage);
+      const older = filterLocallyVisibleMessages(cacheUserId(), store.selectedId.value, payload.data).map(normalizeMessage);
       store.messages.value = [...older, ...store.messages.value];
       store.hasMoreMessages.value = older.length >= 50;
       writeChatCache(cacheUserId(), `messages-${store.selectedId.value}`, {
