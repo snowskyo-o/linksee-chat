@@ -217,6 +217,23 @@ function patchDesktopPreferences(key, value) {
 
         <section class="settings-card">
           <div class="detail-card-head">
+            <h3>文件与图片</h3>
+          </div>
+          <label class="settings-toggle">
+            <div>
+              <strong>自动接收图片</strong>
+              <p class="muted">桌面端会将当前已加载聊天中的图片静默保存到本地，便于离线查看和打开位置。</p>
+            </div>
+            <input
+              :checked="Boolean(settings?.files?.autoReceiveImages)"
+              type="checkbox"
+              @change="patchSettings('files', 'autoReceiveImages', $event.target.checked)"
+            />
+          </label>
+        </section>
+
+        <section class="settings-card">
+          <div class="detail-card-head">
             <h3>本地数据目录</h3>
           </div>
           <div class="settings-meta-list">

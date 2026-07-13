@@ -6,6 +6,9 @@ export function getDefaultAppSettings() {
       desktopEnabled: true,
       soundEnabled: true,
     },
+    files: {
+      autoReceiveImages: false,
+    },
     general: {
       openLinksExternally: true,
       sendShortcut: "enter",
@@ -28,6 +31,10 @@ function mergeSettings(base, overrides) {
     notifications: {
       ...base.notifications,
       ...(overrides?.notifications || {}),
+    },
+    files: {
+      ...(base.files || {}),
+      ...(overrides?.files || {}),
     },
     general: {
       ...nextGeneral,

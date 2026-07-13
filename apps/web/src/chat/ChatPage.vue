@@ -653,6 +653,16 @@ watch(
     }, 240);
   },
 );
+
+watch(
+  () => [appSettings.value.files?.autoReceiveImages, store.renderedMessages.value.map((message) => message.id).join("|")],
+  ([enabled]) => {
+    if (!enabled || !window.desktopShell?.isDesktop) return;
+    const imageFiles = store.renderedMessages.value.flatMap((message) => message.files || []).filter((file) => file?.isImage);
+    actions.autoReceiveImages?.(imageFiles).catch?.(() => {});
+  },
+  { immediate: true },
+);
 </script>
 
 <template>

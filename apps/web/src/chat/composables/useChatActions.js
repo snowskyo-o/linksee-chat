@@ -21,6 +21,7 @@ export function useChatActions(store) {
   const dataActions = createChatDataActions(store, chatApi);
   const cacheUserId = () => store.me.value?.id || localStorage.getItem("chat_user_id") || "guest";
   const dirtyProfileUserIds = new Set();
+  const autoReceiveQueue = new Set();
 
   function persistSidebarCaches() {
     const userId = cacheUserId();
@@ -439,6 +440,7 @@ export function useChatActions(store) {
     }
     const mode = options.mode === "saveAs" ? "saveAs" : "download";
     const openAfterSave = Boolean(options.openAfterSave);
+    const silent = Boolean(options.silent);
     store.downloadingFile.value = true;
     store.downloadProgress.value = 0;
     store.downloadFileName.value = file.name || "attachment";
@@ -465,12 +467,14 @@ export function useChatActions(store) {
           store.setFileTransfer(file.objectKey, { status: "", progress: 0, path: "", error: "" });
           return;
         }
-        store.pushNotification({
-          title: mode === "saveAs" ? "已另存为" : "已保存到本地",
-          message: saved?.exportPath || file.name || "附件",
-          tone: "success",
-          ttl: 2600,
-        });
+        if (!silent) {
+          store.pushNotification({
+            title: mode === "saveAs" ? "已另存为" : "已保存到本地",
+            message: saved?.exportPath || file.name || "附件",
+            tone: "success",
+            ttl: 2600,
+          });
+        }
         store.setFileTransfer(file.objectKey, {
           status: "saved",
           progress: 100,
@@ -490,7 +494,9 @@ export function useChatActions(store) {
         link.click();
         link.remove();
         window.setTimeout(() => window.URL.revokeObjectURL(objectUrl), 1000);
-        store.pushNotification({ title: "开始下载", message: file.name || "附件", tone: "success", ttl: 2200 });
+        if (!silent) {
+          store.pushNotification({ title: "开始下载", message: file.name || "附件", tone: "success", ttl: 2200 });
+        }
         store.setFileTransfer(file.objectKey, { status: "saved", progress: 100, path: file.name || "附件", error: "" });
       }
       appendAppLog({ level: "info", category: "file", message: `开始下载 ${file.name || "附件"}` });
@@ -507,6 +513,27 @@ export function useChatActions(store) {
         store.downloadProgress.value = 0;
         store.downloadFileName.value = "";
       }, 600);
+    }
+  }
+
+  async function autoReceiveImages(files = []) {
+    const targets = files.filter((file) => (
+      file?.isImage
+      && file?.objectKey
+      && !file?.expired
+      && !autoReceiveQueue.has(String(file.objectKey))
+      && !["saved", "saving", "downloading"].includes(String(file?.transfer?.status || ""))
+    ));
+    for (const file of targets) {
+      const objectKey = String(file.objectKey);
+      autoReceiveQueue.add(objectKey);
+      try {
+        await downloadFile(file, { silent: true });
+      } catch {
+        // Keep quiet for background auto-receive failures; manual actions still surface errors.
+      } finally {
+        autoReceiveQueue.delete(objectKey);
+      }
     }
   }
 
@@ -818,6 +845,7 @@ export function useChatActions(store) {
     openFile,
     openFileLocation,
     copyImageToClipboard,
+    autoReceiveImages,
     handleMessageAction,
     submitForwardMessage,
     submitConfirmDialog,
