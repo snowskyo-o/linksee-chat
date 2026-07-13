@@ -9,6 +9,7 @@ const { resolveImageViewerOwnerMessageId } = await import("../../apps/web/src/ch
 const { isMessageActionAvailable } = await import("../../apps/web/src/chat/composables/chat-message-action-rules.js");
 const { pickVisibleConversationPreview } = await import("../../apps/web/src/chat/composables/message-visibility-cache.js");
 const { resolveIncomingNotificationCopy } = await import("../../apps/web/src/chat/composables/chat-realtime-notifications.js");
+const { createFavoriteMessageRecord } = await import("../../apps/web/src/chat/store/chat-store-favorites.js");
 const { buildDerivedConversationPreview, buildDerivedMessagePreview, buildFavoriteMessagePreview, buildReplyPreviewText } = await import("../../apps/web/src/chat/store/chat-store-derived-utils.js");
 const { canDeleteMessageForCurrentUser } = await import("../../apps/web/src/chat/store/chat-store-message-derived.js");
 
@@ -184,3 +185,25 @@ assert.equal(localPreviewFallback.content, "合同.pdf");
 assert.equal(localPreviewFallback.type, "file");
 
 console.log("[unit] local preview fallback uses derived message summary");
+
+assert.deepEqual(
+  createFavoriteMessageRecord({
+    id: "fav-1",
+    conversationId: "c-1",
+    conversationTitle: "项目组",
+    senderName: "李明",
+    content: "",
+    preview: "合同.pdf",
+  }),
+  {
+    id: "fav-1",
+    conversationId: "c-1",
+    conversationTitle: "项目组",
+    senderName: "李明",
+    content: "",
+    preview: "合同.pdf",
+    createdAt: "",
+  },
+);
+
+console.log("[unit] favorite records keep raw content separate from preview");
