@@ -37,6 +37,41 @@ export function patchConversationLocally(store, conversationId, patch) {
   ));
 }
 
+export function patchUserProfileLocally(store, userId, profilePatch) {
+  const targetUserId = String(userId || "");
+  if (!targetUserId) return;
+  const applyProfilePatch = (user) => {
+    if (!user || String(user.id) !== targetUserId) return user;
+    return {
+      ...user,
+      profile: {
+        ...(user.profile || {}),
+        ...(typeof profilePatch === "function" ? profilePatch(user.profile || {}, user) : profilePatch),
+      },
+    };
+  };
+
+  store.me.value = applyProfilePatch(store.me.value);
+  store.contacts.value = store.contacts.value.map((user) => applyProfilePatch(user));
+  store.participants.value = store.participants.value.map((user) => applyProfilePatch(user));
+  store.conversations.value = store.conversations.value.map((conversation) => ({
+    ...conversation,
+    participants: Array.isArray(conversation?.participants)
+      ? conversation.participants.map((user) => applyProfilePatch(user))
+      : conversation.participants,
+  }));
+  store.messages.value = store.messages.value.map((message) => ({
+    ...message,
+    sender: applyProfilePatch(message.sender),
+    replyTo: message.replyTo
+      ? {
+          ...message.replyTo,
+          sender: applyProfilePatch(message.replyTo.sender),
+        }
+      : message.replyTo,
+  }));
+}
+
 export function syncConversationPreview(store, conversationId, messageLike) {
   patchConversationLocally(store, conversationId, (item) => ({
     ...item,

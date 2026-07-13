@@ -2,19 +2,57 @@ import { chatApi } from "../../shared/api-client.js";
 import { appendAppLog } from "../../shared/app-log.js";
 import { appendCacheBust } from "../../shared/media.js";
 import { createChatDataActions } from "./chat-data-actions.js";
+import { writeChatCache } from "./local-chat-cache.js";
 import {
   buildFileMessageContent,
   buildOptimisticTextMessage,
   findMessage,
   normalizeMessage,
+  normalizeUser,
   patchConversationLocally,
   patchMessageLocally,
+  patchUserProfileLocally,
   replaceMessageLocally,
   syncConversationPreview,
 } from "./message-operations.js";
 
 export function useChatActions(store) {
   const dataActions = createChatDataActions(store, chatApi);
+  const cacheUserId = () => store.me.value?.id || localStorage.getItem("chat_user_id") || "guest";
+
+  function persistSidebarCaches() {
+    const userId = cacheUserId();
+    writeChatCache(userId, "profile", {
+      data: store.me.value || {},
+      cachedAt: new Date().toISOString(),
+    }).catch(() => {});
+    writeChatCache(userId, "contacts", {
+      data: store.contacts.value || [],
+      cachedAt: new Date().toISOString(),
+    }).catch(() => {});
+    writeChatCache(userId, "conversations", {
+      data: store.conversations.value || [],
+      cachedAt: new Date().toISOString(),
+    }).catch(() => {});
+    if (store.selectedId.value) {
+      writeChatCache(userId, `participants-${store.selectedId.value}`, {
+        data: store.participants.value || [],
+        cachedAt: new Date().toISOString(),
+      }).catch(() => {});
+    }
+  }
+
+  function syncCurrentUserProfileLocally(profilePatch) {
+    const targetUserId = store.me.value?.id || localStorage.getItem("chat_user_id") || "";
+    if (!targetUserId) return;
+    patchUserProfileLocally(store, targetUserId, profilePatch);
+    store.me.value = normalizeUser(store.me.value || {});
+    store.contacts.value = store.contacts.value.map((user) => normalizeUser(user));
+    store.participants.value = store.participants.value.map((user) => normalizeUser(user));
+    store.profileName.value = store.me.value?.profile?.realName || store.profileName.value;
+    store.profileBio.value = store.me.value?.profile?.bio || "";
+    persistSidebarCaches();
+  }
 
   function dedupeFiles(fileList) {
     const seen = new Set();
@@ -478,10 +516,21 @@ export function useChatActions(store) {
         realName: store.profileName.value.trim(),
         bio: store.profileBio.value.trim(),
       });
-      store.profileName.value = payload.data.realName || store.profileName.value.trim();
+      syncCurrentUserProfileLocally({
+        realName: payload.data?.realName || store.profileName.value.trim(),
+        originalRealName: payload.data?.originalRealName || payload.data?.realName || store.profileName.value.trim(),
+        bio: payload.data?.bio ?? store.profileBio.value.trim(),
+      });
       store.profileHint.value = "资料已保存";
       store.profileHintTone.value = "success";
-      await dataActions.refreshAll();
+      document.title = `Linksee Chat · ${store.profileName.value}`;
+      Promise.allSettled([
+        dataActions.loadContacts(),
+        dataActions.loadConversations(),
+        dataActions.loadParticipants(),
+      ]).then(() => {
+        persistSidebarCaches();
+      });
     } catch (error) {
       store.profileHint.value = error?.message || "保存失败";
       store.profileHintTone.value = "error";
@@ -495,39 +544,21 @@ export function useChatActions(store) {
       "X-File-Name": encodeURIComponent(file.name || "avatar"),
     });
     const refreshedUrl = appendCacheBust(payload.data?.avatarUrl || "", Date.now());
-    store.me.value = {
-      ...(store.me.value || {}),
-      profile: {
-        ...(store.me.value?.profile || {}),
-        avatarUrl: refreshedUrl,
-      },
-    };
+    syncCurrentUserProfileLocally({
+      avatarUrl: refreshedUrl,
+    });
     store.profileHint.value = "头像已上传";
     store.profileHintTone.value = "success";
-    await dataActions.loadProfile({ userId: store.me.value.id || localStorage.getItem("chat_user_id") || "" });
-    store.me.value.profile.avatarUrl = refreshedUrl;
-    await dataActions.loadContacts();
-    await dataActions.loadConversations();
-    await dataActions.loadParticipants();
-    store.messages.value = store.messages.value.map((message) => (
-      String(message.senderId) === String(store.me.value.id)
-        ? {
-            ...message,
-            sender: {
-              ...(message.sender || {}),
-              profile: {
-                ...(message.sender?.profile || {}),
-                avatarUrl: refreshedUrl,
-              },
-            },
-          }
-        : message
-    ));
-    store.contacts.value = store.contacts.value.map((user) => (
-      String(user.id) === String(store.me.value.id)
-        ? { ...user, profile: { ...(user.profile || {}), avatarUrl: refreshedUrl } }
-        : user
-    ));
+    Promise.allSettled([
+      dataActions.loadProfile({ userId: store.me.value?.id || localStorage.getItem("chat_user_id") || "" }),
+      dataActions.loadContacts(),
+      dataActions.loadConversations(),
+      dataActions.loadParticipants(),
+    ]).then(() => {
+      syncCurrentUserProfileLocally({
+        avatarUrl: refreshedUrl,
+      });
+    });
   }
 
   return {
