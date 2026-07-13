@@ -1,112 +1,55 @@
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
-import { chatApi } from "../shared/api-client.js";
+import { onBeforeUnmount, onMounted, ref } from "vue";
 import AvatarImage from "../shared/components/AvatarImage.vue";
 import LoginAssistDialog from "./components/LoginAssistDialog.vue";
 import RegisterAccountDialog from "./components/RegisterAccountDialog.vue";
 import { applyAppearanceMode, watchSystemAppearance } from "../shared/appearance-mode.js";
 import { loadAppSettings, subscribeAppSettings } from "../shared/app-settings.js";
-import { resolveMediaUrl } from "../shared/media.js";
 import { useDesktopShell } from "../shared/useDesktopShell.js";
-import { isDesktopRuntime, navigateTo } from "../shared/runtime.js";
-import { getInitials } from "../shared/utils.js";
+import { useLoginPreview } from "./useLoginPreview.js";
+import { useLoginSession } from "./useLoginSession.js";
+import { useRegisterAccount } from "./useRegisterAccount.js";
 
 const shell = useDesktopShell();
 const appSettings = ref(loadAppSettings());
 const rememberedAccount = localStorage.getItem("login_remember_account") === "true";
-const rememberedAutoLogin = localStorage.getItem("login_auto_login") === "true";
 const userId = ref(rememberedAccount ? (localStorage.getItem("login_last_user_id") || "") : "");
 const password = ref("");
-const hint = ref("");
-const hintTone = ref("");
-const submitting = ref(false);
-const previewLoading = ref(false);
-const previewName = ref("欢迎回来");
-const previewBio = ref("输入账号以查看头像和昵称");
-const previewAvatarUrl = ref("");
 const showPassword = ref(false);
 const rememberAccount = ref(rememberedAccount);
-const autoLogin = ref(rememberedAutoLogin);
+const autoLogin = ref(localStorage.getItem("login_auto_login") === "true");
 const capsLockOn = ref(false);
 const passwordInput = ref(null);
 const assistTitle = ref("");
 const assistMessage = ref("");
 const assistOpen = ref(false);
-const registerOpen = ref(false);
-const registerSubmitting = ref(false);
-const registerHint = ref("");
-const registerHintTone = ref("");
-const registerForm = ref({
-  userId: "",
-  realName: "",
-  password: "",
-  confirmPassword: "",
-  bio: "",
-});
 let detachAppSettings = null;
 let detachSystemAppearance = null;
 
-const previewInitials = computed(() => getInitials(previewName.value, userId.value || "LC"));
-
-async function loadPreview(nextUserId) {
-  const account = String(nextUserId || "").trim();
-  previewAvatarUrl.value = "";
-
-  if (!account) {
-    previewName.value = "欢迎回来";
-    previewBio.value = "输入账号以查看头像和昵称";
-    previewLoading.value = false;
-    return;
-  }
-
-  previewLoading.value = true;
-  try {
-    const payload = await chatApi.request(`/api/v1/users/${encodeURIComponent(account)}/profile`);
-    const profile = payload.data?.profile || {};
-    previewName.value = profile.realName || account;
-    previewBio.value = profile.bio || "准备开始新的会话";
-    previewAvatarUrl.value = resolveMediaUrl(profile.avatarUrl || "");
-  } catch (error) {
-    previewName.value = account;
-    previewBio.value = error?.code === "NETWORK_ERROR"
-      ? `暂时无法连接 ${chatApi.getApiBaseUrl()}`
-      : "未找到资料，确认账号后可直接登录";
-    previewAvatarUrl.value = "";
-  } finally {
-    previewLoading.value = false;
-  }
-}
+const { loadPreview, previewAvatarUrl, previewBio, previewInitials, previewLoading, previewName } = useLoginPreview(userId);
+const { hint, hintTone, submitLogin, submitting, tryAutoLogin } = useLoginSession({
+  autoLogin,
+  password,
+  passwordInput,
+  rememberAccount,
+  userId,
+});
+const {
+  openRegisterAccount,
+  registerForm,
+  registerHint,
+  registerHintTone,
+  registerOpen,
+  registerSubmitting,
+  submitRegister,
+} = useRegisterAccount({
+  loadPreview,
+  password,
+  userId,
+});
 
 function handleUserIdBlur() {
   loadPreview(userId.value);
-}
-
-function persistLoginPreferences(account) {
-  localStorage.setItem("login_remember_account", rememberAccount.value ? "true" : "false");
-  localStorage.setItem("login_auto_login", autoLogin.value ? "true" : "false");
-  if (rememberAccount.value || autoLogin.value) localStorage.setItem("login_last_user_id", account);
-  else localStorage.removeItem("login_last_user_id");
-}
-
-function saveSession(account, data = {}) {
-  localStorage.setItem("chat_access_token", data.accessToken || "");
-  localStorage.setItem("chat_refresh_token", data.refreshToken || "");
-  localStorage.setItem("chat_user_id", account);
-  localStorage.setItem("chat_role", data.role || "");
-}
-
-async function enterChat() {
-  if (isDesktopRuntime() && typeof window.desktopShell?.loginSuccess === "function") {
-    await window.desktopShell.loginSuccess();
-    return;
-  }
-  navigateTo("chat");
-}
-
-function normalizeLoginError(error) {
-  if (error?.code === "NETWORK_ERROR") return "登录失败，请检查网络后重试";
-  if (error?.code === "UNAUTHENTICATED") return "账号或密码错误";
-  return "登录失败，请稍后重试";
 }
 
 function updateCapsLock(event) {
@@ -131,127 +74,15 @@ function openForgotPassword() {
   );
 }
 
-function openRegisterAccount() {
-  registerForm.value = {
-    userId: userId.value.trim(),
-    realName: "",
-    password: "",
-    confirmPassword: "",
-    bio: "",
-  };
-  registerHint.value = "";
-  registerHintTone.value = "";
-  registerSubmitting.value = false;
-  registerOpen.value = true;
-}
-
 function syncAppearance() {
   applyAppearanceMode(appSettings.value.appearance?.themeMode || "system");
 }
 
-async function submitLogin() {
-  if (!userId.value.trim() || !password.value) {
-    hint.value = "请输入账号和密码";
-    hintTone.value = "error";
-    await nextTick();
-    if (!password.value) passwordInput.value?.focus?.();
-    return;
-  }
-
-  submitting.value = true;
-  hint.value = "正在登录...";
+async function handleRegisterSubmit() {
+  const result = await submitRegister();
+  if (!result?.success) return;
+  hint.value = "注册成功，请确认后登录";
   hintTone.value = "success";
-
-  try {
-    const payload = await chatApi.postJson("/api/v1/auth/login", {
-      userId: userId.value.trim(),
-      password: password.value,
-    });
-    const data = payload.data || {};
-    const account = userId.value.trim();
-    saveSession(account, data);
-    persistLoginPreferences(account);
-    await enterChat();
-  } catch (error) {
-    hint.value = normalizeLoginError(error);
-    hintTone.value = "error";
-    await nextTick();
-    passwordInput.value?.focus?.();
-  } finally {
-    submitting.value = false;
-  }
-}
-
-async function submitRegister() {
-  const form = {
-    userId: String(registerForm.value.userId || "").trim(),
-    realName: String(registerForm.value.realName || "").trim(),
-    password: String(registerForm.value.password || ""),
-    confirmPassword: String(registerForm.value.confirmPassword || ""),
-    bio: String(registerForm.value.bio || "").trim(),
-  };
-  if (!form.userId || !form.realName || !form.password || !form.confirmPassword) {
-    registerHint.value = "请完整填写账号、昵称和密码";
-    registerHintTone.value = "error";
-    return;
-  }
-  if (form.password.length < 6) {
-    registerHint.value = "密码至少需要 6 位";
-    registerHintTone.value = "error";
-    return;
-  }
-  if (form.password !== form.confirmPassword) {
-    registerHint.value = "两次输入的密码不一致";
-    registerHintTone.value = "error";
-    return;
-  }
-
-  registerSubmitting.value = true;
-  registerHint.value = "";
-  registerHintTone.value = "";
-  try {
-    await chatApi.postJson("/api/v1/auth/register", {
-      userId: form.userId,
-      realName: form.realName,
-      password: form.password,
-      bio: form.bio,
-    });
-    registerHint.value = "注册成功，请使用新账号登录";
-    registerHintTone.value = "success";
-    userId.value = form.userId;
-    password.value = form.password;
-    registerOpen.value = false;
-    hint.value = "注册成功，请确认后登录";
-    hintTone.value = "success";
-    await loadPreview(form.userId);
-  } catch (error) {
-    registerHint.value = error?.message || "注册失败，请稍后重试";
-    registerHintTone.value = "error";
-  } finally {
-    registerSubmitting.value = false;
-  }
-}
-
-async function tryAutoLogin() {
-  const refreshToken = localStorage.getItem("chat_refresh_token") || "";
-  const account = localStorage.getItem("chat_user_id") || userId.value.trim();
-  if (!autoLogin.value || !refreshToken || !account) return;
-
-  submitting.value = true;
-  hint.value = "正在登录...";
-  hintTone.value = "success";
-  try {
-    const payload = await chatApi.postJson("/api/v1/auth/refresh", { refreshToken });
-    saveSession(account, payload.data || {});
-    await enterChat();
-  } catch {
-    hint.value = "";
-    hintTone.value = "";
-    localStorage.setItem("login_auto_login", "false");
-    autoLogin.value = false;
-  } finally {
-    submitting.value = false;
-  }
 }
 
 onMounted(() => {
@@ -399,7 +230,7 @@ onBeforeUnmount(() => {
       :submitting="registerSubmitting"
       @close="registerOpen = false"
       @update:form="registerForm = $event"
-      @submit="submitRegister"
+      @submit="handleRegisterSubmit"
     />
   </main>
 </template>
