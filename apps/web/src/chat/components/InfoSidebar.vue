@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from "vue";
+import { computed, ref, watch } from "vue";
 import AvatarImage from "../../shared/components/AvatarImage.vue";
 
 const props = defineProps({
@@ -9,15 +9,23 @@ const props = defineProps({
   standaloneMode: { type: Boolean, default: false },
 });
 
+const emit = defineEmits(["rename-group", "invite-group-members", "leave-group", "remove-group-member"]);
+
 const participantRows = computed(() => (Array.isArray(props.participants) ? props.participants : []).map((user) => ({
   ...user,
   name: user?.friendAlias || user?.profile?.realName || user?.id || "未命名用户",
   account: user?.id || "",
   bio: user?.profile?.bio || "这个成员还没有留下签名",
   isMe: String(user?.id || "") === String(props.currentUserId || ""),
+  isOwner: String(user?.id || "") === String(props.conversation?.createdBy || ""),
 })));
 
 const directPeer = computed(() => participantRows.value.find((user) => !user.isMe) || participantRows.value[0] || null);
+const isGroupOwner = computed(() => (
+  props.conversation?.kind === "group" && String(props.conversation?.createdBy || "") === String(props.currentUserId || "")
+));
+const groupTitleDraft = ref("");
+
 const infoRows = computed(() => {
   const peer = directPeer.value;
   if (!peer) return [];
@@ -27,6 +35,14 @@ const infoRows = computed(() => {
     { label: "签名", value: peer.bio || "这个联系人还没有留下签名" },
   ];
 });
+
+watch(
+  () => [props.conversation?.id, props.conversation?.title],
+  () => {
+    groupTitleDraft.value = String(props.conversation?.title || "");
+  },
+  { immediate: true },
+);
 </script>
 
 <template>
@@ -74,9 +90,24 @@ const infoRows = computed(() => {
           <h3>群聊资料</h3>
         </div>
         <div class="sidebar-profile">
-          <div class="sidebar-profile-copy is-group">
+          <div v-if="isGroupOwner" class="sidebar-group-editor">
+            <label class="field field-quiet">
+              <span>群聊名称</span>
+              <input v-model="groupTitleDraft" placeholder="输入群聊名称" />
+            </label>
+            <div class="sidebar-group-actions">
+              <button class="secondary-btn compact-btn" type="button" @click="emit('rename-group', groupTitleDraft)">保存群名</button>
+              <button class="ghost-btn compact-btn" type="button" @click="emit('invite-group-members')">邀请成员</button>
+              <button class="ghost-btn compact-btn is-danger" type="button" @click="emit('leave-group')">退出群聊</button>
+            </div>
+          </div>
+          <div v-else class="sidebar-profile-copy is-group">
             <strong>{{ conversation.title || "群聊" }}</strong>
-            <small>{{ participantRows.length }} 位成员</small>
+            <small>{{ participantRows.length }} 位成员 · 普通成员</small>
+            <div class="sidebar-group-actions">
+              <button class="ghost-btn compact-btn" type="button" @click="emit('invite-group-members')">邀请成员</button>
+              <button class="ghost-btn compact-btn is-danger" type="button" @click="emit('leave-group')">退出群聊</button>
+            </div>
           </div>
         </div>
       </section>
@@ -95,9 +126,17 @@ const infoRows = computed(() => {
             </div>
             <div class="desktop-participant-copy">
               <strong>{{ user.name }}</strong>
-              <small>{{ user.isMe ? `账号：${user.account} · 我` : `账号：${user.account}` }}</small>
+              <small>{{ user.isOwner ? "群主" : "普通成员" }}{{ user.isMe ? " · 我" : "" }} · 账号：{{ user.account }}</small>
               <p>{{ user.bio }}</p>
             </div>
+            <button
+              v-if="isGroupOwner && !user.isOwner && !user.isMe"
+              class="ghost-btn compact-btn is-danger desktop-member-remove"
+              type="button"
+              @click="emit('remove-group-member', user)"
+            >
+              移除
+            </button>
           </article>
         </div>
         <div v-else class="detail-card-blank-body is-compact">
@@ -147,6 +186,17 @@ const infoRows = computed(() => {
 
 .sidebar-profile-copy.is-group {
   gap: 6px;
+}
+
+.sidebar-group-editor {
+  display: grid;
+  gap: 12px;
+}
+
+.sidebar-group-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .sidebar-profile-copy strong,
@@ -205,6 +255,11 @@ const infoRows = computed(() => {
   min-width: 0;
   display: grid;
   gap: 3px;
+}
+
+.desktop-member-remove {
+  align-self: center;
+  margin-left: auto;
 }
 
 .desktop-participant-copy p {

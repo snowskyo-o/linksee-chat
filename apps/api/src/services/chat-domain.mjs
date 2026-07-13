@@ -207,6 +207,7 @@ export async function buildConversationResponse(userId, conversation) {
 
   return {
     id: conversation.id.toString(),
+    createdBy: conversation.createdBy || "",
     title: conversation.title || directPeer?.profile?.realName || buildConversationTitle(conversation, userId),
     roomKey: conversation.roomKey,
     kind: conversation.kind,

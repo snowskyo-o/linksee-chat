@@ -5,6 +5,7 @@ import ConfirmDialog from "./components/ConfirmDialog.vue";
 import ConversationSidebar from "./components/ConversationSidebar.vue";
 import CreateConversationDialog from "./components/CreateConversationDialog.vue";
 import ForwardDialog from "./components/ForwardDialog.vue";
+import GroupInviteDialog from "./components/GroupInviteDialog.vue";
 import ImageViewerDialog from "./components/ImageViewerDialog.vue";
 import MessagePanel from "./components/MessagePanel.vue";
 import InfoSidebar from "./components/InfoSidebar.vue";
@@ -24,12 +25,14 @@ import { playNotificationSound } from "../shared/notification-sound.js";
 import { getDesktopConversationId, getDesktopWindowKind, isDesktopRuntime } from "../shared/runtime.js";
 import { useChatStore } from "./store/useChatStore.js";
 import { useChatActions } from "./composables/useChatActions.js";
+import { useGroupManagement } from "./composables/useGroupManagement.js";
 import { useChatRealtime } from "./composables/useChatRealtime.js";
 import { useStickerLibrary } from "./composables/useStickerLibrary.js";
 
 const auth = getAuth();
 const store = useChatStore(auth);
 const actions = useChatActions(store);
+const groupManagement = useGroupManagement(store, actions);
 const stickerLibrary = useStickerLibrary();
 const queryConversationId = new URLSearchParams(window.location.search).get("conversationId") || "";
 const desktopConversationId = getDesktopConversationId() || queryConversationId;
@@ -806,6 +809,10 @@ watch(
         :participants="store.participants.value"
         :current-user-id="auth.userId"
         :standalone-mode="standaloneConversationMode"
+        @rename-group="groupManagement.renameGroup"
+        @invite-group-members="groupManagement.openInviteDialog"
+        @leave-group="groupManagement.requestLeaveGroup"
+        @remove-group-member="groupManagement.requestRemoveMember"
       />
     </section>
 
@@ -887,6 +894,18 @@ watch(
       @close="store.closeForwardDialog"
       @update:selected-id="store.forwardConversationId.value = $event"
       @submit="actions.submitForwardMessage"
+    />
+
+    <GroupInviteDialog
+      :open="groupManagement.inviteDialogOpen.value"
+      :contacts="groupManagement.inviteableContacts.value"
+      :selected-ids="groupManagement.inviteParticipantIds.value"
+      :hint="groupManagement.inviteHint.value"
+      :hint-tone="groupManagement.inviteHintTone.value"
+      :submitting="groupManagement.inviteSubmitting.value"
+      @close="groupManagement.closeInviteDialog"
+      @toggle-contact="groupManagement.toggleInviteParticipant"
+      @submit="groupManagement.submitInviteMembers"
     />
 
     <CreateConversationDialog
