@@ -341,17 +341,29 @@ function handleDragLeave(event) {
 }
 
 function handleDrop(event) {
-  if (!event.dataTransfer?.files?.length) return;
+  if (!event.dataTransfer?.files?.length && !event.dataTransfer?.items?.length) return;
   event.preventDefault();
   resetDragState();
-  emit("file-drop", event.dataTransfer.files);
+  const items = Array.from(event.dataTransfer?.items || []);
+  const directoryLike = items.filter((item) => {
+    if (item.kind !== "file") return false;
+    return typeof item.webkitGetAsEntry === "function" && item.webkitGetAsEntry()?.isDirectory;
+  }).length;
+  emit("file-drop", {
+    files: event.dataTransfer.files,
+    directoryLike,
+  });
 }
 
 function handleComposerPaste(event) {
-  const files = Array.from(event.clipboardData?.files || []).filter((file) => String(file.type || "").startsWith("image/"));
-  if (!files.length) return;
+  const clipboardFiles = Array.from(event.clipboardData?.files || []);
+  const files = clipboardFiles.filter((file) => String(file.type || "").startsWith("image/"));
+  if (!files.length) return void (clipboardFiles.length ? event.preventDefault() : undefined);
   event.preventDefault();
-  emit("file-paste", files);
+  emit("file-paste", {
+    files,
+    ignoredClipboardFiles: Math.max(0, clipboardFiles.length - files.length),
+  });
 }
 
 function handleWindowDragOver(event) {

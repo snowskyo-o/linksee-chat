@@ -355,15 +355,21 @@ function openFilePicker() {
 }
 
 function handleFileChange(event) {
-  actions.queueFiles(event.target?.files || []);
+  actions.queueFiles(event.target?.files || [], { source: "picker" });
 }
 
-function handleFileDrop(files) {
-  actions.queueFiles(files || []);
+function handleFileDrop(payload) {
+  actions.queueFiles(payload?.files || payload || [], {
+    source: "drop",
+    directoryLike: Number(payload?.directoryLike || 0),
+  });
 }
 
-function handleFilePaste(files) {
-  actions.queueFiles(files || []);
+function handleFilePaste(payload) {
+  actions.queueFiles(payload?.files || payload || [], {
+    source: "paste",
+    ignoredClipboardFiles: Number(payload?.ignoredClipboardFiles || 0),
+  });
 }
 
 function openStickerImport() {
