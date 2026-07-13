@@ -1,12 +1,17 @@
 import { readChatCache, writeChatCache } from "./local-chat-cache.js";
 import { normalizeUser } from "./message-operations.js";
 import { mergeUserProfile } from "./chat-profile-merge.js";
+import { syncChatDocumentTitle } from "./chat-document-title.js";
 
 function applyCurrentProfile(store, auth, user) {
   store.me.value = normalizeUser(user || {});
   store.profileName.value = store.me.value.profile?.realName || auth.userId;
   store.profileBio.value = store.me.value.profile?.bio || "";
-  document.title = `Linksee Chat · ${store.profileName.value}`;
+  syncChatDocumentTitle({
+    chatTitle: store.chatTitle.value,
+    hasConversation: Boolean(store.selectedConversation.value),
+    profileName: store.profileName.value,
+  });
 }
 
 export function createChatLoadProfileActions({ store, chatApi, cacheUserId }) {

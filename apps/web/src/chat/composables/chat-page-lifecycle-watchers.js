@@ -1,4 +1,5 @@
 import { watch } from "vue";
+import { syncChatDocumentTitle } from "./chat-document-title.js";
 
 export function useChatPageLifecycleWatchers({
   actions,
@@ -19,6 +20,13 @@ export function useChatPageLifecycleWatchers({
   }
 
   watch(() => store.selectedId.value, syncDesktopWindowContext);
+  watch(
+    () => [store.chatTitle.value, Boolean(store.selectedConversation.value), store.profileName.value],
+    ([chatTitle, hasConversation, profileName]) => {
+      syncChatDocumentTitle({ chatTitle, hasConversation, profileName });
+    },
+    { immediate: true },
+  );
   watch(() => store.socketOnline.value, (online, previousOnline) => {
     realtimeRuntime.handleSocketOnlineChange(online, previousOnline);
   });

@@ -1,4 +1,5 @@
 import { appendCacheBust } from "../../shared/media.js";
+import { syncChatDocumentTitle } from "./chat-document-title.js";
 
 export function createChatProfileSubmitActions({
   store,
@@ -21,7 +22,11 @@ export function createChatProfileSubmitActions({
     });
     store.profileHint.value = "资料已保存";
     store.profileHintTone.value = "success";
-    document.title = `Linksee Chat · ${store.profileName.value}`;
+    syncChatDocumentTitle({
+      chatTitle: store.chatTitle.value,
+      hasConversation: Boolean(store.selectedConversation.value),
+      profileName: store.profileName.value,
+    });
     Promise.allSettled([dataActions.loadContacts(), dataActions.loadConversations(), dataActions.loadParticipants()]).then(persistSidebarCaches);
   }
 

@@ -1,9 +1,14 @@
 import { normalizeUser, patchUserProfileLocally } from "./message-operations.js";
+import { syncChatDocumentTitle } from "./chat-document-title.js";
 
 function refreshSelfProfileUi(store) {
   store.profileName.value = store.me.value?.profile?.realName || store.profileName.value;
   store.profileBio.value = store.me.value?.profile?.bio || "";
-  document.title = `Linksee Chat · ${store.profileName.value}`;
+  syncChatDocumentTitle({
+    chatTitle: store.chatTitle.value,
+    hasConversation: Boolean(store.selectedConversation.value),
+    profileName: store.profileName.value,
+  });
 }
 
 export function createChatProfileLocalActions({ store, persistSidebarCaches }) {
