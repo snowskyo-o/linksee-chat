@@ -501,6 +501,19 @@ function clearMessageSearch() {
   actions.refreshSelectedConversation().catch(() => {});
 }
 
+async function reloadConversationList() {
+  await actions.loadConversations().catch((error) => {
+    store.pushNotification({ title: "加载失败", message: error?.message || "暂时无法获取会话列表", tone: "error" });
+  });
+}
+
+async function reloadSelectedConversation() {
+  if (!store.selectedId.value) return;
+  await actions.refreshSelectedConversation().catch((error) => {
+    store.setComposerHint(error?.message || "暂时无法获取聊天内容", "error");
+  });
+}
+
 function handleAvatarUpload(event) {
   const file = event.target?.files?.[0];
   actions.uploadAvatar(file).catch((error) => {
@@ -537,13 +550,13 @@ onMounted(async () => {
       });
     }
     await actions.loadProfile(auth);
-    await actions.loadContacts();
-    await actions.loadConversations();
+    await actions.loadContacts().catch(() => {});
+    await reloadConversationList();
     await stickerLibrary.refresh();
     if (standaloneConversationMode.value && desktopConversationId) {
-      await actions.selectConversation(desktopConversationId);
+      await actions.selectConversation(desktopConversationId).catch(() => {});
     } else {
-      await actions.refreshSelectedConversation();
+      await reloadSelectedConversation();
       if (store.selectedId.value) {
         store.messageInput.value = await actions.loadConversationDraft(store.selectedId.value);
         store.updateMentionState(store.messageInput.value);
@@ -636,6 +649,7 @@ watch(
         :keyword="store.conversationKeyword.value"
         :conversations="store.filteredConversations.value"
         :selected-id="store.selectedId.value"
+        :load-state="store.conversationLoadState.value"
         @update:keyword="store.conversationKeyword.value = $event"
         @select="selectConversation"
         @refresh="actions.refreshAll"
@@ -644,12 +658,14 @@ watch(
         @open-settings="openSettings"
         @toggle-pin="actions.toggleConversationPinById"
         @logout="logout"
+        @retry-load="reloadConversationList"
       />
 
       <MessagePanel
         :chat-title="store.chatTitle.value"
         :chat-subtitle="store.chatSubtitle.value"
         :chat-kind="store.selectedConversation.value?.kind || ''"
+        :has-conversation="Boolean(store.selectedConversation.value)"
         :participant-count="store.selectedConversation.value?.participantIds?.length || store.participants.value.length"
         :message-keyword="store.messageKeyword.value"
         :socket-online="store.socketOnline.value"
@@ -670,6 +686,7 @@ watch(
         :download-progress-text="store.downloadProgressText.value"
         :has-more-messages="store.hasMoreMessages.value"
         :loading-more-messages="store.loadingMoreMessages.value"
+        :load-state="store.messageLoadState.value"
         :standalone-mode="standaloneConversationMode"
         :stickers="stickerLibrary.stickers.value"
         :stickers-loading="stickerLibrary.loading.value"
@@ -699,6 +716,7 @@ watch(
         @copy-image="actions.copyImageToClipboard"
         @open-image="openImageViewer"
         @load-more="actions.loadOlderMessages"
+        @retry-load="reloadSelectedConversation"
       />
 
       <InfoSidebar

@@ -2,15 +2,18 @@
 import { onBeforeUnmount, ref } from "vue";
 import AvatarImage from "../../shared/components/AvatarImage.vue";
 import ConversationContextMenu from "./ConversationContextMenu.vue";
+import StatePanel from "./StatePanel.vue";
 
 defineProps({
   rows: { type: Array, default: () => [] },
   selectedId: { type: String, default: "" },
   formatTime: { type: Function, required: true },
   desktop: { type: Boolean, default: false },
+  keyword: { type: String, default: "" },
+  loadState: { type: Object, default: () => ({ status: "idle", message: "" }) },
 });
 
-const emit = defineEmits(["select", "open", "toggle-pin", "mark-read", "toggle-mute", "hide-conversation", "copy-title"]);
+const emit = defineEmits(["select", "open", "toggle-pin", "mark-read", "toggle-mute", "hide-conversation", "copy-title", "retry-load"]);
 
 const menuOpen = ref(false);
 const menuX = ref(0);
@@ -64,7 +67,18 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="qq-thread-list" @mouseleave="closeMenu">
-    <div v-if="!rows.length" class="empty-state">暂无会话</div>
+    <StatePanel
+      v-if="!rows.length && loadState?.status === 'error'"
+      title="加载失败，请重试"
+      :message="loadState?.message || '暂时无法获取会话列表'"
+      action-text="重新加载"
+      @action="$emit('retry-load')"
+    />
+    <StatePanel
+      v-else-if="!rows.length"
+      :title="keyword ? '没有匹配的会话' : '暂无会话'"
+      :message="keyword ? '试试更换搜索词。' : '选择一个联系人开始聊天'"
+    />
     <article
       v-for="row in rows"
       :key="row.id"

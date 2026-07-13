@@ -84,6 +84,7 @@ function buildReplyText(message) {
 
 export function useChatStore(auth) {
   const initialConversationPreferences = loadConversationPreferences();
+  const initialLoadState = () => ({ status: "idle", message: "" });
   const me = ref(null);
   const contacts = ref([]);
   const conversations = ref([]);
@@ -144,6 +145,8 @@ export function useChatStore(auth) {
   const forwardConversationId = ref("");
   const forwardHint = ref("");
   const forwardSubmitting = ref(false);
+  const conversationLoadState = ref(initialLoadState());
+  const messageLoadState = ref(initialLoadState());
 
   const meName = computed(() => me.value?.profile?.realName || auth.userId || "未登录");
   const meMeta = computed(() => me.value?.profile?.bio || "保持联络，保持专注");
@@ -609,6 +612,8 @@ export function useChatStore(auth) {
     forwardConversationId,
     forwardHint,
     forwardSubmitting,
+    conversationLoadState,
+    messageLoadState,
     meName,
     meMeta,
     meAvatar,

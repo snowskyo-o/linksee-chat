@@ -209,6 +209,12 @@ async function openConversation(id) {
   if (typeof window.desktopShell?.openChatWindow === "function") await window.desktopShell.openChatWindow(id);
 }
 
+async function reloadConversationList() {
+  await actions.loadConversations().catch((error) => {
+    store.pushNotification({ title: "加载失败", message: error?.message || "暂时无法获取会话列表", tone: "error" });
+  });
+}
+
 async function handleDesktopOpenConversation(payload = {}) {
   const conversationId = String(payload.conversationId || "").trim();
   if (!conversationId) return;
@@ -440,7 +446,7 @@ onMounted(async () => {
   }
   await actions.loadProfile(auth);
   await actions.loadContacts();
-  await actions.loadConversations();
+  await reloadConversationList();
   await friendCenter.refresh();
   realtime.connect();
   checkForUpdates().catch(() => {});
@@ -591,6 +597,8 @@ watch(() => friendCenter.keyword.value, () => {
           :selected-id="store.selectedId.value"
           :format-time="formatConversationTime"
           :desktop="shell.isDesktop"
+          :keyword="searchKeyword"
+          :load-state="store.conversationLoadState.value"
           @select="selectConversation"
           @open="openConversation"
           @toggle-pin="actions.toggleConversationPinById($event.id)"
@@ -598,6 +606,7 @@ watch(() => friendCenter.keyword.value, () => {
           @toggle-mute="toggleConversationMute"
           @hide-conversation="hideConversationFromList"
           @copy-title="copyConversationTitle"
+          @retry-load="reloadConversationList"
         />
 
         <ContactDirectoryPanel

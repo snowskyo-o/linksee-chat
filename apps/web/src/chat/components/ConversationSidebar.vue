@@ -1,5 +1,6 @@
 <script setup>
 import AvatarImage from "../../shared/components/AvatarImage.vue";
+import StatePanel from "./StatePanel.vue";
 
 function formatConversationTime(value) {
   if (!value) return "";
@@ -21,6 +22,7 @@ defineProps({
   conversations: { type: Array, default: () => [] },
   selectedId: { type: String, default: "" },
   listOnly: { type: Boolean, default: false },
+  loadState: { type: Object, default: () => ({ status: "idle", message: "" }) },
 });
 
 defineEmits([
@@ -33,6 +35,7 @@ defineEmits([
   "open-settings",
   "logout",
   "toggle-pin",
+  "retry-load",
 ]);
 </script>
 
@@ -68,7 +71,18 @@ defineEmits([
     </div>
 
     <div class="conversation-list desktop-conversation-list">
-      <div v-if="!conversations.length" class="empty-state">暂无会话</div>
+      <StatePanel
+        v-if="!conversations.length && loadState?.status === 'error'"
+        title="加载失败，请重试"
+        :message="loadState?.message || '暂时无法获取会话列表'"
+        action-text="重新加载"
+        @action="$emit('retry-load')"
+      />
+      <StatePanel
+        v-else-if="!conversations.length"
+        title="暂无会话"
+        message="选择一个联系人开始聊天"
+      />
       <article
         v-for="row in conversations"
         :key="row.id"

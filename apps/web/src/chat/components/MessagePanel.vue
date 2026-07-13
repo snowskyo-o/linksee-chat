@@ -5,6 +5,7 @@ import AttachmentPreview from "./AttachmentPreview.vue";
 import EmojiPicker from "./EmojiPicker.vue";
 import MessageBubble from "./MessageBubble.vue";
 import MessageContextMenu from "./MessageContextMenu.vue";
+import StatePanel from "./StatePanel.vue";
 import StickerPicker from "./StickerPicker.vue";
 
 const shell = useDesktopShell();
@@ -13,6 +14,7 @@ const props = defineProps({
   chatTitle: { type: String, default: "请选择会话" },
   chatSubtitle: { type: String, default: "选择一个会话开始聊天" },
   chatKind: { type: String, default: "" },
+  hasConversation: { type: Boolean, default: false },
   participantCount: { type: Number, default: 0 },
   messageKeyword: { type: String, default: "" },
   socketOnline: { type: Boolean, default: false },
@@ -33,6 +35,7 @@ const props = defineProps({
   downloadProgressText: { type: String, default: "" },
   hasMoreMessages: { type: Boolean, default: false },
   loadingMoreMessages: { type: Boolean, default: false },
+  loadState: { type: Object, default: () => ({ status: "idle", message: "" }) },
   standaloneMode: { type: Boolean, default: false },
   stickers: { type: Array, default: () => [] },
   stickersLoading: { type: Boolean, default: false },
@@ -65,6 +68,7 @@ const emit = defineEmits([
   "file-drop",
   "remove-pending-file",
   "load-more",
+  "retry-load",
 ]);
 
 const emojiOpen = ref(false);
@@ -493,7 +497,19 @@ onBeforeUnmount(() => {
       >
         {{ loadingMoreMessages ? "加载中..." : "查看更多消息" }}
       </button>
-      <div v-if="!messages.length" class="empty-state">这里还没有消息，发一条开始吧。</div>
+      <StatePanel
+        v-if="!hasConversation"
+        title="暂无会话"
+        message="选择一个联系人开始聊天"
+      />
+      <StatePanel
+        v-else-if="!messages.length && loadState?.status === 'error'"
+        title="加载失败，请重试"
+        :message="loadState?.message || '暂时无法获取聊天内容'"
+        action-text="重新加载"
+        @action="$emit('retry-load')"
+      />
+      <div v-else-if="!messages.length" class="empty-state">这里还没有消息，发一条开始吧。</div>
       <MessageBubble
         v-for="message in messages"
         :key="message.id"

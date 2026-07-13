@@ -3189,6 +3189,19 @@ html body .desktop-page-shell { min-height: 100vh; }
 .desktop-participant-item { border-radius: 16px; padding: 12px 14px; }
 .participant-head { display: flex; gap: 12px; align-items: center; }
 .empty-state { align-self: center; justify-self: center; color: var(--muted); padding: 18px 0; }
+.state-panel {
+  align-self: center;
+  justify-self: center;
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+  max-width: 320px;
+  padding: 20px 12px;
+  text-align: center;
+  color: var(--muted);
+}
+.state-panel strong { color: var(--text); font-size: 15px; }
+.state-panel p { margin: 0; line-height: 1.5; }
 .load-more-btn { justify-self: center; }
 .hidden { display: none !important; }
 

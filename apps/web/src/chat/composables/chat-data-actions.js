@@ -4,6 +4,9 @@ import { readChatCache, writeChatCache } from "./local-chat-cache.js";
 export function createChatDataActions(store, chatApi) {
   const cacheUserId = () => store.me.value?.id || localStorage.getItem("chat_user_id") || "guest";
   const getDraftCacheKey = (conversationId) => `draft-${conversationId}`;
+  const setLoadState = (target, status, message = "") => {
+    target.value = { status, message };
+  };
 
   async function saveConversationDraft(conversationId, draft = "") {
     const targetId = String(conversationId || "").trim();
@@ -50,18 +53,28 @@ export function createChatDataActions(store, chatApi) {
   }
 
   async function loadConversations() {
+    if (!store.conversations.value.length) setLoadState(store.conversationLoadState, "loading");
     const cached = await readChatCache(cacheUserId(), "conversations");
     if (Array.isArray(cached?.data) && cached.data.length && !store.conversations.value.length) {
       store.conversations.value = cached.data;
+      setLoadState(store.conversationLoadState, "ready");
     }
-    const payload = await chatApi.getJson("/api/v1/conversations");
-    store.conversations.value = Array.isArray(payload.data) ? payload.data : [];
-    writeChatCache(cacheUserId(), "conversations", { data: store.conversations.value, cachedAt: new Date().toISOString() }).catch(() => {});
-    if (!store.selectedId.value && store.conversations.value.length) {
-      store.selectedId.value = store.conversations.value[0].id;
-    }
-    if (store.selectedId.value && !store.conversations.value.find((item) => item.id === store.selectedId.value)) {
-      store.selectedId.value = store.conversations.value[0]?.id || "";
+    try {
+      const payload = await chatApi.getJson("/api/v1/conversations");
+      store.conversations.value = Array.isArray(payload.data) ? payload.data : [];
+      writeChatCache(cacheUserId(), "conversations", { data: store.conversations.value, cachedAt: new Date().toISOString() }).catch(() => {});
+      setLoadState(store.conversationLoadState, "ready");
+      if (!store.selectedId.value && store.conversations.value.length) {
+        store.selectedId.value = store.conversations.value[0].id;
+      }
+      if (store.selectedId.value && !store.conversations.value.find((item) => item.id === store.selectedId.value)) {
+        store.selectedId.value = store.conversations.value[0]?.id || "";
+      }
+    } catch (error) {
+      if (!store.conversations.value.length) {
+        setLoadState(store.conversationLoadState, "error", error?.message || "加载会话失败，请重试");
+      }
+      throw error;
     }
   }
 
@@ -86,28 +99,39 @@ export function createChatDataActions(store, chatApi) {
     if (!store.selectedId.value) {
       store.messages.value = [];
       store.hasMoreMessages.value = false;
+      setLoadState(store.messageLoadState, "ready");
       return;
     }
+    if (!store.messages.value.length) setLoadState(store.messageLoadState, "loading");
     const canUseCache = !store.searchKeyword.value;
     if (canUseCache) {
       const cached = await readChatCache(cacheUserId(), `messages-${store.selectedId.value}`);
       if (Array.isArray(cached?.data) && cached.data.length && !store.messages.value.length) {
         store.messages.value = cached.data.map(normalizeMessage);
         store.hasMoreMessages.value = Boolean(cached?.hasMoreMessages);
+        setLoadState(store.messageLoadState, "ready");
       }
     }
     const path = store.searchKeyword.value
       ? `/api/v1/conversations/${encodeURIComponent(store.selectedId.value)}/messages/search?q=${encodeURIComponent(store.searchKeyword.value)}`
       : `/api/v1/conversations/${encodeURIComponent(store.selectedId.value)}/messages?limit=50`;
-    const payload = await chatApi.getJson(path);
-    store.messages.value = (Array.isArray(payload.data) ? payload.data : []).map(normalizeMessage);
-    store.hasMoreMessages.value = !store.searchKeyword.value && store.messages.value.length >= 50;
-    if (!store.searchKeyword.value) {
-      writeChatCache(cacheUserId(), `messages-${store.selectedId.value}`, {
-        data: payload.data || [],
-        hasMoreMessages: store.hasMoreMessages.value,
-        cachedAt: new Date().toISOString(),
-      }).catch(() => {});
+    try {
+      const payload = await chatApi.getJson(path);
+      store.messages.value = (Array.isArray(payload.data) ? payload.data : []).map(normalizeMessage);
+      store.hasMoreMessages.value = !store.searchKeyword.value && store.messages.value.length >= 50;
+      setLoadState(store.messageLoadState, "ready");
+      if (!store.searchKeyword.value) {
+        writeChatCache(cacheUserId(), `messages-${store.selectedId.value}`, {
+          data: payload.data || [],
+          hasMoreMessages: store.hasMoreMessages.value,
+          cachedAt: new Date().toISOString(),
+        }).catch(() => {});
+      }
+    } catch (error) {
+      if (!store.messages.value.length) {
+        setLoadState(store.messageLoadState, "error", error?.message || "加载消息失败，请重试");
+      }
+      throw error;
     }
   }
 
