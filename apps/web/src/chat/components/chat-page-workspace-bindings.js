@@ -65,6 +65,7 @@ export function createMessagePanelListeners(props) {
     "capture-screenshot": () => props.runtime.captureScreenshot(),
     "clear-recent-stickers": () => props.stickerLibrary.clearRecent(),
     "clear-search": () => props.runtime.clearMessageSearch(),
+    "copy-image": (file) => props.actions.copyImageToClipboard(file),
     "download-file": (file) => props.actions.downloadFile(file),
     "file-change": (event) => props.runtime.handleFileChange(event),
     "file-paste": (event) => props.runtime.handleFilePaste(event),

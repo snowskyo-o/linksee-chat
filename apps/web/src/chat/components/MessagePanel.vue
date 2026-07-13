@@ -31,6 +31,7 @@ const workspaceListeners = {
   "capture-screenshot": () => emit("capture-screenshot"),
   "clear-recent-stickers": () => emit("clear-recent-stickers"),
   "clear-search": () => emit("clear-search"),
+  "copy-image": (file) => emit("copy-image", file),
   "download-file": (file) => emit("download-file", file),
   "file-change": (event) => emit("file-change", event),
   "file-paste": (event) => emit("file-paste", event),

@@ -7,7 +7,7 @@ const props = defineProps({
   isMe: { type: Boolean, default: false },
 });
 
-defineEmits(["download", "save-as", "open-image", "open-file", "open-file-location"]);
+defineEmits(["copy-image", "download", "forward", "save-as", "open-image", "open-file", "open-file-location"]);
 </script>
 
 <template>
@@ -15,7 +15,9 @@ defineEmits(["download", "save-as", "open-image", "open-file", "open-file-locati
     v-if="file.isImage"
     :file="file"
     :is-me="isMe"
+    @copy-image="$emit('copy-image', $event)"
     @download="$emit('download', $event)"
+    @forward="$emit('forward')"
     @open-image="$emit('open-image', $event)"
     @open-file="$emit('open-file', $event)"
     @open-file-location="$emit('open-file-location', $event)"

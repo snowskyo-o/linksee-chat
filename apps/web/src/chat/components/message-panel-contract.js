@@ -36,5 +36,5 @@ export const messagePanelEmits = [
   "update:messageKeyword", "search", "clear-search", "cancel-edit", "update:messageInput", "message-keydown",
   "mention-pick", "submit", "message-action", "open-file-picker", "capture-screenshot", "open-sticker-import",
   "send-sticker", "clear-recent-stickers", "download-file", "save-file-as", "open-file", "open-file-location",
-  "copy-image", "open-image", "file-change", "file-paste", "file-drop", "remove-pending-file", "load-more", "retry-load",
+  "copy-image", "open-image", "file-change", "file-paste", "file-drop", "remove-pending-file", "retry-pending-file", "load-more", "retry-load",
 ];

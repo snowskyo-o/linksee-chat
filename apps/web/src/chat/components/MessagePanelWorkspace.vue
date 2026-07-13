@@ -13,7 +13,7 @@ defineProps({
 });
 
 defineEmits([
-  "cancel-edit", "capture-screenshot", "clear-recent-stickers", "clear-search", "download-file", "file-change",
+  "cancel-edit", "capture-screenshot", "clear-recent-stickers", "clear-search", "copy-image", "download-file", "file-change",
   "file-paste", "load-more", "mention-pick", "message-action", "message-keydown", "open-file", "open-file-location",
   "open-image", "open-menu", "open-file-picker", "open-sticker-import", "remove-pending-file", "retry-load",
   "retry-pending-file",
@@ -50,6 +50,7 @@ defineEmits([
     :loading-more-messages="loadingMoreMessages"
     :messages="messages"
     :pending-incoming-count="pendingIncomingCount"
+    @copy-image="$emit('copy-image', $event)"
     @download-file="$emit('download-file', $event)"
     @load-more="$emit('load-more')"
     @message-action="$emit('message-action', $event)"

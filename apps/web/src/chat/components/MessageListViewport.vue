@@ -13,6 +13,7 @@ const props = defineProps({
 });
 
 const emit = defineEmits([
+  "copy-image",
   "download-file",
   "load-more",
   "message-action",
@@ -64,8 +65,10 @@ defineExpose({
       v-for="message in messages"
       :key="message.id"
       :message="message"
+      @copy-image="$emit('copy-image', $event)"
       @delete="$emit('message-action', { id: $event, action: 'delete' })"
       @download-file="$emit('download-file', $event)"
+      @forward="$emit('message-action', { id: $event, action: 'forward' })"
       @save-file-as="$emit('save-file-as', $event)"
       @open-image="$emit('open-image', $event)"
       @open-file="$emit('open-file', $event)"

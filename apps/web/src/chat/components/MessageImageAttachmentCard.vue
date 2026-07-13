@@ -7,7 +7,7 @@ const props = defineProps({
   isMe: { type: Boolean, default: false },
 });
 
-defineEmits(["download", "open-file", "open-file-location", "open-image"]);
+defineEmits(["copy-image", "download", "forward", "open-file", "open-file-location", "open-image"]);
 
 const { imageLoading, imageSrc } = useMessageImagePreview(toRef(props, "file"));
 </script>
@@ -32,6 +32,8 @@ const { imageLoading, imageSrc } = useMessageImagePreview(toRef(props, "file"));
     </span>
     <span class="message-image-actions">
       <span class="message-inline-action" @click.stop="$emit('open-image', file)">查看</span>
+      <span class="message-inline-action" @click.stop="$emit('copy-image', file)">复制</span>
+      <span class="message-inline-action" @click.stop="$emit('forward')">转发</span>
       <span
         class="message-inline-action"
         @click.stop="file.transfer?.status === 'saved' && file.transfer?.path ? $emit('open-file', file) : $emit('download', file)"
