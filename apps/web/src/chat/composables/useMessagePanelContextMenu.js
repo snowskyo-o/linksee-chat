@@ -34,7 +34,7 @@ export function useMessagePanelContextMenu(emit) {
     if (item.file) {
       if (item.action === "copy-image") emit("copy-image", item.file);
       else if (item.action === "download-file") emit("download-file", item.file);
-      else if (item.action === "open-image") emit("open-image", item.file);
+      else if (item.action === "open-image") emit("open-image", { file: item.file, messageId: messageMenu.value.message?.id || "" });
       else if (item.action === "open-file") emit("open-file", item.file);
       else if (item.action === "open-location") emit("open-file-location", item.file);
       else emit("save-file-as", item.file);

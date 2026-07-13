@@ -5,6 +5,7 @@ process.env.MINIO_PUBLIC_ORIGIN = "https://files.example.com";
 const { toPublicMinioUrl } = await import("../../infra/storage/minio.mjs");
 const { mergeUserProfile, mergeUsersById } = await import("../../apps/web/src/chat/composables/chat-profile-merge.js");
 const { mergeMessagesById } = await import("../../apps/web/src/chat/composables/chat-profile-merge-conversations.js");
+const { resolveImageViewerOwnerMessageId } = await import("../../apps/web/src/chat/composables/chat-image-viewer-derived.js");
 
 const source = "http://minio:9000/chat-files/path/file.txt?X-Amz-Signature=abc";
 const result = toPublicMinioUrl(source);
@@ -57,3 +58,21 @@ const mergedMessages = mergeMessagesById(
 assert.equal(mergedMessages[0].sender.profile.realName, "Carol");
 
 console.log("[unit] chat profile merge keeps richer cached profile data");
+
+const ownerFromExplicitMessage = resolveImageViewerOwnerMessageId(
+  [{ id: "msg-a", files: [{ objectKey: "img-1" }] }],
+  "msg-explicit",
+  { objectKey: "img-1" },
+  null,
+);
+assert.equal(ownerFromExplicitMessage, "msg-explicit");
+
+const ownerFromObjectKeyLookup = resolveImageViewerOwnerMessageId(
+  [{ id: "msg-b", files: [{ objectKey: "img-2" }] }],
+  "",
+  { objectKey: "img-2" },
+  null,
+);
+assert.equal(ownerFromObjectKeyLookup, "msg-b");
+
+console.log("[unit] image viewer keeps source message for forwarding");

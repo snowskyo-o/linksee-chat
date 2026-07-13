@@ -16,13 +16,22 @@ export function createImageViewerActiveFile(store, imageViewerFile) {
   });
 }
 
-export function createImageViewerOwnerMessageId(store, imageViewerActiveFile, imageViewerFile) {
-  return computed(() => {
-    const objectKey = String(imageViewerActiveFile.value?.objectKey || imageViewerFile.value?.objectKey || "").trim();
-    if (!objectKey) return "";
-    const owner = store.renderedMessages.value.find((message) => Array.isArray(message.files) && message.files.some((file) => String(file.objectKey || "") === objectKey));
-    return String(owner?.id || "");
-  });
+export function resolveImageViewerOwnerMessageId(messages, explicitMessageId, activeFile, fallbackFile) {
+  const nextMessageId = String(explicitMessageId || "").trim();
+  if (nextMessageId) return nextMessageId;
+  const objectKey = String(activeFile?.objectKey || fallbackFile?.objectKey || "").trim();
+  if (!objectKey) return "";
+  const owner = messages.find((message) => Array.isArray(message.files) && message.files.some((file) => String(file.objectKey || "") === objectKey));
+  return String(owner?.id || "");
+}
+
+export function createImageViewerOwnerMessageId(store, imageViewerActiveFile, imageViewerFile, imageViewerMessageId) {
+  return computed(() => resolveImageViewerOwnerMessageId(
+    store.renderedMessages.value,
+    imageViewerMessageId.value,
+    imageViewerActiveFile.value,
+    imageViewerFile.value,
+  ));
 }
 
 export function createImageViewerStatusText(imageViewerActiveFile, imageViewerHint, imageViewerLoading) {

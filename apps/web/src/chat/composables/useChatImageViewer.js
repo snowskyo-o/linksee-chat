@@ -14,11 +14,14 @@ export function useChatImageViewer({ store, actions }) {
   const imageViewerLoading = ref(false);
   const imageViewerHint = ref("");
   const imageViewerFile = ref(null);
+  const imageViewerMessageId = ref("");
   const imageViewerActiveFile = createImageViewerActiveFile(store, imageViewerFile);
-  const imageViewerOwnerMessageId = createImageViewerOwnerMessageId(store, imageViewerActiveFile, imageViewerFile);
+  const imageViewerOwnerMessageId = createImageViewerOwnerMessageId(store, imageViewerActiveFile, imageViewerFile, imageViewerMessageId);
   const imageViewerStatusText = createImageViewerStatusText(imageViewerActiveFile, imageViewerHint, imageViewerLoading);
 
-  async function openImageViewer(file) {
+  async function openImageViewer(payload) {
+    const file = payload?.file || payload;
+    const messageId = String(payload?.messageId || "").trim();
     if (!file?.objectKey) return;
     imageViewerOpen.value = true;
     imageViewerTitle.value = file.name || "图片预览";
@@ -26,6 +29,7 @@ export function useChatImageViewer({ store, actions }) {
     imageViewerHint.value = "";
     imageViewerLoading.value = true;
     imageViewerFile.value = file;
+    imageViewerMessageId.value = messageId;
     try {
       const blob = await chatApi.getBlob(`/api/v1/chat/files/download?objectKey=${encodeURIComponent(file.objectKey)}`);
       imageViewerSrc.value = await createObjectUrlFromBlobLike(blob, file.mimeType || "image/png");
@@ -70,9 +74,7 @@ export function useChatImageViewer({ store, actions }) {
   function closeImageViewer() {
     if (imageViewerSrc.value.startsWith("blob:")) window.URL.revokeObjectURL(imageViewerSrc.value);
     imageViewerOpen.value = false;
-    imageViewerTitle.value = "";
-    imageViewerSrc.value = "";
-    imageViewerHint.value = "";
+    imageViewerTitle.value = imageViewerSrc.value = imageViewerHint.value = imageViewerMessageId.value = "";
     imageViewerLoading.value = false;
     imageViewerFile.value = null;
   }

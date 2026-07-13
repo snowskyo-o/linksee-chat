@@ -68,7 +68,7 @@ defineEmits(["copy-image", "delete", "download-file", "save-file-as", "open-imag
           @download="$emit('download-file', $event)"
           @forward="$emit('forward', message.id)"
           @save-as="$emit('save-file-as', $event)"
-          @open-image="$emit('open-image', $event)"
+          @open-image="$emit('open-image', { file: $event, messageId: message.id })"
           @open-file="$emit('open-file', $event)"
           @open-file-location="$emit('open-file-location', $event)"
         />
