@@ -6,7 +6,6 @@ import { buildDerivedReplyText, escapeDerivedSearchPattern, highlightMentionToke
 
 function buildStatusText(operationState) {
   if (operationState === "sending") return "发送中";
-  if (operationState === "failed") return "发送失败";
   if (operationState === "recalling") return "撤回中";
   return "";
 }
@@ -31,11 +30,12 @@ export function createChatStoreMessageDerived(auth, state) {
       systemText: String(message.senderId) === String(auth.userId) ? "你撤回了一条消息" : `${senderName} 撤回了一条消息`,
       operationState: message.operationState || "",
       statusText: buildStatusText(message.operationState),
+      sendError: String(message.sendError || "").trim(),
       isFileMessage,
       isMe: String(message.senderId) === String(auth.userId),
       canRecall: String(message.senderId) === String(auth.userId) && !deleted && !message.operationState,
       canRetry: String(message.senderId) === String(auth.userId) && message.operationState === "failed",
-      canDelete: String(message.senderId) === String(auth.userId) && !deleted && !message.operationState,
+      canDelete: String(message.senderId) === String(auth.userId) && !deleted && (!message.operationState || message.operationState === "failed"),
       canForward: !deleted && !message.operationState && (message.type === "text" || isFileMessage),
       hasTextContent: !deleted && !isFileMessage && Boolean(String(message.content || "").trim()),
       isFavorite: state.favoriteMessages.value.some((item) => item.id === String(message.id)),

@@ -64,6 +64,7 @@ defineExpose({
       v-for="message in messages"
       :key="message.id"
       :message="message"
+      @delete="$emit('message-action', { id: $event, action: 'delete' })"
       @download-file="$emit('download-file', $event)"
       @save-file-as="$emit('save-file-as', $event)"
       @open-image="$emit('open-image', $event)"

@@ -22,7 +22,7 @@ export function createChatMessageActions({ store, chatApi, dataActions, fileActi
 
   function handleMessageAction({ id, action }) {
     const message = findMessage(store, id);
-    if (!message || (message.operationState && action !== "retry")) return;
+    if (!message || (message.operationState && !["retry", "delete"].includes(action))) return;
     if (action === "reply") {
       store.replyTo.value = message;
       return;

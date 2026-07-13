@@ -1,12 +1,13 @@
 <script setup>
 import AvatarImage from "../../shared/components/AvatarImage.vue";
 import MessageAttachmentCard from "./MessageAttachmentCard.vue";
+import MessageFailureActions from "./MessageFailureActions.vue";
 
 defineProps({
   message: { type: Object, required: true },
 });
 
-defineEmits(["download-file", "save-file-as", "open-image", "open-menu", "retry", "open-file", "open-file-location"]);
+defineEmits(["delete", "download-file", "save-file-as", "open-image", "open-menu", "retry", "open-file", "open-file-location"]);
 </script>
 
 <template>
@@ -44,14 +45,13 @@ defineEmits(["download-file", "save-file-as", "open-image", "open-menu", "retry"
         title="发送中"
       ></span>
 
-      <button
+      <MessageFailureActions
         v-if="message.canRetry && message.isMe"
-        class="message-retry-btn"
-        type="button"
-        @click.stop="$emit('retry', message.id)"
-      >
-        重试
-      </button>
+        :can-delete="message.canDelete"
+        :error-text="message.sendError || message.statusText"
+        @retry="$emit('retry', message.id)"
+        @delete="$emit('delete', message.id)"
+      />
 
       <div v-if="message.hasTextContent || message.replyToText" class="message-bubble" :class="{ 'message-bubble-me': message.isMe }">
         <div v-if="message.replyToText" class="reply-quote">{{ message.replyToText }}</div>

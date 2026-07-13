@@ -39,7 +39,7 @@ export function createChatFileTransferActions({ store, dataActions, autoReceiveQ
 
   async function deleteMessage(messageId) {
     const message = findMessage(store, messageId);
-    if (!message || message.operationState) return;
+    if (!message || (message.operationState && message.operationState !== "failed")) return;
     const userId = store.me.value?.id || localStorage.getItem("chat_user_id") || "guest";
     const fallbackPreview = pickVisibleConversationPreview(store.messages.value, messageId);
     rememberLocallyDeletedMessage(userId, store.selectedId.value, messageId, fallbackPreview);
