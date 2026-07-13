@@ -39,6 +39,9 @@ export function createPendingAttachment(file) {
     isImage,
     previewUrl: isImage ? URL.createObjectURL(file) : "",
     extensionLabel: getFileExtensionLabel(file.name, file.type),
+    uploadStatus: "pending",
+    uploadProgress: 0,
+    uploadError: "",
   };
 }
 

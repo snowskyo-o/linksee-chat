@@ -512,6 +512,24 @@ export function useChatStore(auth) {
     pendingFiles.value = pendingFiles.value.filter((item) => item.id !== id);
   }
 
+  function updatePendingFile(id, patch) {
+    const targetId = String(id || "");
+    if (!targetId) return;
+    pendingFiles.value = pendingFiles.value.map((item) => (
+      item.id === targetId
+        ? { ...item, ...(typeof patch === "function" ? patch(item) : patch) }
+        : item
+    ));
+  }
+
+  function removePendingFiles(ids = []) {
+    const idSet = new Set(ids.map((id) => String(id || "")).filter(Boolean));
+    pendingFiles.value.forEach((item) => {
+      if (idSet.has(String(item.id || ""))) revokePendingAttachment(item);
+    });
+    pendingFiles.value = pendingFiles.value.filter((item) => !idSet.has(String(item.id || "")));
+  }
+
   function setFileTransfer(objectKey, patch) {
     const key = String(objectKey || "");
     if (!key) return;
@@ -630,6 +648,8 @@ export function useChatStore(auth) {
     resetComposer,
     clearPendingFiles,
     removePendingFile,
+    updatePendingFile,
+    removePendingFiles,
     setFileTransfer,
   };
 }

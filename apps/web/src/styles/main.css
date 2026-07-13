@@ -2512,6 +2512,19 @@ html body .desktop-page-shell { min-height: 100vh; }
   color: #8b96a6;
   font-size: 12px;
 }
+.composer-attachment-progress {
+  position: relative;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(79, 124, 255, 0.14);
+}
+.composer-attachment-progress span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #5f8dff 0%, #2fb8ff 100%);
+}
 .composer-attachment-remove {
   position: absolute;
   top: -7px;
@@ -2529,6 +2542,10 @@ html body .desktop-page-shell { min-height: 100vh; }
 }
 .composer-attachment-remove:hover {
   color: var(--danger);
+}
+.composer-attachment-remove:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 .composer-attachment-remove svg {
   width: 13px;
