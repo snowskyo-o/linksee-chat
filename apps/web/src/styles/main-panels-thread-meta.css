@@ -1,0 +1,145 @@
+.qq-thread-favorite-remove {
+  border: 0;
+  background: transparent;
+  color: #f45b69;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.qq-thread-favorite-remove:hover {
+  text-decoration: underline;
+}
+
+.qq-thread-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.qq-thread-copy {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.qq-thread-head,
+.qq-thread-preview-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.qq-thread-head-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.qq-thread-head strong {
+  min-width: 0;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.qq-thread-time {
+  flex: none;
+  color: #97a2b3;
+  font-size: 12px;
+}
+
+.qq-thread-muted-dot {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: #eef3fb;
+  color: #6f7f98;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.qq-thread-subtitle {
+  margin: 0;
+  color: #9ba5b5;
+  font-size: 11px;
+}
+
+.qq-thread-preview {
+  margin: 0;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.qq-thread-context-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+}
+
+.qq-thread-context-menu {
+  position: fixed;
+  min-width: 164px;
+  padding: 8px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.98);
+  border: 1px solid rgba(217, 225, 236, 0.96);
+  box-shadow: 0 16px 38px rgba(15, 23, 42, 0.18);
+}
+
+.qq-thread-context-item {
+  width: 100%;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  text-align: left;
+  color: #243041;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.qq-thread-context-item:hover {
+  background: #f4f8ff;
+  color: #3267df;
+}
+
+.qq-thread-context-item.is-danger:hover {
+  background: #fff1f1;
+  color: #cf5258;
+}
+
+@media (max-width: 760px) {
+  .compact-auth-content {
+    grid-template-columns: 1fr;
+  }
+
+  .compact-auth-hero {
+    gap: 14px;
+    padding: 20px 20px 16px;
+  }
+
+  .compact-auth-hero-brand strong {
+    font-size: 22px;
+  }
+
+  .compact-auth-copy h1 {
+    font-size: 20px;
+  }
+
+  .compact-auth-body {
+    padding: 22px 20px 20px;
+  }
+
+  .compact-auth-body-login {
+    padding: 22px 20px 20px;
+  }
+}
