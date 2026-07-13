@@ -17,6 +17,7 @@ import { appendAppLog } from "../shared/app-log.js";
 import { chatApi } from "../shared/api-client.js";
 import { getAuth, logout } from "../shared/session.js";
 import { loadAppSettings, saveAppSettings } from "../shared/app-settings.js";
+import { createObjectUrlFromBlobLike } from "../shared/blob-source.js";
 import { mergeDesktopPreferences } from "../shared/desktop-preferences.js";
 import { playNotificationSound } from "../shared/notification-sound.js";
 import { getDesktopConversationId, getDesktopWindowKind, isDesktopRuntime } from "../shared/runtime.js";
@@ -475,7 +476,7 @@ async function openImageViewer(file) {
   imageViewerFile.value = file;
   try {
     const blob = await chatApi.getBlob(`/api/v1/chat/files/download?objectKey=${encodeURIComponent(file.objectKey)}`);
-    imageViewerSrc.value = window.URL.createObjectURL(blob);
+    imageViewerSrc.value = await createObjectUrlFromBlobLike(blob, file.mimeType || "image/png");
   } catch (error) {
     imageViewerHint.value = error?.message || "图片加载失败";
   } finally {

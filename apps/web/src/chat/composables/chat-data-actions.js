@@ -1,6 +1,44 @@
 import { normalizeMessage, normalizeUser, patchConversationLocally } from "./message-operations.js";
 import { readChatCache, writeChatCache } from "./local-chat-cache.js";
 
+function pickVersionedField(cachedValue, serverValue, shouldUseServer, fallbackValue = "") {
+  if (shouldUseServer) return serverValue || fallbackValue;
+  return cachedValue || serverValue || fallbackValue;
+}
+
+function mergeSelfProfile(cachedUser, serverUser, fallbackUserId = "") {
+  const cachedProfile = cachedUser?.profile || {};
+  const serverProfile = serverUser?.profile || {};
+  const cachedProfileVersion = Number(cachedProfile.profileVersion || 0);
+  const serverProfileVersion = Number(serverProfile.profileVersion || 0);
+  const cachedAvatarVersion = Number(cachedProfile.avatarVersion || 0);
+  const serverAvatarVersion = Number(serverProfile.avatarVersion || 0);
+  const useServerProfile = serverProfileVersion > cachedProfileVersion;
+  const useServerAvatar = serverAvatarVersion > cachedAvatarVersion;
+  const userId = String(serverUser?.id || cachedUser?.id || fallbackUserId || "").trim();
+
+  return {
+    ...(cachedUser || {}),
+    ...(serverUser || {}),
+    id: userId,
+    profile: {
+      ...cachedProfile,
+      ...serverProfile,
+      realName: pickVersionedField(cachedProfile.realName, serverProfile.realName, useServerProfile, userId),
+      originalRealName: pickVersionedField(
+        cachedProfile.originalRealName || cachedProfile.realName,
+        serverProfile.originalRealName || serverProfile.realName,
+        useServerProfile,
+        userId,
+      ),
+      bio: pickVersionedField(cachedProfile.bio, serverProfile.bio, useServerProfile, ""),
+      avatarUrl: pickVersionedField(cachedProfile.avatarUrl, serverProfile.avatarUrl, useServerAvatar, ""),
+      profileVersion: Math.max(cachedProfileVersion, serverProfileVersion),
+      avatarVersion: Math.max(cachedAvatarVersion, serverAvatarVersion),
+    },
+  };
+}
+
 export function createChatDataActions(store, chatApi) {
   const cacheUserId = () => store.me.value?.id || localStorage.getItem("chat_user_id") || "guest";
   const getDraftCacheKey = (conversationId) => `draft-${conversationId}`;
@@ -35,11 +73,12 @@ export function createChatDataActions(store, chatApi) {
       document.title = `Linksee Chat · ${store.profileName.value}`;
     }
     const payload = await chatApi.getJson("/api/v1/users/me");
-    store.me.value = normalizeUser(payload.data || {});
+    const mergedProfile = mergeSelfProfile(cached?.data || null, payload.data || null, auth.userId);
+    store.me.value = normalizeUser(mergedProfile);
     store.profileName.value = store.me.value.profile?.realName || auth.userId;
     store.profileBio.value = store.me.value.profile?.bio || "";
     document.title = `Linksee Chat · ${store.profileName.value}`;
-    writeChatCache(cacheUserId(), "profile", { data: payload.data || {}, cachedAt: new Date().toISOString() }).catch(() => {});
+    writeChatCache(cacheUserId(), "profile", { data: mergedProfile, cachedAt: new Date().toISOString() }).catch(() => {});
   }
 
   async function loadContacts() {

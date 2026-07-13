@@ -90,6 +90,19 @@ function sanitizeFileName(value, fallback = "file") {
     .trim() || fallback;
 }
 
+function buildUniqueFilePath(directoryPath, safeName) {
+  const parsed = path.parse(safeName);
+  const stem = parsed.name || "file";
+  const extension = parsed.ext || "";
+  let candidatePath = path.join(directoryPath, safeName);
+  let index = 2;
+  while (fs.existsSync(candidatePath)) {
+    candidatePath = path.join(directoryPath, `${stem} (${index})${extension}`);
+    index += 1;
+  }
+  return candidatePath;
+}
+
 function hashValue(value) {
   return createHash("sha1").update(String(value || "")).digest("hex");
 }
@@ -151,7 +164,7 @@ async function saveDownloadedAsset({ fileName, bytes, conversationId = "", cache
   const extension = path.extname(safeName);
   const uniqueSuffix = `${Date.now()}-${(cacheKey && hashValue(cacheKey).slice(0, 8)) || hashValue(safeName).slice(0, 8)}`;
   const cachePath = path.join(cacheDir, `${stem}-${uniqueSuffix}${extension}`);
-  const defaultExportPath = path.join(exports, `${stem}-${uniqueSuffix}${extension}`);
+  const defaultExportPath = buildUniqueFilePath(exports, safeName);
   let exportPath = defaultExportPath;
   if (saveAs) {
     const result = await dialog.showSaveDialog({

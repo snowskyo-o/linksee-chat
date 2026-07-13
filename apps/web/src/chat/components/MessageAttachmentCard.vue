@@ -1,6 +1,7 @@
 <script setup>
 import { onBeforeUnmount, ref, watch } from "vue";
 import { chatApi } from "../../shared/api-client.js";
+import { createObjectUrlFromBlobLike } from "../../shared/blob-source.js";
 
 const props = defineProps({
   file: { type: Object, required: true },
@@ -31,7 +32,7 @@ async function loadImagePreview() {
   imageLoading.value = true;
   try {
     const blob = await chatApi.getBlob(`/api/v1/chat/files/download?objectKey=${encodeURIComponent(props.file.objectKey)}`);
-    imageSrc.value = URL.createObjectURL(blob);
+    imageSrc.value = await createObjectUrlFromBlobLike(blob, props.file?.mimeType || "image/png");
   } catch {
     imageSrc.value = "";
   } finally {
