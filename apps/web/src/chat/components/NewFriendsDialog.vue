@@ -86,14 +86,14 @@ defineEmits([
             </div>
             <div class="new-friends-copy">
               <strong>{{ contact.name }}</strong>
-              <p>{{ contact.bio || "向你发来了好友申请" }}</p>
+              <p>{{ contact.requestMessage || contact.bio || "向你发来了好友申请" }}</p>
             </div>
             <div class="new-friends-actions">
-              <button class="ghost-btn compact-btn" type="button" @click="$emit('reject-request', contact.request?.id)">
-                拒绝
+              <button class="ghost-btn compact-btn" type="button" :disabled="contact.requestBusy" @click="$emit('reject-request', contact.request?.id)">
+                {{ contact.requestBusy ? "处理中..." : "拒绝" }}
               </button>
-              <button class="primary-btn compact-btn" type="button" @click="$emit('accept-request', contact.request?.id)">
-                通过
+              <button class="primary-btn compact-btn" type="button" :disabled="contact.requestBusy" @click="$emit('accept-request', contact.request?.id)">
+                {{ contact.requestBusy ? "处理中..." : "通过" }}
               </button>
             </div>
           </article>
@@ -112,12 +112,12 @@ defineEmits([
             </div>
             <div class="new-friends-copy">
               <strong>{{ contact.name }}</strong>
-              <p>{{ contact.bio || "等待对方处理你的好友申请" }}</p>
+              <p>{{ contact.requestMessage || contact.bio || "等待对方处理你的好友申请" }}</p>
             </div>
             <div class="new-friends-actions">
               <span class="new-friends-tag">等待通过</span>
-              <button class="ghost-btn compact-btn" type="button" @click="$emit('cancel-request', contact.request?.id)">
-                取消
+              <button class="ghost-btn compact-btn" type="button" :disabled="contact.requestBusy" @click="$emit('cancel-request', contact.request?.id)">
+                {{ contact.requestBusy ? "处理中..." : "取消" }}
               </button>
             </div>
           </article>
@@ -140,8 +140,8 @@ defineEmits([
               <strong>{{ contact.name }}</strong>
               <p>{{ contact.bio || "这个人还没有留下签名" }}</p>
             </div>
-            <button class="primary-btn compact-btn" type="button" @click="$emit('send-request', contact.id)">
-              添加好友
+            <button class="primary-btn compact-btn" type="button" :disabled="!contact.canSendRequest" @click="$emit('send-request', contact.id)">
+              {{ contact.sendingRequest ? "发送中..." : "添加好友" }}
             </button>
           </article>
         </section>
@@ -165,8 +165,8 @@ defineEmits([
               <button class="ghost-btn compact-btn" type="button" @click="$emit('edit-friend', contact)">
                 备注
               </button>
-              <button class="ghost-btn compact-btn" type="button" @click="$emit('remove-friend', contact.id)">
-                删除
+              <button class="ghost-btn compact-btn" type="button" :disabled="!contact.canRemoveFriend" @click="$emit('remove-friend', contact.id)">
+                {{ contact.removingFriend ? "删除中..." : "删除" }}
               </button>
               <button class="ghost-btn compact-btn" type="button" @click="$emit('start-chat', contact.id)">
                 继续聊天

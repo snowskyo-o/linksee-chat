@@ -32,9 +32,22 @@ export function useFriendCenter(store, callbacks = {}) {
     store.createDialogContacts.value.map((contact) => [String(contact.id), contact]),
   ));
 
+  function buildRowActionState(personId, requestId) {
+    const targetPersonId = String(personId || "");
+    const targetRequestId = String(requestId || "");
+    return {
+      canSendRequest: Boolean(targetPersonId) && !isPending(`send:${targetPersonId}`),
+      canRemoveFriend: Boolean(targetPersonId) && !isPending(`remove:${targetPersonId}`),
+      sendingRequest: Boolean(targetPersonId) && isPending(`send:${targetPersonId}`),
+      removingFriend: Boolean(targetPersonId) && isPending(`remove:${targetPersonId}`),
+      requestBusy: Boolean(targetRequestId) && isPending(`request:${targetRequestId}`),
+    };
+  }
+
   const discoveryRows = computed(() => discovery.value.map((item) => {
     const person = normalizePerson(item?.user);
     const fallbackContact = contactMap.value.get(person.id);
+    const request = item?.request || null;
     return {
       id: person.id,
       name: fallbackContact?.name || person.name,
@@ -43,7 +56,9 @@ export function useFriendCenter(store, callbacks = {}) {
       bio: fallbackContact?.bio || person.bio,
       avatarUrl: fallbackContact?.avatarUrl || person.avatarUrl,
       relation: item?.relation || "none",
-      request: item?.request || null,
+      request,
+      requestMessage: String(request?.message || "").trim(),
+      ...buildRowActionState(person.id, request?.id),
     };
   }));
 
@@ -184,7 +199,9 @@ export function useFriendCenter(store, callbacks = {}) {
     open.value = false;
   }
 
-  const requestTotal = computed(() => requests.value.filter((item) => item?.status === "pending").length);
+  const requestTotal = computed(() => requests.value.filter((item) => (
+    item?.status === "pending" && item?.direction === "incoming"
+  )).length);
 
   return {
     open,
