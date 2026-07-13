@@ -24,6 +24,7 @@ const emit = defineEmits([
   "update:desktopPreferences",
   "choose-download-dir",
   "open-download-dir",
+  "clear-cache",
 ]);
 
 function patchSettings(section, key, value) {
@@ -232,6 +233,9 @@ function patchDesktopPreferences(key, value) {
             <div class="settings-meta-row"><span>头像缓存</span><strong>{{ appInfo.storage?.avatars || "-" }}</strong></div>
             <div class="settings-meta-row"><span>聊天缓存</span><strong>{{ appInfo.storage?.chatCache || "-" }}</strong></div>
             <div class="settings-meta-row"><span>导出目录</span><strong>{{ appInfo.storage?.exports || "-" }}</strong></div>
+            <div class="settings-inline-actions">
+              <button class="ghost-btn compact-btn" type="button" @click="$emit('clear-cache')">清理缓存</button>
+            </div>
           </div>
         </section>
       </div>

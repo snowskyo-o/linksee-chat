@@ -406,6 +406,22 @@ async function openDownloadDirectory() {
   await window.desktopShell.openStoragePath(folder).catch(() => {});
 }
 
+async function clearDesktopCache() {
+  if (typeof window.desktopShell?.clearCache !== "function") return;
+  const payload = await window.desktopShell.clearCache().catch(() => null);
+  if (payload?.storage) {
+    appInfo.value = { ...appInfo.value, storage: payload.storage };
+  }
+  const files = Number(payload?.summary?.files || 0);
+  const bytes = Number(payload?.summary?.bytes || 0);
+  store.pushNotification({
+    title: "缓存已清理",
+    message: `已清理 ${files} 个缓存文件 · ${Math.round(bytes / 1024)} KB`,
+    tone: "success",
+    ttl: 2600,
+  });
+}
+
 async function handleSendSticker(sticker) {
   const source = sticker?.originalSrc || sticker?.src || "";
   if (!source) return;
@@ -769,6 +785,7 @@ watch(
       @upload-avatar="handleAvatarUpload"
       @choose-download-dir="chooseDownloadDirectory"
       @open-download-dir="openDownloadDirectory"
+      @clear-cache="clearDesktopCache"
       @open-update="handleUpdateNow"
     />
 

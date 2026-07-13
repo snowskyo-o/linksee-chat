@@ -5,6 +5,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
 const { captureScreenshot, writeImageToClipboard } = require("./desktop-media.cjs");
+const { clearDesktopCaches } = require("./cache-maintenance.cjs");
 const { STICKER_EXTENSIONS, listStickerEntries, copyStickerIntoLibrary, walkStickerFiles, renameStickerEntry, deleteStickerEntry, moveStickerEntry } = require("./sticker-library.cjs");
 
 const DEFAULT_REMOTE_ORIGIN = "http://186.241.89.102";
@@ -888,6 +889,14 @@ function registerIpcHandlers() {
     if (!stat.isFile()) return false;
     const result = await shell.openPath(nextPath);
     return !result;
+  });
+  ipcMain.handle("desktop:clear-cache", () => {
+    const summary = clearDesktopCaches(getStorageInfo());
+    ensureStorageDirectories();
+    return {
+      summary,
+      storage: getStorageInfo(),
+    };
   });
   ipcMain.handle("desktop:choose-directory", async (_event, options = {}) => {
     const result = await dialog.showOpenDialog({

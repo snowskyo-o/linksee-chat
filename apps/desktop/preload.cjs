@@ -34,6 +34,7 @@ contextBridge.exposeInMainWorld("desktopShell", {
   writeStateCache: (payload) => ipcRenderer.invoke("desktop:write-state-cache", payload),
   openStoragePath: (targetPath) => ipcRenderer.invoke("desktop:open-storage-path", targetPath),
   openFile: (targetPath) => ipcRenderer.invoke("desktop:open-file", targetPath),
+  clearCache: () => ipcRenderer.invoke("desktop:clear-cache"),
   chooseDirectory: (options) => ipcRenderer.invoke("desktop:choose-directory", options),
   listStickers: () => ipcRenderer.invoke("desktop:list-stickers"),
   importStickerFiles: () => ipcRenderer.invoke("desktop:import-sticker-files"),
