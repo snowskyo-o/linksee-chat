@@ -1,39 +1,14 @@
 import { ref } from "vue";
 import { chatApi } from "../../shared/api-client.js";
+import { remindUpdateLater, shouldShowUpdatePrompt } from "./chat-desktop-update-policy.js";
+import { createInitialAppInfo, normalizeDesktopUpdateState } from "./chat-desktop-update-state.js";
 
 export function useChatDesktopUpdateControls() {
   const updatePromptOpen = ref(false);
-  const appInfo = ref({
-    productName: "Linksee Chat",
-    version: "",
-    electron: window.desktopShell?.versions?.electron || "",
-    chrome: window.desktopShell?.versions?.chrome || "",
-    node: window.desktopShell?.versions?.node || "",
-    storage: null,
-  });
-
-  function updateReminderKey(version) {
-    return `linksee_update_remind_after_${String(version || "latest")}`;
-  }
-
-  function shouldShowUpdatePrompt(update) {
-    if (!update?.hasUpdate) return false;
-    if (update.mandatory) return true;
-    const remindAfter = Number(window.localStorage.getItem(updateReminderKey(update.latestVersion)) || 0);
-    return Date.now() >= remindAfter;
-  }
+  const appInfo = ref(createInitialAppInfo());
 
   function applyDesktopUpdateState(state = {}) {
-    const update = {
-      native: true,
-      hasUpdate: Boolean(state.available),
-      latestVersion: state.version || "",
-      mandatory: false,
-      downloaded: Boolean(state.downloaded),
-      progress: Number(state.progress || 0),
-      status: state.status || "idle",
-      error: state.error || "",
-    };
+    const update = normalizeDesktopUpdateState(state);
     appInfo.value = { ...appInfo.value, update };
     updatePromptOpen.value = shouldShowUpdatePrompt(update);
   }
@@ -83,13 +58,6 @@ export function useChatDesktopUpdateControls() {
     updatePromptOpen.value = true;
   }
 
-  function remindUpdateLater() {
-    const update = appInfo.value.update || {};
-    const remindAfter = Date.now() + 6 * 60 * 60 * 1000;
-    window.localStorage.setItem(updateReminderKey(update.latestVersion), String(remindAfter));
-    updatePromptOpen.value = false;
-  }
-
   function closeUpdatePrompt() {
     updatePromptOpen.value = false;
   }
@@ -100,7 +68,7 @@ export function useChatDesktopUpdateControls() {
     checkForUpdates,
     closeUpdatePrompt,
     handleUpdateNow,
-    remindUpdateLater,
+    remindUpdateLater: () => remindUpdateLater(appInfo, updatePromptOpen),
     updatePromptOpen,
   };
 }
