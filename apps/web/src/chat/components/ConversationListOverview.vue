@@ -1,42 +1,11 @@
 <script setup>
 import ListSearchPanel from "./ListSearchPanel.vue";
 import QuickCreateMenu from "./QuickCreateMenu.vue";
+import { conversationListOverviewEmits, conversationListOverviewProps } from "./conversation-list-overview-contract.js";
+import { paneCountText, panePlaceholder } from "./conversation-list-overview-copy.js";
 
-defineProps({
-  activePane: { type: String, default: "messages" },
-  contactCount: { type: Number, default: 0 },
-  conversationCount: { type: Number, default: 0 },
-  favoriteCount: { type: Number, default: 0 },
-  friendRequestTotal: { type: Number, default: 0 },
-  keyword: { type: String, default: "" },
-  meName: { type: String, default: "未登录" },
-  quickCreateOpen: { type: Boolean, default: false },
-  searchActiveKey: { type: String, default: "" },
-  searchFocused: { type: Boolean, default: false },
-  searchKeyword: { type: String, default: "" },
-  searchPanelOpen: { type: Boolean, default: false },
-  recentKeywords: { type: Array, default: () => [] },
-  searchSections: { type: Array, default: () => [] },
-  shell: { type: Object, required: true },
-});
-
-defineEmits([
-  "update:keyword", "open-direct", "open-group", "toggle-quick-create", "focus-search",
-  "search-keydown", "clear-search", "search-pick", "clear-recent", "recent-pick",
-  "search-footer-pick", "open-settings",
-]);
-
-function paneCountText(activePane, conversationCount, contactCount, favoriteCount) {
-  if (activePane === "messages") return `${conversationCount} 个会话`;
-  if (activePane === "contacts") return `${contactCount} 位联系人`;
-  return `${favoriteCount} 条收藏`;
-}
-
-function panePlaceholder(activePane) {
-  if (activePane === "messages") return "搜索会话、联系人、消息";
-  if (activePane === "contacts") return "搜索联系人";
-  return "搜索收藏消息";
-}
+defineProps(conversationListOverviewProps);
+defineEmits(conversationListOverviewEmits);
 </script>
 
 <template>
