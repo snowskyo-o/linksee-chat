@@ -30,14 +30,12 @@ function animateWindowBounds(window, fromBounds, toBounds, { duration = 180, onD
     if (typeof onDone === "function") onDone();
     return;
   }
-
   const start = Date.now();
   const tick = () => {
     if (!window || window.isDestroyed()) {
       if (typeof onDone === "function") onDone();
       return;
     }
-
     const elapsed = Date.now() - start;
     const progress = Math.min(1, elapsed / duration);
     const eased = 1 - Math.pow(1 - progress, 3);
@@ -55,25 +53,27 @@ function animateWindowBounds(window, fromBounds, toBounds, { duration = 180, onD
     }
     setTimeout(tick, 12);
   };
-
   tick();
 }
 
 function setWindowContext(windowContextById, window, context = {}) {
   if (!window || window.isDestroyed()) return;
   const existing = windowContextById.get(window.id) || {};
-  windowContextById.set(window.id, {
+  const nextContext = {
     ...existing,
     kind: String(context.kind || existing.kind || "").trim(),
     conversationId: String(context.conversationId || existing.conversationId || "").trim(),
-  });
+    title: String(context.title || existing.title || "").trim(),
+  };
+  windowContextById.set(window.id, nextContext);
+  const windowTitle = nextContext.title || window.getTitle?.() || "Linksee Chat";
+  if (windowTitle && typeof window.setTitle === "function") window.setTitle(windowTitle);
 }
 
 function clearWindowContext(windowContextById, window) {
   if (!window) return;
   windowContextById.delete(window.id);
 }
-
 function shouldSuppressDesktopNotification(BrowserWindow, windowContextById, conversationId) {
   const targetConversationId = String(conversationId || "").trim();
   if (!targetConversationId) return false;

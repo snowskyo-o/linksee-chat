@@ -14,6 +14,17 @@ export function useChatPageRuntime({
   standaloneConversationMode,
   selectConversation,
 }) {
+  function resolveDesktopWindowTitle() {
+    const baseTitle = "Linksee Chat";
+    const conversation = store.selectedConversation.value;
+    if (!conversation) return baseTitle;
+    const title = String(store.chatTitle.value || "").trim();
+    if (!title) return baseTitle;
+    if (conversation.kind !== "group") return title;
+    const count = Number(conversation.participantIds?.length || store.participants.value.length || 0);
+    return count > 0 ? `${title}（${count}）` : title;
+  }
+
   const desktopControls = useChatDesktopControls({ store, actions });
   const mediaControls = useChatMediaControls({
     store,
@@ -37,6 +48,7 @@ export function useChatPageRuntime({
     window.desktopShell.updateWindowContext({
       kind: standaloneConversationMode.value ? "chat" : "main-chat",
       conversationId: String(store.selectedId.value || ""),
+      title: resolveDesktopWindowTitle(),
     }).catch(() => {});
   }
 

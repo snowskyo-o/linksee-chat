@@ -19,7 +19,17 @@ export function useChatPageLifecycleWatchers({
     }, 240);
   }
 
-  watch(() => store.selectedId.value, syncDesktopWindowContext);
+  watch(
+    () => [
+      store.selectedId.value,
+      store.chatTitle.value,
+      store.selectedConversation.value?.kind || "",
+      store.selectedConversation.value?.participantIds?.length || 0,
+      store.participants.value.length,
+    ],
+    syncDesktopWindowContext,
+    { immediate: true },
+  );
   watch(
     () => [store.chatTitle.value, Boolean(store.selectedConversation.value), store.profileName.value],
     ([chatTitle, hasConversation, profileName]) => {
