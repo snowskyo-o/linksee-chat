@@ -50,7 +50,9 @@ const emit = defineEmits([
   "open-sticker-import",
   "send-sticker",
   "download-file",
+  "open-image",
   "file-change",
+  "file-paste",
   "file-drop",
   "load-more",
 ]);
@@ -287,6 +289,13 @@ function handleDrop(event) {
   emit("file-drop", event.dataTransfer.files);
 }
 
+function handleComposerPaste(event) {
+  const files = Array.from(event.clipboardData?.files || []).filter((file) => String(file.type || "").startsWith("image/"));
+  if (!files.length) return;
+  event.preventDefault();
+  emit("file-paste", files);
+}
+
 function handleWindowDragOver(event) {
   if (!dragActive.value || !isFileDrag(event)) return;
   if (!isPointInsideWorkspace(event.clientX, event.clientY)) resetDragState();
@@ -440,6 +449,7 @@ onBeforeUnmount(() => {
         :key="message.id"
         :message="message"
         @download-file="$emit('download-file', $event)"
+        @open-image="$emit('open-image', $event)"
         @open-menu="openMessageMenu"
         @retry="$emit('message-action', { id: $event, action: 'retry' })"
       />
@@ -498,6 +508,7 @@ onBeforeUnmount(() => {
         placeholder="输入消息，Enter 发送，Shift+Enter 换行，@ 可提及成员"
         @input="updateMessageInput($event.target.value)"
         @keydown="$emit('message-keydown', $event)"
+        @paste="handleComposerPaste"
       ></textarea>
 
       <div v-if="mentionOpen && mentionOptions.length" class="mention-panel">

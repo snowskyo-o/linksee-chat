@@ -5,6 +5,7 @@ import ConfirmDialog from "./components/ConfirmDialog.vue";
 import ConversationSidebar from "./components/ConversationSidebar.vue";
 import CreateConversationDialog from "./components/CreateConversationDialog.vue";
 import ForwardDialog from "./components/ForwardDialog.vue";
+import ImageViewerDialog from "./components/ImageViewerDialog.vue";
 import MessagePanel from "./components/MessagePanel.vue";
 import InfoSidebar from "./components/InfoSidebar.vue";
 import SettingsDialog from "./components/SettingsDialog.vue";
@@ -12,6 +13,7 @@ import StickerImportDialog from "./components/StickerImportDialog.vue";
 import ToastStack from "./components/ToastStack.vue";
 import DesktopTitlebar from "../shared/components/DesktopTitlebar.vue";
 import { appendAppLog, clearAppLogs, onAppLogsUpdated, readAppLogs } from "../shared/app-log.js";
+import { chatApi } from "../shared/api-client.js";
 import { getAuth, logout } from "../shared/session.js";
 import { loadAppSettings, saveAppSettings } from "../shared/app-settings.js";
 import { getDesktopConversationId, getDesktopWindowKind, isDesktopRuntime } from "../shared/runtime.js";
@@ -30,6 +32,12 @@ const settingsOpen = ref(false);
 const appSettings = ref(loadAppSettings());
 const appLogs = ref(readAppLogs());
 const stickerImportOpen = ref(false);
+const imageViewerOpen = ref(false);
+const imageViewerTitle = ref("");
+const imageViewerSrc = ref("");
+const imageViewerLoading = ref(false);
+const imageViewerHint = ref("");
+const imageViewerFile = ref(null);
 const appInfo = ref({
   productName: "Linksee Chat",
   version: "",
@@ -188,6 +196,12 @@ function handleFileDrop(files) {
   });
 }
 
+function handleFilePaste(files) {
+  actions.uploadFiles(files || []).catch((error) => {
+    store.setComposerHint(error?.message || "粘贴图片失败", "error");
+  });
+}
+
 function openStickerImport() {
   stickerImportOpen.value = true;
 }
@@ -227,6 +241,36 @@ async function handleSendSticker(sticker) {
   } catch (error) {
     store.setComposerHint(error?.message || "表情发送失败", "error");
   }
+}
+
+async function openImageViewer(file) {
+  if (!file?.objectKey) return;
+  imageViewerOpen.value = true;
+  imageViewerTitle.value = file.name || "图片预览";
+  imageViewerSrc.value = "";
+  imageViewerHint.value = "";
+  imageViewerLoading.value = true;
+  imageViewerFile.value = file;
+  try {
+    const blob = await chatApi.getBlob(`/api/v1/chat/files/download?objectKey=${encodeURIComponent(file.objectKey)}`);
+    imageViewerSrc.value = window.URL.createObjectURL(blob);
+  } catch (error) {
+    imageViewerHint.value = error?.message || "图片加载失败";
+  } finally {
+    imageViewerLoading.value = false;
+  }
+}
+
+function closeImageViewer() {
+  if (imageViewerSrc.value.startsWith("blob:")) {
+    window.URL.revokeObjectURL(imageViewerSrc.value);
+  }
+  imageViewerOpen.value = false;
+  imageViewerTitle.value = "";
+  imageViewerSrc.value = "";
+  imageViewerHint.value = "";
+  imageViewerLoading.value = false;
+  imageViewerFile.value = null;
 }
 
 function clearMessageSearch() {
@@ -361,8 +405,10 @@ watch(() => store.selectedId.value, () => {
         @open-sticker-import="openStickerImport"
         @send-sticker="handleSendSticker"
         @file-change="handleFileChange"
+        @file-paste="handleFilePaste"
         @file-drop="handleFileDrop"
         @download-file="actions.downloadFile"
+        @open-image="openImageViewer"
         @load-more="actions.loadOlderMessages"
       />
 
@@ -402,6 +448,16 @@ watch(() => store.selectedId.value, () => {
       @import-files="importStickerFiles"
       @import-folder="importStickerFolder"
       @open-sticker-folder="openStickerFolder"
+    />
+
+    <ImageViewerDialog
+      :open="imageViewerOpen"
+      :title="imageViewerTitle"
+      :src="imageViewerSrc"
+      :loading="imageViewerLoading"
+      :hint="imageViewerHint"
+      @close="closeImageViewer"
+      @download="imageViewerFile && actions.downloadFile(imageViewerFile)"
     />
 
     <ForwardDialog

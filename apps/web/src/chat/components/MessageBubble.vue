@@ -5,7 +5,7 @@ defineProps({
   message: { type: Object, required: true },
 });
 
-defineEmits(["download-file", "open-menu", "retry"]);
+defineEmits(["download-file", "open-image", "open-menu", "retry"]);
 </script>
 
 <template>
@@ -61,11 +61,12 @@ defineEmits(["download-file", "open-menu", "retry"]);
             v-for="file in message.files"
             :key="file.objectKey"
             class="file-card"
-            :class="{ expired: file.expired, clickable: !file.expired }"
+            :class="{ expired: file.expired, clickable: !file.expired, 'is-image-file': file.isImage }"
             type="button"
             :disabled="file.expired"
-            @click="$emit('download-file', file)"
+            @click="file.isImage ? $emit('open-image', file) : $emit('download-file', file)"
           >
+            <div v-if="file.isImage" class="file-image-mark">图片</div>
             <div class="file-card-main">
               <strong>{{ file.name }}</strong>
               <span class="muted">{{ file.metaText }}</span>

@@ -260,6 +260,7 @@ export function useChatStore(auth) {
       files: isFileMessage
         ? message.files.map((file) => ({
             ...file,
+            isImage: String(file.mimeType || "").startsWith("image/"),
             metaText: `${formatFileSize(file.size)} · ${(file.mimeType || "file").split("/").pop()?.toUpperCase() || "FILE"}`,
             expiryText: formatExpiry(file.expiresAt),
           }))
