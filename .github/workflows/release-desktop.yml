@@ -6,6 +6,9 @@ on:
       - "v*.*.*"
       - "v*.*.*-rc.*"
 
+permissions:
+  contents: write
+
 jobs:
   release-desktop:
     runs-on: windows-latest
@@ -43,7 +46,7 @@ jobs:
         run: npm ci
 
       - name: Set package version from tag
-        run: npm version ${{ steps.release.outputs.version }} --no-git-tag-version
+        run: npm version ${{ steps.release.outputs.version }} --no-git-tag-version --allow-same-version
 
       - name: Configure update channel
         shell: pwsh
@@ -83,6 +86,33 @@ jobs:
             release/desktop/${{ steps.release.outputs.version }}/*.exe
             release/desktop/${{ steps.release.outputs.version }}/*.blockmap
             release/desktop/${{ steps.release.outputs.version }}/release-manifest.json
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $tag = "${{ github.ref_name }}"
+          $version = "${{ steps.release.outputs.version }}"
+          $channel = "${{ steps.release.outputs.channel }}"
+          $releaseDir = "release/desktop/$version"
+          $files = @(
+            "$releaseDir/latest.yml",
+            "$releaseDir/Linksee Chat Setup $version.exe",
+            "$releaseDir/Linksee Chat Setup $version.exe.blockmap",
+            "$releaseDir/release-manifest.json"
+          )
+          $notes = "Channel: $channel`n`nArtifacts are also published to the Linksee Chat update server."
+
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $tag @files --clobber
+          } elseif ($channel -eq "staging") {
+            gh release create $tag @files --title "Linksee Chat $version" --notes $notes --prerelease
+          } else {
+            gh release create $tag @files --title "Linksee Chat $version" --notes $notes --latest
+          }
 
       - name: Publish to update server
         if: ${{ env.UPDATE_SSH_HOST != '' }}
