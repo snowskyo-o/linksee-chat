@@ -527,8 +527,10 @@ onBeforeUnmount(() => {
         :key="message.id"
         :message="message"
         @download-file="$emit('download-file', $event)"
+        @save-file-as="$emit('save-file-as', $event)"
         @open-image="$emit('open-image', $event)"
         @open-file="$emit('open-file', $event)"
+        @open-file-location="$emit('open-file-location', $event)"
         @open-menu="openMessageMenu"
         @retry="$emit('message-action', { id: $event, action: 'retry' })"
       />

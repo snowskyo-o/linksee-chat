@@ -6,7 +6,7 @@ defineProps({
   message: { type: Object, required: true },
 });
 
-defineEmits(["download-file", "open-image", "open-menu", "retry", "open-file", "open-file-location"]);
+defineEmits(["download-file", "save-file-as", "open-image", "open-menu", "retry", "open-file", "open-file-location"]);
 </script>
 
 <template>
@@ -65,8 +65,10 @@ defineEmits(["download-file", "open-image", "open-menu", "retry", "open-file", "
           :file="file"
           :is-me="message.isMe"
           @download="$emit('download-file', $event)"
+          @save-as="$emit('save-file-as', $event)"
           @open-image="$emit('open-image', $event)"
           @open-file="$emit('open-file', $event)"
+          @open-file-location="$emit('open-file-location', $event)"
         />
       </div>
     </div>

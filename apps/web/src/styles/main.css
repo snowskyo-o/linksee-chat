@@ -2461,7 +2461,7 @@ html body .desktop-page-shell { min-height: 100vh; }
 .message-file-copy {
   min-width: 0;
   display: grid;
-  gap: 14px;
+  gap: 10px;
 }
 .message-file-copy strong {
   overflow: hidden;
@@ -2478,6 +2478,21 @@ html body .desktop-page-shell { min-height: 100vh; }
   font-size: 13px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.message-file-actions,
+.message-image-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.message-inline-action {
+  color: #2f6bff;
+  font-size: 12px;
+  font-weight: 600;
+}
+.message-inline-action:hover {
+  color: #1e54d9;
+  text-decoration: underline;
 }
 .message-file-icon {
   width: 58px;
@@ -2511,33 +2526,54 @@ html body .desktop-page-shell { min-height: 100vh; }
   text-anchor: middle;
 }
 .message-image-card {
-  width: fit-content;
+  width: min(360px, 70vw);
   max-width: min(360px, 70vw);
-  max-height: 280px;
   overflow: hidden;
-  display: block;
+  display: grid;
+  grid-template-rows: minmax(120px, auto) auto auto;
   padding: 0;
   border: 0;
   border-radius: 8px;
+  text-align: left;
   background: #edf3fb;
   box-shadow: 0 10px 22px rgba(15, 23, 42, 0.08);
   cursor: zoom-in;
 }
 .message-image-card img {
   display: block;
-  max-width: min(360px, 70vw);
+  width: 100%;
   max-height: 280px;
-  width: auto;
   height: auto;
   object-fit: contain;
+  background: #f5f8fc;
 }
 .message-image-placeholder {
-  width: 180px;
-  height: 120px;
+  width: 100%;
+  min-height: 160px;
   display: grid;
   place-items: center;
   color: #7f8da3;
   font-size: 13px;
+}
+.message-image-copy {
+  display: grid;
+  gap: 3px;
+  padding: 10px 12px 0;
+}
+.message-image-copy strong {
+  overflow: hidden;
+  color: #1c2431;
+  font-size: 13px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.message-image-copy small {
+  color: #7e8ca2;
+  font-size: 12px;
+}
+.message-image-actions {
+  padding: 0 12px 12px;
 }
 .desktop-composer {
   position: relative;
