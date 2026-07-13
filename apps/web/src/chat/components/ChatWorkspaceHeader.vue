@@ -6,6 +6,7 @@ import ChatWorkspaceSearchBar from "./ChatWorkspaceSearchBar.vue";
 const props = defineProps({
   chatTitle: { type: String, default: "请选择会话" },
   chatKind: { type: String, default: "" },
+  hasConversation: { type: Boolean, default: false },
   participantCount: { type: Number, default: 0 },
   standaloneMode: { type: Boolean, default: false },
   networkBannerText: { type: String, default: "" },
@@ -28,7 +29,7 @@ const displayChatTitle = computed(() => {
 <template>
   <ChatStandaloneTopbar v-if="standaloneMode" />
 
-  <header class="chat-workspace-head" :class="{ 'is-standalone': standaloneMode }">
+  <header v-if="hasConversation" class="chat-workspace-head" :class="{ 'is-standalone': standaloneMode }">
     <div class="chat-title-block">
       <h2>{{ displayChatTitle }}</h2>
     </div>
@@ -40,6 +41,7 @@ const displayChatTitle = computed(() => {
   </div>
 
   <ChatWorkspaceSearchBar
+    v-if="hasConversation"
     :message-keyword="messageKeyword"
     :searching="searching"
     :search-result-text="searchResultText"

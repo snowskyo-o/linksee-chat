@@ -25,6 +25,7 @@ defineEmits([
   <ChatWorkspaceHeader
     :chat-title="chatTitle"
     :chat-kind="chatKind"
+    :has-conversation="hasConversation"
     :participant-count="participantCount"
     :standalone-mode="standaloneMode"
     :network-banner-text="networkBannerText"
