@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Unit tests
+        run: npm run test:unit
+
+      - name: Build web
+        run: npm run build:web
+
+      - name: Syntax checks
+        shell: pwsh
+        run: |
+          node --check apps/api/src/server/index.mjs
+          node --check apps/api/src/app.mjs
+          node --check apps/desktop/main.cjs
+          node --check apps/desktop/preload.cjs

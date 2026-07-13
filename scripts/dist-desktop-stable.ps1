@@ -13,19 +13,20 @@ $desktopReleaseDir = Join-Path $releaseDir "desktop"
 $versionReleaseDir = Join-Path $desktopReleaseDir $appVersion
 $electronCacheZip = "C:\Users\14300\AppData\Local\electron\Cache\5e0e70a0e0fed4233dc44442e29139d03b0ea0c6387fd4fc014de101787c1422\electron-v31.7.7-win32-x64.zip"
 $electronDist = Join-Path $projectRoot ".cache\electron-v31.7.7-win32-x64"
+$electronDistArg = ""
 
-if (-not (Test-Path $electronCacheZip)) {
-  throw "Electron cache zip not found: $electronCacheZip"
-}
+if (Test-Path $electronCacheZip) {
+  New-Item -ItemType Directory -Path (Split-Path -Parent $electronDist) -Force | Out-Null
 
-New-Item -ItemType Directory -Path (Split-Path -Parent $electronDist) -Force | Out-Null
-
-if (-not (Test-Path (Join-Path $electronDist "electron.exe"))) {
-  if (Test-Path $electronDist) {
-    Remove-Item -LiteralPath $electronDist -Recurse -Force
+  if (-not (Test-Path (Join-Path $electronDist "electron.exe"))) {
+    if (Test-Path $electronDist) {
+      Remove-Item -LiteralPath $electronDist -Recurse -Force
+    }
+    New-Item -ItemType Directory -Path $electronDist -Force | Out-Null
+    Expand-Archive -LiteralPath $electronCacheZip -DestinationPath $electronDist -Force
   }
-  New-Item -ItemType Directory -Path $electronDist -Force | Out-Null
-  Expand-Archive -LiteralPath $electronCacheZip -DestinationPath $electronDist -Force
+
+  $electronDistArg = "--config.electronDist=$electronDist"
 }
 
 $env:ELECTRON_MIRROR = "https://npmmirror.com/mirrors/electron/"
@@ -49,7 +50,11 @@ try {
 
   Write-Host "Packaging desktop app to $versionReleaseDir"
 
-  & npx electron-builder --win nsis --x64 "--config.electronDist=$electronDist" "--config.directories.output=$versionReleaseDir"
+  $builderArgs = @("--win", "nsis", "--x64", "--config.directories.output=$versionReleaseDir")
+  if ($electronDistArg) {
+    $builderArgs += $electronDistArg
+  }
+  & npx electron-builder @builderArgs
   if ($LASTEXITCODE -ne 0) {
     throw "electron-builder failed"
   }

@@ -204,28 +204,33 @@ function normalizeOrigin(value) {
   return String(value || "").trim().replace(/\/$/, "");
 }
 
-function readRemoteOrigin() {
-  const envOrigin = normalizeOrigin(process.env.DESKTOP_REMOTE_ORIGIN);
-  if (envOrigin) return envOrigin;
-
+function readDesktopConfigValue(key) {
   for (const file of configCandidates) {
     try {
       if (!file || !fs.existsSync(file)) continue;
       const parsed = JSON.parse(fs.readFileSync(file, "utf8"));
-      const remoteOrigin = normalizeOrigin(parsed?.remoteOrigin);
-      if (remoteOrigin) return remoteOrigin;
+      const value = normalizeOrigin(parsed?.[key]);
+      if (value) return value;
     } catch (error) {
       console.error(`[desktop] failed to read config ${file}`, error);
     }
   }
+  return "";
+}
 
-  return DEFAULT_REMOTE_ORIGIN;
+function readRemoteOrigin() {
+  const envOrigin = normalizeOrigin(process.env.DESKTOP_REMOTE_ORIGIN);
+  if (envOrigin) return envOrigin;
+
+  return readDesktopConfigValue("remoteOrigin") || DEFAULT_REMOTE_ORIGIN;
 }
 
 const remoteOrigin = readRemoteOrigin();
 const localOrigin = `http://127.0.0.1:${port}`;
 const targetOrigin = remoteOrigin || localOrigin;
-const updateFeedUrl = normalizeOrigin(process.env.DESKTOP_UPDATE_FEED_URL) || `${remoteOrigin}/updates/desktop/win`;
+const updateFeedUrl = normalizeOrigin(process.env.DESKTOP_UPDATE_FEED_URL)
+  || readDesktopConfigValue("updateFeedUrl")
+  || `${remoteOrigin}/updates/desktop/win/stable`;
 
 let loginWindow = null;
 let listWindow = null;

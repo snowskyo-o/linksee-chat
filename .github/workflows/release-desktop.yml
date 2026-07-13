@@ -1,0 +1,102 @@
+name: Release Desktop
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+      - "v*.*.*-rc.*"
+
+jobs:
+  release-desktop:
+    runs-on: windows-latest
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      ELECTRON_MIRROR: "https://npmmirror.com/mirrors/electron/"
+      ELECTRON_BUILDER_BINARIES_MIRROR: "https://npmmirror.com/mirrors/electron-builder-binaries/"
+      UPDATE_SSH_HOST: ${{ secrets.UPDATE_SSH_HOST }}
+      UPDATE_SSH_USER: ${{ secrets.UPDATE_SSH_USER }}
+      UPDATE_SSH_KEY: ${{ secrets.UPDATE_SSH_KEY }}
+      UPDATE_SSH_PORT: ${{ secrets.UPDATE_SSH_PORT }}
+      UPDATE_SSH_TARGET: ${{ secrets.UPDATE_SSH_TARGET }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Resolve release channel
+        id: release
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $version = $tag.TrimStart("v")
+          $channel = if ($version -match "-rc\.") { "staging" } else { "stable" }
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "channel=$channel" >> $env:GITHUB_OUTPUT
+
+      - name: Install
+        run: npm ci
+
+      - name: Set package version from tag
+        run: npm version ${{ steps.release.outputs.version }} --no-git-tag-version
+
+      - name: Configure update channel
+        shell: pwsh
+        run: |
+          $configPath = "desktop-config.default.json"
+          $config = Get-Content -Raw $configPath | ConvertFrom-Json
+          $config.updateFeedUrl = "http://186.241.89.102/updates/desktop/win/${{ steps.release.outputs.channel }}"
+          $config | ConvertTo-Json -Depth 8 | Set-Content -Encoding UTF8 $configPath
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Unit tests
+        run: npm run test:unit
+
+      - name: Build desktop installer
+        run: npm run dist:desktop
+
+      - name: Create release manifest
+        env:
+          RELEASE_CHANNEL: ${{ steps.release.outputs.channel }}
+          RELEASE_FEED_URL: http://186.241.89.102/updates/desktop/win/${{ steps.release.outputs.channel }}
+        run: npm run release:manifest -- ${{ steps.release.outputs.version }}
+
+      - name: Verify release artifacts
+        run: npm run release:verify -- ${{ steps.release.outputs.version }}
+
+      - name: Upload workflow artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linksee-chat-${{ steps.release.outputs.version }}-${{ steps.release.outputs.channel }}
+          path: |
+            release/desktop/${{ steps.release.outputs.version }}/latest.yml
+            release/desktop/${{ steps.release.outputs.version }}/*.exe
+            release/desktop/${{ steps.release.outputs.version }}/*.blockmap
+            release/desktop/${{ steps.release.outputs.version }}/release-manifest.json
+
+      - name: Publish to update server
+        if: ${{ env.UPDATE_SSH_HOST != '' }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $port = if ($env:UPDATE_SSH_PORT) { $env:UPDATE_SSH_PORT } else { "22" }
+          $targetRoot = if ($env:UPDATE_SSH_TARGET) { $env:UPDATE_SSH_TARGET } else { "/home/linksee-chat" }
+          $target = "$targetRoot/updates/desktop/win/${{ steps.release.outputs.channel }}"
+          $keyPath = Join-Path $env:RUNNER_TEMP "linksee_update_key"
+          $remote = "$($env:UPDATE_SSH_USER)@$($env:UPDATE_SSH_HOST)"
+          $env:UPDATE_SSH_KEY | Set-Content -NoNewline -Encoding ascii $keyPath
+          icacls $keyPath /inheritance:r /grant:r "$env:USERNAME:R" | Out-Null
+          ssh -i $keyPath -p $port -o StrictHostKeyChecking=no $remote "mkdir -p '$target'"
+          scp -i $keyPath -P $port -o StrictHostKeyChecking=no `
+            "release/desktop/${{ steps.release.outputs.version }}/latest.yml" `
+            "release/desktop/${{ steps.release.outputs.version }}/Linksee Chat Setup ${{ steps.release.outputs.version }}.exe" `
+            "release/desktop/${{ steps.release.outputs.version }}/Linksee Chat Setup ${{ steps.release.outputs.version }}.exe.blockmap" `
+            "release/desktop/${{ steps.release.outputs.version }}/release-manifest.json" `
+            "$($remote):$target/"

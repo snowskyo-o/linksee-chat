@@ -1,6 +1,6 @@
 {
     "name": "linksee-chat",
-    "version": "0.4.9",
+    "version": "0.4.10",
     "private": true,
     "type": "module",
     "main": "apps/desktop/main.cjs",
@@ -27,7 +27,9 @@
         "db:seed": "node ./prisma/seed.mjs",
         "docker:up": "docker compose up -d --build",
         "docker:down": "docker compose down",
-        "pack:desktop": "npm run build:web && electron-builder --dir"
+        "pack:desktop": "npm run build:web && electron-builder --dir",
+        "release:manifest": "node ./scripts/release/create-manifest.mjs",
+        "release:verify": "node ./scripts/release/verify-artifacts.mjs"
     },
     "build": {
         "appId": "com.snowskyo.linkseechat",
@@ -64,7 +66,7 @@
         },
         "publish": {
             "provider": "generic",
-            "url": "http://186.241.89.102/updates/desktop/win"
+            "url": "http://186.241.89.102/updates/desktop/win/stable"
         },
         "extraResources": [
             {
