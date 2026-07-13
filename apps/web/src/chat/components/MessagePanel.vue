@@ -1,10 +1,9 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import ChatComposer from "./ChatComposer.vue";
+import MessageListViewport from "./MessageListViewport.vue";
 import ChatWorkspaceHeader from "./ChatWorkspaceHeader.vue";
-import MessageBubble from "./MessageBubble.vue";
 import MessageContextMenu from "./MessageContextMenu.vue";
-import StatePanel from "./StatePanel.vue";
 
 const props = defineProps({
   chatTitle: { type: String, default: "请选择会话" },
@@ -69,7 +68,7 @@ const emit = defineEmits([
   "retry-load",
 ]);
 
-const messageListRef = ref(null);
+const messageListViewportRef = ref(null);
 const workspaceRef = ref(null);
 const pendingIncomingCount = ref(0);
 const dragActive = ref(false);
@@ -204,7 +203,7 @@ function selectContextItem(item) {
 }
 
 function collectSearchMatches() {
-  const element = messageListRef.value;
+  const element = messageListViewportRef.value?.getListElement?.();
   if (!element) {
     searchMatches.value = [];
     searchMatchIndex.value = -1;
@@ -233,7 +232,7 @@ function jumpSearchMatch(step) {
 }
 
 function getDistanceFromBottom() {
-  const element = messageListRef.value;
+  const element = messageListViewportRef.value?.getListElement?.();
   if (!element) return 0;
   return Math.max(0, element.scrollHeight - element.scrollTop - element.clientHeight);
 }
@@ -247,7 +246,7 @@ function clearIncomingIndicator() {
 }
 
 function scrollMessageListToBottom(behavior = "auto") {
-  const element = messageListRef.value;
+  const element = messageListViewportRef.value?.getListElement?.();
   if (!element) return;
   element.scrollTo({
     top: element.scrollHeight,
@@ -325,7 +324,7 @@ onMounted(() => {
   window.addEventListener("blur", handleWindowDragEnd);
   nextTick(() => {
     scrollMessageListToBottom("auto");
-    messageListRef.value?.addEventListener("scroll", handleMessageListScroll, { passive: true });
+    messageListViewportRef.value?.getListElement?.()?.addEventListener("scroll", handleMessageListScroll, { passive: true });
   });
 });
 watch(
@@ -363,7 +362,7 @@ onBeforeUnmount(() => {
   window.removeEventListener("drop", handleWindowDragEnd);
   window.removeEventListener("dragend", handleWindowDragEnd);
   window.removeEventListener("blur", handleWindowDragEnd);
-  messageListRef.value?.removeEventListener("scroll", handleMessageListScroll);
+  messageListViewportRef.value?.getListElement?.()?.removeEventListener("scroll", handleMessageListScroll);
 });
 </script>
 
@@ -395,54 +394,25 @@ onBeforeUnmount(() => {
       @search-next="jumpSearchMatch(1)"
     />
 
-    <div ref="messageListRef" class="message-list desktop-message-list">
-      <button
-        v-if="hasMoreMessages"
-        class="ghost-btn load-more-btn compact-btn"
-        type="button"
-        :disabled="loadingMoreMessages"
-        @click="$emit('load-more')"
-      >
-        {{ loadingMoreMessages ? "加载中..." : "查看更多消息" }}
-      </button>
-      <StatePanel
-        v-if="!hasConversation"
-        title="暂无会话"
-        message="选择一个联系人开始聊天"
-      />
-      <StatePanel
-        v-else-if="!messages.length && loadState?.status === 'error'"
-        title="加载失败，请重试"
-        :message="loadState?.message || '暂时无法获取聊天内容'"
-        action-text="重新加载"
-        @action="$emit('retry-load')"
-      />
-      <div v-else-if="!messages.length" class="empty-state">这里还没有消息，发一条开始吧。</div>
-      <MessageBubble
-        v-for="message in messages"
-        :key="message.id"
-        :message="message"
-        @download-file="$emit('download-file', $event)"
-        @save-file-as="$emit('save-file-as', $event)"
-        @open-image="$emit('open-image', $event)"
-        @open-file="$emit('open-file', $event)"
-        @open-file-location="$emit('open-file-location', $event)"
-        @open-menu="openMessageMenu"
-        @retry="$emit('message-action', { id: $event, action: 'retry' })"
-      />
-      <button
-        v-if="pendingIncomingCount"
-        class="new-message-indicator"
-        type="button"
-        @click="scrollMessageListToBottom('smooth')"
-      >
-        <span class="new-message-indicator__count">{{ pendingIncomingCount }}</span>
-        <span>新消息</span>
-        <svg viewBox="0 0 20 20" aria-hidden="true">
-          <path d="M10 14.25 4.75 9l1.5-1.5 2.75 2.75V4.5h2v5.75L13.75 7.5l1.5 1.5L10 14.25Z"/>
-        </svg>
-      </button>
-    </div>
+    <MessageListViewport
+      ref="messageListViewportRef"
+      :has-conversation="hasConversation"
+      :has-more-messages="hasMoreMessages"
+      :load-state="loadState"
+      :loading-more-messages="loadingMoreMessages"
+      :messages="messages"
+      :pending-incoming-count="pendingIncomingCount"
+      @download-file="$emit('download-file', $event)"
+      @load-more="$emit('load-more')"
+      @message-action="$emit('message-action', $event)"
+      @open-file="$emit('open-file', $event)"
+      @open-file-location="$emit('open-file-location', $event)"
+      @open-image="$emit('open-image', $event)"
+      @open-menu="openMessageMenu"
+      @retry-load="$emit('retry-load')"
+      @save-file-as="$emit('save-file-as', $event)"
+      @scroll-to-bottom="scrollMessageListToBottom('smooth')"
+    />
 
     <ChatComposer
       :show-reply-bar="showReplyBar"
