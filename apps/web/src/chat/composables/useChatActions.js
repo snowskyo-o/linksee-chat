@@ -799,6 +799,7 @@ export function useChatActions(store) {
     loadOlderMessages: dataActions.loadOlderMessages,
     refreshSelectedConversation: dataActions.refreshSelectedConversation,
     refreshAll: dataActions.refreshAll,
+    markConversationReadIfNeeded: dataActions.markConversationReadIfNeeded,
     saveConversationDraft: dataActions.saveConversationDraft,
     loadConversationDraft: dataActions.loadConversationDraft,
     selectConversation,

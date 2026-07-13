@@ -138,7 +138,9 @@ function scheduleConversationsRefresh() {
 function scheduleSelectedRefresh() {
   if (selectedRefreshTimer) window.clearTimeout(selectedRefreshTimer);
   selectedRefreshTimer = window.setTimeout(() => {
-    actions.refreshSelectedConversation().catch(() => {});
+    actions.refreshSelectedConversation()
+      .then(() => syncReadStateIfFocused())
+      .catch(() => {});
     selectedRefreshTimer = null;
   }, 120);
 }
@@ -243,6 +245,11 @@ function isCurrentConversationFocused(conversationId) {
   return document.visibilityState === "visible"
     && document.hasFocus()
     && String(store.selectedId.value) === String(conversationId);
+}
+
+function syncReadStateIfFocused() {
+  if (!isCurrentConversationFocused(store.selectedId.value)) return Promise.resolve();
+  return actions.markConversationReadIfNeeded?.().catch(() => {});
 }
 
 function syncDesktopWindowContext() {
@@ -504,6 +511,8 @@ function handleAvatarUpload(event) {
 
 onMounted(async () => {
   try {
+    window.addEventListener("focus", syncReadStateIfFocused);
+    document.addEventListener("visibilitychange", syncReadStateIfFocused);
     const runtimeInfo = await window.desktopShell?.getAppInfo?.().catch(() => null);
     if (runtimeInfo) {
       appInfo.value = {
@@ -549,6 +558,8 @@ onMounted(async () => {
 });
 
 onBeforeUnmount(() => {
+  window.removeEventListener("focus", syncReadStateIfFocused);
+  document.removeEventListener("visibilitychange", syncReadStateIfFocused);
   if (conversationsRefreshTimer) window.clearTimeout(conversationsRefreshTimer);
   if (selectedRefreshTimer) window.clearTimeout(selectedRefreshTimer);
   if (draftPersistTimer) window.clearTimeout(draftPersistTimer);
