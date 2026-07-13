@@ -1,9 +1,9 @@
 <script setup>
 import { ref } from "vue";
-import ChatComposer from "./ChatComposer.vue";
-import MessageListViewport from "./MessageListViewport.vue";
 import ChatWorkspaceHeader from "./ChatWorkspaceHeader.vue";
-import MessageContextMenu from "./MessageContextMenu.vue";
+import MessageListViewport from "./MessageListViewport.vue";
+import MessagePanelComposer from "./MessagePanelComposer.vue";
+import MessagePanelOverlay from "./MessagePanelOverlay.vue";
 import { useMessagePanelContextMenu } from "../composables/useMessagePanelContextMenu.js";
 import { useMessagePanelDrag } from "../composables/useMessagePanelDrag.js";
 import { useMessagePanelScroll } from "../composables/useMessagePanelScroll.js";
@@ -128,7 +128,7 @@ const { jumpSearchMatch, searchMatchIndex, searchMatches } = useMessagePanelSear
       @scroll-to-bottom="scrollMessageListToBottom('smooth')"
     />
 
-    <ChatComposer
+    <MessagePanelComposer
       :show-reply-bar="showReplyBar"
       :reply-text="replyText"
       :message-input="messageInput"
@@ -160,20 +160,11 @@ const { jumpSearchMatch, searchMatchIndex, searchMatches } = useMessagePanelSear
       @remove-pending-file="$emit('remove-pending-file', $event)"
     />
 
-    <MessageContextMenu
-      :open="messageMenu.open"
-      :x="messageMenu.x"
-      :y="messageMenu.y"
-      :items="contextMenuItems"
-      @select="selectContextItem"
+    <MessagePanelOverlay
+      :context-menu-items="contextMenuItems"
+      :drag-active="dragActive"
+      :message-menu="messageMenu"
+      @select-context="selectContextItem"
     />
-
-    <div v-if="dragActive" class="chat-drop-overlay">
-      <div class="chat-drop-card chat-drop-card-quiet">
-        <svg viewBox="0 0 48 48" aria-hidden="true">
-          <path d="M10 10h12l4 5h12a4 4 0 0 1 4 4v15a4 4 0 0 1-4 4H10a4 4 0 0 1-4-4V14a4 4 0 0 1 4-4Zm14 10-8 8h5v7h6v-7h5l-8-8Z"/>
-        </svg>
-      </div>
-    </div>
   </section>
 </template>
