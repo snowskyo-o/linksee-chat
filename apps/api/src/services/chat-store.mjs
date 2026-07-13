@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { prisma } from "../../../../infra/db/prisma.mjs";
 import { sanitizeUser } from "./chat-user-presenter.mjs";
+import { buildDirectConversationWhere, buildFriendshipWhere, collectContactIds } from "./chat-store-helpers.mjs";
 import { decorateUsersWithFriendAliases } from "./friend-store.mjs";
 
 export function nextEventId() {
@@ -22,18 +23,10 @@ export async function findUserById(userId) {
 export async function findContacts(userId) {
   const [friendships, directConversations] = await Promise.all([
     prisma.chatFriendship.findMany({
-      where: {
-        OR: [
-          { userLowId: userId },
-          { userHighId: userId },
-        ],
-      },
+      where: buildFriendshipWhere(userId),
     }),
     prisma.chatConversation.findMany({
-      where: {
-        kind: "direct",
-        members: { some: { userId } },
-      },
+      where: buildDirectConversationWhere(userId),
       include: {
         members: {
           include: {
@@ -43,17 +36,7 @@ export async function findContacts(userId) {
       },
     }),
   ]);
-
-  const contactIds = new Set(
-    friendships.map((row) => (row.userLowId === userId ? row.userHighId : row.userLowId)),
-  );
-
-  directConversations.forEach((conversation) => {
-    conversation.members.forEach((member) => {
-      if (member.userId !== userId) contactIds.add(member.userId);
-    });
-  });
-
+  const contactIds = collectContactIds(friendships, directConversations, userId);
   if (!contactIds.size) return [];
 
   const users = await prisma.user.findMany({

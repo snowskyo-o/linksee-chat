@@ -1,42 +1,11 @@
 <script setup>
 import AvatarImage from "../../shared/components/AvatarImage.vue";
 import StatePanel from "./StatePanel.vue";
+import { conversationSidebarEmits, conversationSidebarProps } from "./conversation-sidebar-contract.js";
+import { formatConversationTime } from "./conversation-sidebar-time.js";
 
-function formatConversationTime(value) {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  const now = new Date();
-  if (date.toDateString() === now.toDateString()) {
-    return date.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
-  }
-  return date.toLocaleDateString("zh-CN", { month: "2-digit", day: "2-digit" });
-}
-
-defineProps({
-  meName: { type: String, default: "未登录" },
-  meMeta: { type: String, default: "" },
-  meAvatar: { type: String, default: "ME" },
-  meAvatarUrl: { type: String, default: "" },
-  keyword: { type: String, default: "" },
-  conversations: { type: Array, default: () => [] },
-  selectedId: { type: String, default: "" },
-  listOnly: { type: Boolean, default: false },
-  loadState: { type: Object, default: () => ({ status: "idle", message: "" }) },
-});
-
-defineEmits([
-  "update:keyword",
-  "select",
-  "open",
-  "refresh",
-  "new-direct",
-  "new-group",
-  "open-settings",
-  "logout",
-  "toggle-pin",
-  "retry-load",
-]);
+defineProps(conversationSidebarProps);
+defineEmits(conversationSidebarEmits);
 </script>
 
 <template>
