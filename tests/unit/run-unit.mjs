@@ -8,7 +8,7 @@ const { mergeMessagesById } = await import("../../apps/web/src/chat/composables/
 const { resolveImageViewerOwnerMessageId } = await import("../../apps/web/src/chat/composables/chat-image-viewer-derived.js");
 const { isMessageActionAvailable } = await import("../../apps/web/src/chat/composables/chat-message-action-rules.js");
 const { resolveIncomingNotificationCopy } = await import("../../apps/web/src/chat/composables/chat-realtime-notifications.js");
-const { buildDerivedConversationPreview, buildReplyPreviewText } = await import("../../apps/web/src/chat/store/chat-store-derived-utils.js");
+const { buildDerivedConversationPreview, buildFavoriteMessagePreview, buildReplyPreviewText } = await import("../../apps/web/src/chat/store/chat-store-derived-utils.js");
 const { canDeleteMessageForCurrentUser } = await import("../../apps/web/src/chat/store/chat-store-message-derived.js");
 
 const source = "http://minio:9000/chat-files/path/file.txt?X-Amz-Signature=abc";
@@ -146,3 +146,15 @@ assert.deepEqual(
 );
 
 console.log("[unit] notification copy uses derived conversation title");
+
+assert.equal(
+  buildFavoriteMessagePreview({ type: "file", content: "", preview: "" }),
+  "[文件]",
+);
+
+assert.equal(
+  buildFavoriteMessagePreview({ preview: "原图.png" }),
+  "原图.png",
+);
+
+console.log("[unit] favorite preview follows derived message summary");

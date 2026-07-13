@@ -1,4 +1,6 @@
 <script setup>
+import { buildFavoriteMessagePreview } from "../store/chat-store-derived-utils.js";
+
 defineProps({
   favorites: { type: Array, default: () => [] },
   formatTime: { type: Function, required: true },
@@ -30,7 +32,7 @@ defineEmits(["open-favorite", "remove-favorite"]);
         </div>
         <p class="qq-thread-subtitle">{{ item.senderName }}</p>
         <div class="qq-thread-preview-row">
-          <p class="qq-thread-preview">{{ item.content }}</p>
+          <p class="qq-thread-preview">{{ buildFavoriteMessagePreview(item) }}</p>
         </div>
       </div>
     </article>

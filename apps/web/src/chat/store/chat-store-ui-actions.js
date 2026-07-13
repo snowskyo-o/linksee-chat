@@ -1,10 +1,10 @@
+import { buildDerivedMessagePreview } from "./chat-store-derived-utils.js";
+
 export function createChatStoreUiActions(state, derived, saveFavoriteMessages) {
   function pushNotification({ title, message = "", tone = "success", ttl = 3200 }) {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     state.notifications.value = [...state.notifications.value, { id, title, message, tone }];
-    if (ttl > 0) {
-      window.setTimeout(() => dismissNotification(id), ttl);
-    }
+    if (ttl > 0) window.setTimeout(() => dismissNotification(id), ttl);
     return id;
   }
 
@@ -30,15 +30,15 @@ export function createChatStoreUiActions(state, derived, saveFavoriteMessages) {
   function toggleFavoriteMessage(message) {
     const targetId = String(message?.id || "");
     if (!targetId) return;
-    if (state.favoriteMessages.value.some((item) => item.id === targetId)) {
-      state.favoriteMessages.value = state.favoriteMessages.value.filter((item) => item.id !== targetId);
-    } else {
+    if (state.favoriteMessages.value.some((item) => item.id === targetId)) state.favoriteMessages.value = state.favoriteMessages.value.filter((item) => item.id !== targetId);
+    else {
       state.favoriteMessages.value = [{
         id: targetId,
         conversationId: String(message.conversationId || state.selectedId.value || ""),
         conversationTitle: derived.chatTitle.value || "收藏消息",
         senderName: message.sender?.profile?.realName || message.senderName || message.senderId || "未知用户",
         content: message.content || "[空消息]",
+        preview: buildDerivedMessagePreview(message),
         createdAt: message.createdAt || new Date().toISOString(),
       }, ...state.favoriteMessages.value];
     }

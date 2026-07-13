@@ -45,6 +45,12 @@ export function buildDerivedMessagePreview(message, authUserId = "") {
   return message.content || "[空消息]";
 }
 
+export function buildFavoriteMessagePreview(item) {
+  if (!item) return "[空消息]";
+  if (item.preview) return String(item.preview);
+  return buildDerivedMessagePreview(item);
+}
+
 function resolveMessageSenderName(message, authUserId) {
   if (String(message?.senderId || "") === String(authUserId || "")) return "你";
   return message?.sender?.profile?.realName || message?.senderId || "";

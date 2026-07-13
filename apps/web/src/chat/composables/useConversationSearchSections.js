@@ -1,4 +1,5 @@
 import { computed } from "vue";
+import { buildFavoriteMessagePreview } from "../store/chat-store-derived-utils.js";
 
 export function useConversationSearchSections(store, searchKeyword, contactRows) {
   return computed(() => {
@@ -31,14 +32,14 @@ export function useConversationSearchSections(store, searchKeyword, contactRows)
       }));
 
     const favorites = store.favoriteMessages.value
-      .filter((item) => includesKeyword(item.conversationTitle, item.senderName, item.content))
+      .filter((item) => includesKeyword(item.conversationTitle, item.senderName, item.content, buildFavoriteMessagePreview(item)))
       .slice(0, 4)
       .map((item) => ({
         key: `favorite:${item.id}:${item.conversationId}`,
         id: item.id,
         conversationId: item.conversationId,
         title: item.conversationTitle,
-        subtitle: `${item.senderName}：${item.content || "[空消息]"}`,
+        subtitle: `${item.senderName}：${buildFavoriteMessagePreview(item)}`,
         meta: "收藏消息",
         kind: "favorite",
         avatarUrl: "",

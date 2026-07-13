@@ -10,6 +10,7 @@ export function loadFavoriteMessages() {
       conversationTitle: String(item.conversationTitle || "收藏消息"),
       senderName: String(item.senderName || "未知用户"),
       content: String(item.content || ""),
+      preview: String(item.preview || item.content || ""),
       createdAt: String(item.createdAt || ""),
     })).filter((item) => item.id && item.conversationId) : [];
   } catch {
