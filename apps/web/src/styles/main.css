@@ -2972,6 +2972,11 @@ html body .desktop-page-shell { min-height: 100vh; }
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   color: #f8fbff;
 }
+.image-viewer-title-block {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
 .image-viewer-toolbar strong {
   min-width: 0;
   overflow: hidden;
@@ -2980,8 +2985,16 @@ html body .desktop-page-shell { min-height: 100vh; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.image-viewer-title-block small {
+  color: rgba(248, 251, 255, 0.72);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .image-viewer-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   flex: none;
@@ -2998,6 +3011,10 @@ html body .desktop-page-shell { min-height: 100vh; }
 }
 .image-viewer-actions button:hover {
   background: rgba(255, 255, 255, 0.18);
+}
+.image-viewer-actions button:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
 }
 .image-viewer-stage {
   display: grid;

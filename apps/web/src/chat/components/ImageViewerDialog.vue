@@ -7,9 +7,14 @@ const props = defineProps({
   src: { type: String, default: "" },
   loading: { type: Boolean, default: false },
   hint: { type: String, default: "" },
+  statusText: { type: String, default: "" },
+  canDownload: { type: Boolean, default: false },
+  canCopy: { type: Boolean, default: false },
+  canForward: { type: Boolean, default: false },
+  canOpenLocation: { type: Boolean, default: false },
 });
 
-defineEmits(["close", "download"]);
+defineEmits(["close", "download", "copy", "forward", "open-location"]);
 
 const scale = ref(1);
 const fitMode = ref(true);
@@ -44,12 +49,18 @@ watch(() => props.open, (nextValue) => {
   <div v-if="open" class="dialog-backdrop image-viewer-backdrop" @click.self="$emit('close')">
     <section class="image-viewer-dialog">
       <header class="image-viewer-toolbar">
-        <strong>{{ title || "图片预览" }}</strong>
+        <div class="image-viewer-title-block">
+          <strong>{{ title || "图片预览" }}</strong>
+          <small v-if="statusText">{{ statusText }}</small>
+        </div>
         <div class="image-viewer-actions">
           <button type="button" title="缩小" @click="zoomOut">−</button>
           <button type="button" title="适应窗口" @click="resetFit">{{ fitMode ? "1:1" : `${Math.round(scale * 100)}%` }}</button>
           <button type="button" title="放大" @click="zoomIn">+</button>
-          <button type="button" title="下载" @click="$emit('download')">下载</button>
+          <button type="button" title="保存图片" :disabled="!canDownload" @click="$emit('download')">保存</button>
+          <button type="button" title="复制图片" :disabled="!canCopy" @click="$emit('copy')">复制</button>
+          <button type="button" title="转发图片" :disabled="!canForward" @click="$emit('forward')">转发</button>
+          <button type="button" title="打开所在位置" :disabled="!canOpenLocation" @click="$emit('open-location')">位置</button>
           <button type="button" title="关闭" @click="$emit('close')">关闭</button>
         </div>
       </header>
