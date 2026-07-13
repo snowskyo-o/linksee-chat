@@ -1,4 +1,5 @@
 import { findMessage, normalizeMessage, patchMessageLocally, replaceMessageLocally, syncConversationPreview } from "./message-operations.js";
+import { isMessageActionAvailable } from "./chat-message-action-rules.js";
 
 export function createChatMessageActions({ store, chatApi, dataActions, fileActions }) {
   async function copyMessage(message) {
@@ -33,7 +34,7 @@ export function createChatMessageActions({ store, chatApi, dataActions, fileActi
 
   function handleMessageAction({ id, action }) {
     const message = findMessage(store, id);
-    if (!message || (message.operationState && !["retry", "delete"].includes(action))) return;
+    if (!isMessageActionAvailable(message, action)) return;
     if (action === "reply") {
       store.replyTo.value = message;
       return;

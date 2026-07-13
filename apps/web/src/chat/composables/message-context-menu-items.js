@@ -1,12 +1,14 @@
+import { isMessageActionAvailable } from "./chat-message-action-rules.js";
+
 export function buildBaseMessageItems(message) {
   const items = [];
-  if (message.canCopy) items.push({ key: "copy", label: "复制" });
-  items.push({ key: "reply", label: "回复" });
-  if (message.canForward) items.push({ key: "forward", label: "转发" });
-  items.push({ key: "favorite", label: message.isFavorite ? "取消收藏" : "收藏" });
-  if (message.canRecall) items.push({ key: "recall", label: "撤回", tone: "danger" });
-  if (message.canDelete) items.push({ key: "delete", label: "删除", tone: "danger" });
-  if (message.canRetry) items.push({ key: "retry", label: "重试发送" });
+  if (isMessageActionAvailable(message, "copy")) items.push({ key: "copy", label: "复制" });
+  if (isMessageActionAvailable(message, "reply")) items.push({ key: "reply", label: "回复" });
+  if (isMessageActionAvailable(message, "forward")) items.push({ key: "forward", label: "转发" });
+  if (isMessageActionAvailable(message, "favorite")) items.push({ key: "favorite", label: message.isFavorite ? "取消收藏" : "收藏" });
+  if (isMessageActionAvailable(message, "recall")) items.push({ key: "recall", label: "撤回", tone: "danger" });
+  if (isMessageActionAvailable(message, "delete")) items.push({ key: "delete", label: "删除", tone: "danger" });
+  if (isMessageActionAvailable(message, "retry")) items.push({ key: "retry", label: "重试发送" });
   return items;
 }
 

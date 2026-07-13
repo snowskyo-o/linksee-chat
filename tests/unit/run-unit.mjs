@@ -6,6 +6,7 @@ const { toPublicMinioUrl } = await import("../../infra/storage/minio.mjs");
 const { mergeUserProfile, mergeUsersById } = await import("../../apps/web/src/chat/composables/chat-profile-merge.js");
 const { mergeMessagesById } = await import("../../apps/web/src/chat/composables/chat-profile-merge-conversations.js");
 const { resolveImageViewerOwnerMessageId } = await import("../../apps/web/src/chat/composables/chat-image-viewer-derived.js");
+const { isMessageActionAvailable } = await import("../../apps/web/src/chat/composables/chat-message-action-rules.js");
 const { canDeleteMessageForCurrentUser } = await import("../../apps/web/src/chat/store/chat-store-message-derived.js");
 
 const source = "http://minio:9000/chat-files/path/file.txt?X-Amz-Signature=abc";
@@ -84,3 +85,10 @@ assert.equal(canDeleteMessageForCurrentUser({ senderId: "alice", deletedAt: null
 assert.equal(canDeleteMessageForCurrentUser({ senderId: "bob", deletedAt: "2026-01-01T00:00:00.000Z", operationState: "" }, "alice"), false);
 
 console.log("[unit] local delete is available for normal visible messages");
+
+assert.equal(isMessageActionAvailable({ deletedAt: null, operationState: "failed", canCopy: true }, "copy"), true);
+assert.equal(isMessageActionAvailable({ deletedAt: null, operationState: "failed" }, "reply"), false);
+assert.equal(isMessageActionAvailable({ deletedAt: null, operationState: "failed", canDelete: true }, "delete"), true);
+assert.equal(isMessageActionAvailable({ deletedAt: null, operationState: "", canForward: true }, "forward"), true);
+
+console.log("[unit] failed message actions stay consistent with menu rules");
