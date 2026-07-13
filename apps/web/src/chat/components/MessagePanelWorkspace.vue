@@ -16,6 +16,7 @@ defineEmits([
   "cancel-edit", "capture-screenshot", "clear-recent-stickers", "clear-search", "download-file", "file-change",
   "file-paste", "load-more", "mention-pick", "message-action", "message-keydown", "open-file", "open-file-location",
   "open-image", "open-menu", "open-file-picker", "open-sticker-import", "remove-pending-file", "retry-load",
+  "retry-pending-file",
   "save-file-as", "scroll-to-bottom", "search", "search-next", "search-prev", "send-sticker", "submit",
   "update:messageInput", "update:messageKeyword",
 ]);
@@ -91,5 +92,6 @@ defineEmits([
     @file-change="$emit('file-change', $event)"
     @file-paste="$emit('file-paste', $event)"
     @remove-pending-file="$emit('remove-pending-file', $event)"
+    @retry-pending-file="$emit('retry-pending-file', $event)"
   />
 </template>

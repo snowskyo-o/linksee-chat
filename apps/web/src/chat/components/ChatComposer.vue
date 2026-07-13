@@ -61,7 +61,12 @@ const sendSticker = (sticker) => {
       @clear-recent="$emit('clear-recent-stickers')"
     />
 
-    <AttachmentPreview :files="pendingFiles" @remove="$emit('remove-pending-file', $event)" />
+    <AttachmentPreview
+      :files="pendingFiles"
+      :uploading-files="uploadingFiles"
+      @remove="$emit('remove-pending-file', $event)"
+      @retry="$emit('retry-pending-file', $event)"
+    />
 
     <ChatComposerEditor
       ref="composerEditorRef"

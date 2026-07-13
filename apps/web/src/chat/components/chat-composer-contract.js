@@ -20,5 +20,5 @@ export const chatComposerProps = {
 export const chatComposerEmits = [
   "cancel-edit", "update:messageInput", "message-keydown", "mention-pick", "submit",
   "open-file-picker", "capture-screenshot", "open-sticker-import", "send-sticker",
-  "clear-recent-stickers", "file-change", "file-paste", "remove-pending-file",
+  "clear-recent-stickers", "file-change", "file-paste", "remove-pending-file", "retry-pending-file",
 ];

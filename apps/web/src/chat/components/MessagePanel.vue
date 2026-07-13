@@ -45,6 +45,7 @@ const workspaceListeners = {
   "open-file-picker": () => emit("open-file-picker"),
   "open-sticker-import": () => emit("open-sticker-import"),
   "remove-pending-file": (file) => emit("remove-pending-file", file),
+  "retry-pending-file": (file) => emit("retry-pending-file", file),
   "retry-load": () => emit("retry-load"),
   "save-file-as": (file) => emit("save-file-as", file),
   "scroll-to-bottom": () => scrollMessageListToBottom("smooth"),

@@ -1,9 +1,10 @@
 <script setup>
 defineProps({
   files: { type: Array, default: () => [] },
+  uploadingFiles: { type: Boolean, default: false },
 });
 
-defineEmits(["remove"]);
+defineEmits(["remove", "retry"]);
 </script>
 
 <template>
@@ -23,8 +24,17 @@ defineEmits(["remove"]);
         <div v-if="file.uploadStatus === 'uploading'" class="composer-attachment-progress">
           <span :style="{ width: `${Math.max(2, Math.min(100, Number(file.uploadProgress || 0)))}%` }"></span>
         </div>
+        <button
+          v-if="file.uploadStatus === 'failed'"
+          class="ghost-btn compact-btn"
+          type="button"
+          :disabled="uploadingFiles"
+          @click="$emit('retry', file.id)"
+        >
+          重试
+        </button>
       </div>
-      <button class="composer-attachment-remove" type="button" title="移除" :disabled="file.uploadStatus === 'uploading'" @click="$emit('remove', file.id)">
+      <button class="composer-attachment-remove" type="button" title="移除" :disabled="file.uploadStatus === 'uploading' || uploadingFiles" @click="$emit('remove', file.id)">
         <svg viewBox="0 0 16 16" aria-hidden="true">
           <path d="m4.2 3.1 3.8 3.8 3.8-3.8 1.1 1.1L9.1 8l3.8 3.8-1.1 1.1L8 9.1l-3.8 3.8-1.1-1.1L6.9 8 3.1 4.2l1.1-1.1Z"/>
         </svg>

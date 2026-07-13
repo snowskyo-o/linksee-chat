@@ -78,6 +78,11 @@ export function createMessagePanelListeners(props) {
     "open-file-picker": () => props.runtime.openFilePicker(),
     "open-sticker-import": () => props.runtime.openStickerImport(),
     "remove-pending-file": (file) => props.store.removePendingFile(file),
+    "retry-pending-file": (id) => {
+      const target = props.store.pendingFiles.value.find((item) => item.id === id && item.file);
+      if (!target) return;
+      props.actions.uploadFiles([target]).catch(() => {});
+    },
     "retry-load": () => props.runtime.reloadSelectedConversation(),
     "save-file-as": (file) => props.actions.saveFileAs(file),
     search: () => props.actions.searchMessages(),

@@ -31,6 +31,7 @@ defineEmits([
   "open-file-picker",
   "open-sticker-import",
   "remove-pending-file",
+  "retry-pending-file",
   "send-sticker",
   "submit",
   "update:messageInput",
@@ -68,5 +69,6 @@ defineEmits([
     @file-change="$emit('file-change', $event)"
     @file-paste="$emit('file-paste', $event)"
     @remove-pending-file="$emit('remove-pending-file', $event)"
+    @retry-pending-file="$emit('retry-pending-file', $event)"
   />
 </template>
