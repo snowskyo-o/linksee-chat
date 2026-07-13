@@ -7,33 +7,12 @@ import ChatComposerEditor from "./ChatComposerEditor.vue";
 import ChatComposerToolbar from "./ChatComposerToolbar.vue";
 import EmojiPicker from "./EmojiPicker.vue";
 import StickerPicker from "./StickerPicker.vue";
+import { chatComposerEmits, chatComposerProps } from "./chat-composer-contract.js";
+import { handleComposerPaste } from "./chat-composer-paste.js";
 
 const shell = useDesktopShell();
-
-const props = defineProps({
-  showReplyBar: { type: Boolean, default: false },
-  replyText: { type: String, default: "" },
-  messageInput: { type: String, default: "" },
-  mentionOpen: { type: Boolean, default: false },
-  mentionOptions: { type: Array, default: () => [] },
-  composerHint: { type: String, default: "" },
-  composerHintTone: { type: String, default: "" },
-  pendingFiles: { type: Array, default: () => [] },
-  uploadingFiles: { type: Boolean, default: false },
-  uploadProgressText: { type: String, default: "" },
-  downloadProgressText: { type: String, default: "" },
-  recentStickers: { type: Array, default: () => [] },
-  stickers: { type: Array, default: () => [] },
-  stickersLoading: { type: Boolean, default: false },
-  stickersHint: { type: String, default: "" },
-  stickersHintTone: { type: String, default: "" },
-});
-
-const emit = defineEmits([
-  "cancel-edit", "update:messageInput", "message-keydown", "mention-pick", "submit",
-  "open-file-picker", "capture-screenshot", "open-sticker-import", "send-sticker",
-  "clear-recent-stickers", "file-change", "file-paste", "remove-pending-file",
-]);
+const props = defineProps(chatComposerProps);
+const emit = defineEmits(chatComposerEmits);
 
 const composerEditorRef = ref(null);
 const focusComposer = () => composerEditorRef.value?.focusComposer?.();
@@ -48,14 +27,6 @@ const sendSticker = (sticker) => {
   stickerOpen.value = false;
   focusComposer();
 };
-
-function handleComposerPaste(event) {
-  const clipboardFiles = Array.from(event.clipboardData?.files || []);
-  const files = clipboardFiles.filter((file) => String(file.type || "").startsWith("image/"));
-  if (!files.length) return void (clipboardFiles.length ? event.preventDefault() : undefined);
-  event.preventDefault();
-  emit("file-paste", { files, ignoredClipboardFiles: Math.max(0, clipboardFiles.length - files.length) });
-}
 </script>
 
 <template>
@@ -101,7 +72,7 @@ function handleComposerPaste(event) {
       :composer-hint-tone="composerHintTone"
       @update:message-input="$emit('update:messageInput', $event)"
       @message-keydown="$emit('message-keydown', $event)"
-      @file-paste="handleComposerPaste"
+      @file-paste="handleComposerPaste($event, emit)"
       @mention-pick="$emit('mention-pick', $event)"
     />
   </form>
