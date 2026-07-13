@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import { chatApi } from "../shared/api-client.js";
 import AvatarImage from "../shared/components/AvatarImage.vue";
 import LoginAssistDialog from "./components/LoginAssistDialog.vue";
+import RegisterAccountDialog from "./components/RegisterAccountDialog.vue";
 import { applyAppearanceMode, watchSystemAppearance } from "../shared/appearance-mode.js";
 import { loadAppSettings, subscribeAppSettings } from "../shared/app-settings.js";
 import { resolveMediaUrl } from "../shared/media.js";
@@ -31,6 +32,17 @@ const passwordInput = ref(null);
 const assistTitle = ref("");
 const assistMessage = ref("");
 const assistOpen = ref(false);
+const registerOpen = ref(false);
+const registerSubmitting = ref(false);
+const registerHint = ref("");
+const registerHintTone = ref("");
+const registerForm = ref({
+  userId: "",
+  realName: "",
+  password: "",
+  confirmPassword: "",
+  bio: "",
+});
 let detachAppSettings = null;
 let detachSystemAppearance = null;
 
@@ -120,10 +132,17 @@ function openForgotPassword() {
 }
 
 function openRegisterAccount() {
-  openAssistDialog(
-    "注册账号",
-    "当前版本暂未开放自助注册，请联系管理员分配账号，或等待邀请注册能力上线。",
-  );
+  registerForm.value = {
+    userId: userId.value.trim(),
+    realName: "",
+    password: "",
+    confirmPassword: "",
+    bio: "",
+  };
+  registerHint.value = "";
+  registerHintTone.value = "";
+  registerSubmitting.value = false;
+  registerOpen.value = true;
 }
 
 function syncAppearance() {
@@ -160,6 +179,56 @@ async function submitLogin() {
     passwordInput.value?.focus?.();
   } finally {
     submitting.value = false;
+  }
+}
+
+async function submitRegister() {
+  const form = {
+    userId: String(registerForm.value.userId || "").trim(),
+    realName: String(registerForm.value.realName || "").trim(),
+    password: String(registerForm.value.password || ""),
+    confirmPassword: String(registerForm.value.confirmPassword || ""),
+    bio: String(registerForm.value.bio || "").trim(),
+  };
+  if (!form.userId || !form.realName || !form.password || !form.confirmPassword) {
+    registerHint.value = "请完整填写账号、昵称和密码";
+    registerHintTone.value = "error";
+    return;
+  }
+  if (form.password.length < 6) {
+    registerHint.value = "密码至少需要 6 位";
+    registerHintTone.value = "error";
+    return;
+  }
+  if (form.password !== form.confirmPassword) {
+    registerHint.value = "两次输入的密码不一致";
+    registerHintTone.value = "error";
+    return;
+  }
+
+  registerSubmitting.value = true;
+  registerHint.value = "";
+  registerHintTone.value = "";
+  try {
+    await chatApi.postJson("/api/v1/auth/register", {
+      userId: form.userId,
+      realName: form.realName,
+      password: form.password,
+      bio: form.bio,
+    });
+    registerHint.value = "注册成功，请使用新账号登录";
+    registerHintTone.value = "success";
+    userId.value = form.userId;
+    password.value = form.password;
+    registerOpen.value = false;
+    hint.value = "注册成功，请确认后登录";
+    hintTone.value = "success";
+    await loadPreview(form.userId);
+  } catch (error) {
+    registerHint.value = error?.message || "注册失败，请稍后重试";
+    registerHintTone.value = "error";
+  } finally {
+    registerSubmitting.value = false;
   }
 }
 
@@ -320,6 +389,17 @@ onBeforeUnmount(() => {
       :title="assistTitle"
       :message="assistMessage"
       @close="assistOpen = false"
+    />
+
+    <RegisterAccountDialog
+      :open="registerOpen"
+      :form="registerForm"
+      :hint="registerHint"
+      :hint-tone="registerHintTone"
+      :submitting="registerSubmitting"
+      @close="registerOpen = false"
+      @update:form="registerForm = $event"
+      @submit="submitRegister"
     />
   </main>
 </template>
