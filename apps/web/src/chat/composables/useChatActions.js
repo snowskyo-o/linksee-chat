@@ -2,6 +2,7 @@ import { chatApi } from "../../shared/api-client.js";
 import { appendAppLog } from "../../shared/app-log.js";
 import { appendCacheBust } from "../../shared/media.js";
 import { createChatDataActions } from "./chat-data-actions.js";
+import { createPendingAttachment, dedupeFileList, revokePendingAttachment } from "./file-attachments.js";
 import { writeChatCache } from "./local-chat-cache.js";
 import {
   buildFileMessageContent,
@@ -122,16 +123,16 @@ export function useChatActions(store) {
     ids.forEach((id) => dirtyProfileUserIds.delete(id));
   }
 
-  function dedupeFiles(fileList) {
-    const seen = new Set();
-    const unique = [];
-    for (const file of Array.from(fileList || []).filter(Boolean)) {
-      const key = [file.name || "", file.size || 0, file.lastModified || 0].join(":");
-      if (seen.has(key)) continue;
-      seen.add(key);
-      unique.push(file);
-    }
-    return unique;
+  function queueFiles(fileList) {
+    const existing = new Set(store.pendingFiles.value.map((item) => (
+      [item.name || "", item.size || 0, item.file?.lastModified || 0].join(":")
+    )));
+    const nextItems = dedupeFileList(fileList)
+      .filter((file) => !existing.has([file.name || "", file.size || 0, file.lastModified || 0].join(":")))
+      .map(createPendingAttachment);
+    if (!nextItems.length) return;
+    store.pendingFiles.value = [...store.pendingFiles.value, ...nextItems];
+    store.setComposerHint(`${store.pendingFiles.value.length} 个文件待发送`, "success");
   }
 
   function createDirectConversation() {
@@ -258,17 +259,19 @@ export function useChatActions(store) {
   async function submitComposer() {
     if (!store.selectedId.value) return;
     const content = store.messageInput.value.trim();
-    if (!content) return;
+    const pendingFiles = store.pendingFiles.value.slice();
+    if (!content && !pendingFiles.length) return;
     const mentions = store.collectMentionIds(content);
     const replyTo = store.replyTo.value ? { ...store.replyTo.value } : null;
-    const optimisticMessage = buildOptimisticTextMessage(store, content, mentions, replyTo);
+    if (content) {
+      const optimisticMessage = buildOptimisticTextMessage(store, content, mentions, replyTo);
       store.messages.value = [...store.messages.value, optimisticMessage];
       syncConversationPreview(store, store.selectedId.value, optimisticMessage);
       appendAppLog({ level: "info", category: "message", message: "消息进入发送队列", meta: content.slice(0, 80) });
       store.clearReplyState();
-    store.resetComposer();
-    try {
-      await postTextMessage(content, mentions, replyTo, optimisticMessage);
+      store.resetComposer();
+      try {
+        await postTextMessage(content, mentions, replyTo, optimisticMessage);
       } catch (error) {
         patchMessageLocally(store, optimisticMessage.id, {
           operationState: "failed",
@@ -277,6 +280,16 @@ export function useChatActions(store) {
         appendAppLog({ level: "error", category: "message", message: "消息发送失败", meta: error?.message || "" });
         throw error;
       }
+    }
+    if (pendingFiles.length) {
+      store.pendingFiles.value = store.pendingFiles.value.filter((item) => !pendingFiles.some((pending) => pending.id === item.id));
+      pendingFiles.forEach(revokePendingAttachment);
+      await uploadFiles(pendingFiles.map((item) => item.file), { replyTo: content ? null : replyTo });
+      if (!content) {
+        store.clearReplyState();
+        store.resetComposer();
+      }
+    }
     dataActions.loadConversations().catch(() => {});
     dataActions.markConversationReadIfNeeded().catch(() => {});
   }
@@ -298,9 +311,9 @@ export function useChatActions(store) {
     }
   }
 
-  async function uploadFiles(fileList) {
+  async function uploadFiles(fileList, options = {}) {
     if (!store.selectedId.value) return;
-    const files = dedupeFiles(fileList);
+    const files = dedupeFileList(fileList);
     if (!files.length) return;
     store.uploadingFiles.value = true;
     store.uploadProgress.value = 0;
@@ -360,7 +373,7 @@ export function useChatActions(store) {
         content: buildFileMessageContent(uploadedFiles),
         files: uploadedFiles,
         mentions: [],
-        replyToId: store.replyTo.value ? store.replyTo.value.id : null,
+        replyToId: options.replyTo ? options.replyTo.id : (store.replyTo.value ? store.replyTo.value.id : null),
       });
       store.clearReplyState();
       store.setComposerHint(`已上传 ${uploadedFiles.length} 个文件`, "success");
@@ -387,14 +400,17 @@ export function useChatActions(store) {
     store.downloadingFile.value = true;
     store.downloadProgress.value = 0;
     store.downloadFileName.value = file.name || "attachment";
+    store.setFileTransfer(file.objectKey, { status: "downloading", progress: 0, path: "", error: "" });
     try {
       const blob = await chatApi.getBlobWithProgress(
         `/api/v1/chat/files/download?objectKey=${encodeURIComponent(file.objectKey)}`,
         ({ percent }) => {
           store.downloadProgress.value = percent;
+          store.setFileTransfer(file.objectKey, { status: "downloading", progress: percent });
         },
       );
       store.downloadProgress.value = 100;
+      store.setFileTransfer(file.objectKey, { status: "saving", progress: 100 });
       if (window.desktopShell?.isDesktop && typeof window.desktopShell?.saveDownloadedFile === "function") {
         const saved = await window.desktopShell.saveDownloadedFile({
           fileName: file.name || "attachment",
@@ -408,6 +424,12 @@ export function useChatActions(store) {
           tone: "success",
           ttl: 2600,
         });
+        store.setFileTransfer(file.objectKey, {
+          status: "saved",
+          progress: 100,
+          path: saved?.exportPath || "",
+          error: "",
+        });
       } else {
         const objectUrl = window.URL.createObjectURL(blob);
         const link = document.createElement("a");
@@ -419,8 +441,16 @@ export function useChatActions(store) {
         link.remove();
         window.setTimeout(() => window.URL.revokeObjectURL(objectUrl), 1000);
         store.pushNotification({ title: "开始下载", message: file.name || "附件", tone: "success", ttl: 2200 });
+        store.setFileTransfer(file.objectKey, { status: "saved", progress: 100, path: file.name || "附件", error: "" });
       }
       appendAppLog({ level: "info", category: "file", message: `开始下载 ${file.name || "附件"}` });
+    } catch (error) {
+      store.setFileTransfer(file.objectKey, {
+        status: "failed",
+        progress: 0,
+        error: error?.message || "下载失败",
+      });
+      throw error;
     } finally {
       window.setTimeout(() => {
         store.downloadingFile.value = false;
@@ -657,6 +687,7 @@ export function useChatActions(store) {
     submitAnnouncement,
     submitComposer,
     uploadFiles,
+    queueFiles,
     downloadFile,
     handleMessageAction,
     submitForwardMessage,

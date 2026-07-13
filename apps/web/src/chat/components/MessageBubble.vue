@@ -1,5 +1,6 @@
 <script setup>
 import AvatarImage from "../../shared/components/AvatarImage.vue";
+import MessageAttachmentCard from "./MessageAttachmentCard.vue";
 
 defineProps({
   message: { type: Object, required: true },
@@ -52,28 +53,20 @@ defineEmits(["download-file", "open-image", "open-menu", "retry"]);
         重试
       </button>
 
-      <div class="message-bubble" :class="{ 'message-bubble-me': message.isMe }">
+      <div v-if="message.hasTextContent || message.replyToText" class="message-bubble" :class="{ 'message-bubble-me': message.isMe }">
         <div v-if="message.replyToText" class="reply-quote">{{ message.replyToText }}</div>
         <div class="message-content" v-html="message.html"></div>
+      </div>
 
-        <div v-if="message.isFileMessage" class="file-list">
-          <button
-            v-for="file in message.files"
-            :key="file.objectKey"
-            class="file-card"
-            :class="{ expired: file.expired, clickable: !file.expired, 'is-image-file': file.isImage }"
-            type="button"
-            :disabled="file.expired"
-            @click="file.isImage ? $emit('open-image', file) : $emit('download-file', file)"
-          >
-            <div v-if="file.isImage" class="file-image-mark">图片</div>
-            <div class="file-card-main">
-              <strong>{{ file.name }}</strong>
-              <span class="muted">{{ file.metaText }}</span>
-            </div>
-            <span class="file-expiry" :class="{ expired: file.expired }">{{ file.expiryText }}</span>
-          </button>
-        </div>
+      <div v-if="message.isFileMessage" class="message-attachment-list" :class="{ 'is-me': message.isMe }">
+        <MessageAttachmentCard
+          v-for="file in message.files"
+          :key="file.objectKey"
+          :file="file"
+          :is-me="message.isMe"
+          @download="$emit('download-file', $event)"
+          @open-image="$emit('open-image', $event)"
+        />
       </div>
     </div>
   </article>

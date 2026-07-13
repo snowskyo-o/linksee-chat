@@ -270,21 +270,15 @@ function openFilePicker() {
 }
 
 function handleFileChange(event) {
-  actions.uploadFiles(event.target?.files || []).catch((error) => {
-    store.setComposerHint(error?.message || "上传失败", "error");
-  });
+  actions.queueFiles(event.target?.files || []);
 }
 
 function handleFileDrop(files) {
-  actions.uploadFiles(files || []).catch((error) => {
-    store.setComposerHint(error?.message || "上传失败", "error");
-  });
+  actions.queueFiles(files || []);
 }
 
 function handleFilePaste(files) {
-  actions.uploadFiles(files || []).catch((error) => {
-    store.setComposerHint(error?.message || "粘贴图片失败", "error");
-  });
+  actions.queueFiles(files || []);
 }
 
 function openStickerImport() {
@@ -471,6 +465,7 @@ watch(() => store.selectedId.value, () => {
         :mention-options="store.mentionOptions.value"
         :composer-hint="store.composerHint.value"
         :composer-hint-tone="store.composerHintTone.value"
+        :pending-files="store.pendingFiles.value"
         :uploading-files="store.uploadingFiles.value"
         :upload-progress-text="store.uploadProgressText.value"
         :download-progress-text="store.downloadProgressText.value"
@@ -497,6 +492,7 @@ watch(() => store.selectedId.value, () => {
         @file-change="handleFileChange"
         @file-paste="handleFilePaste"
         @file-drop="handleFileDrop"
+        @remove-pending-file="store.removePendingFile"
         @download-file="actions.downloadFile"
         @open-image="openImageViewer"
         @load-more="actions.loadOlderMessages"

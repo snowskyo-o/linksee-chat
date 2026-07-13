@@ -21,12 +21,14 @@ const configCandidates = [
 
 function getStorageInfo() {
   const root = app.getPath("userData");
+  const downloads = path.join(app.getPath("downloads"), "Linksee Chat");
   return {
     root,
     stickers: path.join(root, "stickers"),
     avatars: path.join(root, "avatars-cache"),
     chatCache: path.join(root, "chat-cache"),
-    exports: path.join(root, "exports"),
+    downloads,
+    exports: downloads,
   };
 }
 

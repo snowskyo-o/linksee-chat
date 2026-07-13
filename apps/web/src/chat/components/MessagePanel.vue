@@ -1,6 +1,7 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useDesktopShell } from "../../shared/useDesktopShell.js";
+import AttachmentPreview from "./AttachmentPreview.vue";
 import EmojiPicker from "./EmojiPicker.vue";
 import MessageBubble from "./MessageBubble.vue";
 import MessageContextMenu from "./MessageContextMenu.vue";
@@ -23,6 +24,7 @@ const props = defineProps({
   mentionOptions: { type: Array, default: () => [] },
   composerHint: { type: String, default: "" },
   composerHintTone: { type: String, default: "" },
+  pendingFiles: { type: Array, default: () => [] },
   uploadingFiles: { type: Boolean, default: false },
   uploadProgressText: { type: String, default: "" },
   downloadProgressText: { type: String, default: "" },
@@ -54,6 +56,7 @@ const emit = defineEmits([
   "file-change",
   "file-paste",
   "file-drop",
+  "remove-pending-file",
   "load-more",
 ]);
 
@@ -496,6 +499,11 @@ onBeforeUnmount(() => {
         @import-files="$emit('open-sticker-import')"
       />
 
+      <AttachmentPreview
+        :files="pendingFiles"
+        @remove="$emit('remove-pending-file', $event)"
+      />
+
       <textarea
         ref="composerInputRef"
         :value="messageInput"
@@ -540,8 +548,8 @@ onBeforeUnmount(() => {
 
     <div v-if="dragActive" class="chat-drop-overlay">
       <div class="chat-drop-card">
-        <strong>拖拽发送文件</strong>
-        <p class="muted">松开鼠标即可上传，同批重复文件会自动去重。</p>
+        <strong>添加到待发送</strong>
+        <p class="muted">松开鼠标后会出现在输入区，按 Enter 发送。</p>
       </div>
     </div>
   </section>

@@ -2,6 +2,7 @@ import { computed, ref } from "vue";
 import { resolveMediaUrl } from "../../shared/media.js";
 import { loadConversationPreferences, saveConversationPreferences } from "../../shared/conversation-preferences.js";
 import { escapeHtml, formatDateTime, formatExpiry, formatFileSize, getInitials } from "../../shared/utils.js";
+import { getFileExtensionLabel, isImageFileLike, revokePendingAttachment } from "../composables/file-attachments.js";
 
 const FAVORITES_STORAGE_KEY = "linksee_chat_favorite_messages";
 
@@ -105,6 +106,8 @@ export function useChatStore(auth) {
   const conversationKeyword = ref("");
   const messageKeyword = ref("");
   const messageInput = ref("");
+  const pendingFiles = ref([]);
+  const fileTransfers = ref({});
   const uploadingFiles = ref(false);
   const uploadProgress = ref(0);
   const uploadFileName = ref("");
@@ -254,15 +257,20 @@ export function useChatStore(auth) {
       canRetry: String(message.senderId) === String(auth.userId) && message.operationState === "failed",
       canDelete: String(message.senderId) === String(auth.userId) && !deleted && !message.operationState,
       canForward: !deleted && !message.operationState && message.type === "text",
+      hasTextContent: !deleted && !isFileMessage && Boolean(String(message.content || "").trim()),
       isFavorite: favoriteMessages.value.some((item) => item.id === String(message.id)),
       timeText: formatDateTime(message.createdAt),
       html,
       files: isFileMessage
         ? message.files.map((file) => ({
             ...file,
-            isImage: String(file.mimeType || "").startsWith("image/"),
+            isImage: isImageFileLike(file),
+            expired: formatExpiry(file.expiresAt) === "已过期",
             metaText: `${formatFileSize(file.size)} · ${(file.mimeType || "file").split("/").pop()?.toUpperCase() || "FILE"}`,
+            sizeText: formatFileSize(file.size),
+            extensionLabel: getFileExtensionLabel(file.name, file.mimeType),
             expiryText: formatExpiry(file.expiresAt),
+            transfer: fileTransfers.value[file.objectKey] || null,
           }))
         : [],
       replyToText: buildReplyText(message),
@@ -491,6 +499,29 @@ export function useChatStore(auth) {
     messageKeyword.value = "";
   }
 
+  function clearPendingFiles() {
+    pendingFiles.value.forEach(revokePendingAttachment);
+    pendingFiles.value = [];
+  }
+
+  function removePendingFile(id) {
+    const target = pendingFiles.value.find((item) => item.id === id);
+    revokePendingAttachment(target);
+    pendingFiles.value = pendingFiles.value.filter((item) => item.id !== id);
+  }
+
+  function setFileTransfer(objectKey, patch) {
+    const key = String(objectKey || "");
+    if (!key) return;
+    fileTransfers.value = {
+      ...fileTransfers.value,
+      [key]: {
+        ...(fileTransfers.value[key] || {}),
+        ...patch,
+      },
+    };
+  }
+
   return {
     me,
     contacts,
@@ -515,6 +546,8 @@ export function useChatStore(auth) {
     conversationKeyword,
     messageKeyword,
     messageInput,
+    pendingFiles,
+    fileTransfers,
     uploadingFiles,
     uploadProgress,
     uploadFileName,
@@ -593,5 +626,8 @@ export function useChatStore(auth) {
     updateMentionState,
     applyMention,
     resetComposer,
+    clearPendingFiles,
+    removePendingFile,
+    setFileTransfer,
   };
 }
