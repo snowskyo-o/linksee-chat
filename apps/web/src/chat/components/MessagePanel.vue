@@ -1,14 +1,10 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
-import { useDesktopShell } from "../../shared/useDesktopShell.js";
-import AttachmentPreview from "./AttachmentPreview.vue";
-import EmojiPicker from "./EmojiPicker.vue";
+import ChatComposer from "./ChatComposer.vue";
+import ChatWorkspaceHeader from "./ChatWorkspaceHeader.vue";
 import MessageBubble from "./MessageBubble.vue";
 import MessageContextMenu from "./MessageContextMenu.vue";
 import StatePanel from "./StatePanel.vue";
-import StickerPicker from "./StickerPicker.vue";
-
-const shell = useDesktopShell();
 
 const props = defineProps({
   chatTitle: { type: String, default: "请选择会话" },
@@ -73,11 +69,8 @@ const emit = defineEmits([
   "retry-load",
 ]);
 
-const emojiOpen = ref(false);
-const stickerOpen = ref(false);
 const messageListRef = ref(null);
 const workspaceRef = ref(null);
-const composerInputRef = ref(null);
 const pendingIncomingCount = ref(0);
 const dragActive = ref(false);
 const searchMatchIndex = ref(-1);
@@ -141,15 +134,7 @@ const contextMenuItems = computed(() => {
   return items;
 });
 
-const displayChatTitle = computed(() => {
-  if (props.chatKind !== "group") return props.chatTitle;
-  const count = Number(props.participantCount || 0);
-  return count > 0 ? `${props.chatTitle}（${count}）` : props.chatTitle;
-});
-
 function closeFloatingPanels() {
-  emojiOpen.value = false;
-  stickerOpen.value = false;
   messageMenu.value = {
     open: false,
     x: 0,
@@ -160,8 +145,7 @@ function closeFloatingPanels() {
 
 function handleGlobalPointer(event) {
   const target = event.target;
-  if (target instanceof HTMLElement
-    && (target.closest(".message-context-menu") || target.closest(".emoji-picker") || target.closest(".sticker-picker") || target.closest(".qq-chat-tool-btn.is-emoji") || target.closest(".qq-chat-tool-btn.is-sticker"))) {
+  if (target instanceof HTMLElement && target.closest(".message-context-menu")) {
     return;
   }
   closeFloatingPanels();
@@ -179,37 +163,9 @@ onBeforeUnmount(() => {
   window.removeEventListener("keydown", handleGlobalKeydown);
 });
 
-function toggleEmojiPicker() {
-  messageMenu.value.open = false;
-  stickerOpen.value = false;
-  emojiOpen.value = !emojiOpen.value;
-  if (emojiOpen.value) {
-    nextTick(() => composerInputRef.value?.focus());
-  }
-}
-
-function toggleStickerPicker() {
-  messageMenu.value.open = false;
-  emojiOpen.value = false;
-  stickerOpen.value = !stickerOpen.value;
-}
-
-function appendEmoji(emoji) {
-  emit("update:messageInput", `${props.messageInput || ""}${emoji}`);
-  emojiOpen.value = false;
-  nextTick(() => composerInputRef.value?.focus());
-}
-
-function sendSticker(sticker) {
-  emit("send-sticker", sticker);
-  stickerOpen.value = false;
-  nextTick(() => composerInputRef.value?.focus());
-}
-
 function openMessageMenu(payload) {
   const nextX = Math.min(payload.event.clientX, window.innerWidth - 220);
   const nextY = Math.min(payload.event.clientY, window.innerHeight - 260);
-  emojiOpen.value = false;
   messageMenu.value = {
     open: true,
     x: Math.max(12, nextX),
@@ -245,10 +201,6 @@ function selectContextItem(item) {
     action: item.key,
   });
   closeFloatingPanels();
-}
-
-function updateMessageInput(value) {
-  emit("update:messageInput", value);
 }
 
 function collectSearchMatches() {
@@ -357,17 +309,6 @@ function handleDrop(event) {
   });
 }
 
-function handleComposerPaste(event) {
-  const clipboardFiles = Array.from(event.clipboardData?.files || []);
-  const files = clipboardFiles.filter((file) => String(file.type || "").startsWith("image/"));
-  if (!files.length) return void (clipboardFiles.length ? event.preventDefault() : undefined);
-  event.preventDefault();
-  emit("file-paste", {
-    files,
-    ignoredClipboardFiles: Math.max(0, clipboardFiles.length - files.length),
-  });
-}
-
 function handleWindowDragOver(event) {
   if (!dragActive.value || !isFileDrag(event)) return;
   if (!isPointInsideWorkspace(event.clientX, event.clientY)) resetDragState();
@@ -393,13 +334,6 @@ watch(
     clearIncomingIndicator();
     await nextTick();
     scrollMessageListToBottom("auto");
-  },
-);
-watch(
-  () => props.showReplyBar,
-  (nextValue, previousValue) => {
-    if (!nextValue || nextValue === previousValue) return;
-    nextTick(() => composerInputRef.value?.focus());
   },
 );
 watch(
@@ -443,63 +377,23 @@ onBeforeUnmount(() => {
     @dragleave="handleDragLeave"
     @drop="handleDrop"
   >
-    <div v-if="standaloneMode" class="chat-standalone-topbar">
-      <div class="chat-window-drag">
-        <span class="chat-window-mark">L</span>
-        <span class="chat-window-app">Linksee Chat</span>
-      </div>
-      <div v-if="shell.isDesktop" class="chat-window-actions">
-        <button class="desktop-window-btn desktop-window-btn-standalone" type="button" aria-label="最小化" @click="shell.minimizeWindow">
-          <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.75h8v1.5H2z"/></svg>
-        </button>
-        <button class="desktop-window-btn desktop-window-btn-standalone" type="button" aria-label="最大化" @click="shell.toggleMaximizeWindow">
-          <svg v-if="shell.isMaximized" viewBox="0 0 12 12" aria-hidden="true">
-            <path d="M3 1.5h6v6H7.5V9h-6V3h1.5V1.5Zm0 3h3v3H3v-3Zm1.5-1.5V3h4.5v4.5H9V3h-4.5Z"/>
-          </svg>
-          <svg v-else viewBox="0 0 12 12" aria-hidden="true">
-            <path d="M2 2h8v8H2V2Zm1.5 1.5v5h5v-5h-5Z"/>
-          </svg>
-        </button>
-        <button class="desktop-window-btn desktop-window-btn-standalone is-close" type="button" aria-label="关闭" @click="shell.closeWindow">
-          <svg viewBox="0 0 12 12" aria-hidden="true"><path d="m3.06 2 2.94 2.94L8.94 2 10 3.06 7.06 6 10 8.94 8.94 10 6 7.06 3.06 10 2 8.94 4.94 6 2 3.06 3.06 2Z"/></svg>
-        </button>
-      </div>
-    </div>
-
-    <header class="chat-workspace-head" :class="{ 'is-standalone': standaloneMode }">
-      <div class="chat-title-block">
-        <h2>{{ displayChatTitle }}</h2>
-      </div>
-    </header>
-
-    <div v-if="networkBannerText" class="chat-network-banner">
-      <span class="chat-network-banner__dot" aria-hidden="true"></span>
-      <span>{{ networkBannerText }}</span>
-    </div>
-
-    <div class="chat-toolbar-search">
-      <div class="chat-toolbar-search-inner">
-        <input
-          :value="messageKeyword"
-          class="qq-search qq-search-inline is-chat"
-          placeholder="搜索消息"
-          @input="$emit('update:messageKeyword', $event.target.value)"
-          @keydown.enter.prevent="$emit('search')"
-        />
-        <button v-if="messageKeyword || searching" class="ghost-btn compact-btn" type="button" @click="$emit('clear-search')">
-          清除
-        </button>
-      </div>
-    </div>
-
-    <div v-if="searchResultText" class="search-bar">{{ searchResultText }}</div>
-    <div v-if="searching && searchMatches.length" class="search-bar search-nav-bar">
-      <span>当前匹配 {{ searchMatchIndex + 1 }} / {{ searchMatches.length }}</span>
-      <div class="search-nav-actions">
-        <button class="ghost-btn compact-btn" type="button" @click="jumpSearchMatch(-1)">上一条</button>
-        <button class="ghost-btn compact-btn" type="button" @click="jumpSearchMatch(1)">下一条</button>
-      </div>
-    </div>
+    <ChatWorkspaceHeader
+      :chat-title="chatTitle"
+      :chat-kind="chatKind"
+      :participant-count="participantCount"
+      :standalone-mode="standaloneMode"
+      :network-banner-text="networkBannerText"
+      :message-keyword="messageKeyword"
+      :searching="searching"
+      :search-result-text="searchResultText"
+      :search-match-index="searchMatchIndex"
+      :search-matches-length="searchMatches.length"
+      @update:message-keyword="$emit('update:messageKeyword', $event)"
+      @search="$emit('search')"
+      @clear-search="$emit('clear-search')"
+      @search-prev="jumpSearchMatch(-1)"
+      @search-next="jumpSearchMatch(1)"
+    />
 
     <div ref="messageListRef" class="message-list desktop-message-list">
       <button
@@ -550,83 +444,37 @@ onBeforeUnmount(() => {
       </button>
     </div>
 
-    <div v-if="showReplyBar" class="reply-bar">{{ replyText }}</div>
-
-    <form class="composer desktop-composer" @submit.prevent="$emit('submit')">
-      <input class="hidden" type="file" multiple @change="$emit('file-change', $event)" />
-      <div class="composer-top desktop-composer-top">
-        <div class="composer-tool-group qq-composer-toolbar">
-          <button v-if="showReplyBar" class="ghost-btn compact-btn" type="button" @click="$emit('cancel-edit')">取消回复</button>
-          <button class="qq-chat-tool-btn is-emoji" type="button" title="表情" @click="toggleEmojiPicker">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 1 1 0 20a10 10 0 0 1 0-20Zm-3 7a1.25 1.25 0 1 0 0 2.5A1.25 1.25 0 0 0 9 9Zm6 0a1.25 1.25 0 1 0 0 2.5A1.25 1.25 0 0 0 15 9Zm-6.18 5.36a1 1 0 0 0-1.64 1.14A5.98 5.98 0 0 0 12 18a5.98 5.98 0 0 0 4.82-2.5a1 1 0 1 0-1.64-1.14A3.98 3.98 0 0 1 12 16a3.98 3.98 0 0 1-3.18-1.64Z"/></svg>
-          </button>
-          <button v-if="shell.isDesktop" class="qq-chat-tool-btn is-sticker" type="button" title="表情包" @click="toggleStickerPicker">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14a2 2 0 0 1 2 2v7.5A6.5 6.5 0 0 1 14.5 20H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Zm9.5 14A4.5 4.5 0 0 0 19 13.5V6H5v12h9.5ZM8 9.25a1.25 1.25 0 1 0 0 2.5a1.25 1.25 0 0 0 0-2.5Zm5 0a1.25 1.25 0 1 0 0 2.5a1.25 1.25 0 0 0 0-2.5Zm-5.2 5.52a1 1 0 0 0 .4 1.36c1.14.64 2.4.97 3.8.97c1.4 0 2.66-.33 3.8-.97a1 1 0 0 0-.96-1.76c-.83.46-1.75.69-2.84.69s-2.01-.23-2.84-.69a1 1 0 0 0-1.36.4Z"/></svg>
-          </button>
-          <button v-if="shell.isDesktop" class="qq-chat-tool-btn" type="button" title="截图" :disabled="uploadingFiles" @click="$emit('capture-screenshot')">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4 7.8 6H5a2 2 0 0 0-2 2v9a3 3 0 0 0 3 3h12a3 3 0 0 0 3-3V8a2 2 0 0 0-2-2h-2.8L15 4H9Zm3 4.25A4.75 4.75 0 1 1 7.25 13 4.76 4.76 0 0 1 12 8.25Zm0 2A2.75 2.75 0 1 0 14.75 13 2.75 2.75 0 0 0 12 10.25Z"/></svg>
-          </button>
-          <button class="qq-chat-tool-btn" type="button" title="发送文件" :disabled="uploadingFiles" @click="$emit('open-file-picker')">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 7H9.83l-2-2H5a2 2 0 0 0-2 2v10c0 1.1.9 2 2 2h14a2 2 0 0 0 2-2V9c0-1.1-.9-2-2-2Zm0 10H5V7h2l2 2h10v8Z"/></svg>
-          </button>
-        </div>
-        <div v-if="uploadProgressText || downloadProgressText" class="search-bar upload-inline-tip">
-          {{ uploadProgressText || downloadProgressText }}
-        </div>
-      </div>
-
-      <EmojiPicker :open="emojiOpen" @pick="appendEmoji" />
-      <StickerPicker
-        :open="stickerOpen"
-        :recent-stickers="recentStickers"
-        :stickers="stickers"
-        :loading="stickersLoading"
-        :hint="stickersHint"
-        :hint-tone="stickersHintTone"
-        :desktop-mode="shell.isDesktop"
-        @pick="sendSticker"
-        @import-files="$emit('open-sticker-import')"
-        @clear-recent="$emit('clear-recent-stickers')"
-      />
-
-      <AttachmentPreview
-        :files="pendingFiles"
-        @remove="$emit('remove-pending-file', $event)"
-      />
-
-      <textarea
-        ref="composerInputRef"
-        :value="messageInput"
-        class="message-input desktop-message-input"
-        rows="4"
-        placeholder="输入消息，Enter 发送，Shift+Enter 换行，@ 可提及成员"
-        @input="updateMessageInput($event.target.value)"
-        @keydown="$emit('message-keydown', $event)"
-        @paste="handleComposerPaste"
-      ></textarea>
-
-      <div v-if="mentionOpen && mentionOptions.length" class="mention-panel">
-        <div
-          v-for="(user, index) in mentionOptions"
-          :key="user.id"
-          class="mention-item"
-          :class="{ active: index === 0 }"
-          @click="$emit('mention-pick', user.id)"
-        >
-          @{{ user.profile.realName || user.id }}
-        </div>
-      </div>
-
-      <div class="composer-row">
-        <div class="hint" :class="composerHint ? (composerHintTone === 'error' ? 'is-error' : 'is-success') : ''">
-          {{ composerHint }}
-        </div>
-        <div class="composer-send-group">
-          <button class="ghost-btn composer-quiet-btn" type="button" @click="updateMessageInput('')">清空</button>
-          <button class="primary-btn composer-send-btn" type="submit">发送</button>
-        </div>
-      </div>
-    </form>
+    <ChatComposer
+      :show-reply-bar="showReplyBar"
+      :reply-text="replyText"
+      :message-input="messageInput"
+      :mention-open="mentionOpen"
+      :mention-options="mentionOptions"
+      :composer-hint="composerHint"
+      :composer-hint-tone="composerHintTone"
+      :pending-files="pendingFiles"
+      :uploading-files="uploadingFiles"
+      :upload-progress-text="uploadProgressText"
+      :download-progress-text="downloadProgressText"
+      :recent-stickers="recentStickers"
+      :stickers="stickers"
+      :stickers-loading="stickersLoading"
+      :stickers-hint="stickersHint"
+      :stickers-hint-tone="stickersHintTone"
+      @cancel-edit="$emit('cancel-edit')"
+      @update:message-input="$emit('update:messageInput', $event)"
+      @message-keydown="$emit('message-keydown', $event)"
+      @mention-pick="$emit('mention-pick', $event)"
+      @submit="$emit('submit')"
+      @open-file-picker="$emit('open-file-picker')"
+      @capture-screenshot="$emit('capture-screenshot')"
+      @open-sticker-import="$emit('open-sticker-import')"
+      @send-sticker="$emit('send-sticker', $event)"
+      @clear-recent-stickers="$emit('clear-recent-stickers')"
+      @file-change="$emit('file-change', $event)"
+      @file-paste="$emit('file-paste', $event)"
+      @remove-pending-file="$emit('remove-pending-file', $event)"
+    />
 
     <MessageContextMenu
       :open="messageMenu.open"
