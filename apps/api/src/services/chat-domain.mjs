@@ -4,10 +4,9 @@ import {
   buildMessageType,
   findUserById,
   getConversationParticipants,
-  publicAvatarUrl,
   resolveConversationById,
-  sanitizeUser,
 } from "./chat-store.mjs";
+import { publicAvatarUrl, sanitizeUser } from "./chat-user-presenter.mjs";
 import { decorateUsersWithFriendAliases } from "./friend-store.mjs";
 
 export async function parseMentions(conversationId, content) {

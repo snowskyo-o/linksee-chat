@@ -1,14 +1,7 @@
 import crypto from "node:crypto";
 import { prisma } from "../../../../infra/db/prisma.mjs";
+import { sanitizeUser } from "./chat-user-presenter.mjs";
 import { decorateUsersWithFriendAliases } from "./friend-store.mjs";
-
-export function publicAvatarUrl(user) {
-  if (!user?.profile?.avatarUrl) return "";
-  if (String(user.profile.avatarUrl).startsWith("minio:")) {
-    return `/api/v1/users/${encodeURIComponent(user.id)}/avatar`;
-  }
-  return user.profile.avatarUrl;
-}
 
 export function nextEventId() {
   return crypto.randomUUID();
@@ -16,19 +9,6 @@ export function nextEventId() {
 
 export function nextTraceId() {
   return crypto.randomUUID();
-}
-
-export function sanitizeUser(user) {
-  if (!user) return null;
-  return {
-    id: user.id,
-    role: user.role,
-    profile: {
-      realName: user.profile?.realName || user.id,
-      bio: user.profile?.bio || "",
-      avatarUrl: publicAvatarUrl(user),
-    },
-  };
 }
 
 export async function findUserById(userId) {
@@ -131,3 +111,5 @@ export function buildMessageType(files, content) {
   if (content && String(content).trim()) return "text";
   return "text";
 }
+
+export { publicAvatarUrl, sanitizeUser } from "./chat-user-presenter.mjs";
