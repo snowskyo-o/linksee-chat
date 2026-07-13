@@ -1,15 +1,12 @@
 <script setup>
 import AvatarImage from "../../shared/components/AvatarImage.vue";
+import {
+  listSearchPanelEmits,
+  listSearchPanelProps,
+} from "./list-search-panel-contract.js";
 
-defineProps({
-  open: { type: Boolean, default: false },
-  keyword: { type: String, default: "" },
-  recentKeywords: { type: Array, default: () => [] },
-  sections: { type: Array, default: () => [] },
-  activeKey: { type: String, default: "" },
-});
-
-defineEmits(["pick", "clear-recent", "recent-pick", "footer-pick"]);
+defineProps(listSearchPanelProps);
+defineEmits(listSearchPanelEmits);
 </script>
 
 <template>

@@ -57,7 +57,6 @@ export function createChatStoreUiActions(state, derived, saveFavoriteMessages) {
       .filter((user) => content.includes(`@${user.profile.realName || user.id}`))
       .map((user) => user.id);
   }
-
   function updateMentionState(nextValue = state.messageInput.value) {
     const cursor = nextValue.length;
     const head = nextValue.slice(0, cursor);
@@ -76,7 +75,6 @@ export function createChatStoreUiActions(state, derived, saveFavoriteMessages) {
       return !state.mentionKeyword.value || name.includes(state.mentionKeyword.value.toLowerCase());
     });
   }
-
   function applyMention(userId) {
     const user = state.participants.value.find((item) => item.id === userId);
     if (!user) return;
