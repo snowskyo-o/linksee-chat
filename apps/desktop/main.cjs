@@ -3,6 +3,7 @@ const { autoUpdater } = require("electron-updater");
 const fs = require("node:fs");
 const path = require("node:path");
 const { writeImageToClipboard } = require("./desktop-media.cjs");
+const { createDesktopAppController } = require("./desktop-app-controller.cjs");
 const { clearDesktopCaches } = require("./cache-maintenance.cjs");
 const { buildDesktopRuntimeConfig } = require("./desktop-config.cjs");
 const { registerDesktopIpcHandlers } = require("./desktop-ipc.cjs");
@@ -65,71 +66,30 @@ let listWindow = null;
 const chatWindows = new Map();
 const windowContextById = new Map();
 let tray = null;
-let isQuitting = false;
 let listWindowBoundsSnapshot = null;
 let listWindowAnimating = false;
-let unreadCount = 0;
 const screenshotSelection = createScreenshotSelectionManager({
   preloadPath: screenshotSelectionPreloadPath,
 });
+const desktopAppState = {
+  unreadCount: 0,
+  isQuitting: false,
+  getLoginWindow: () => loginWindow,
+  setListWindow: (value) => {
+    listWindow = value;
+  },
+  getListWindow: () => listWindow,
+  getTray: () => tray,
+  clearWindows: () => {
+    chatWindows.clear();
+    listWindow = null;
+    loginWindow = null;
+  },
+};
 
 autoUpdater.autoDownload = false;
 autoUpdater.autoInstallOnAppQuit = false;
 autoUpdater.setFeedURL({ provider: "generic", url: updateFeedUrl });
-
-function setUnreadCount(nextCount) {
-  unreadCount = Math.max(0, Number(nextCount || 0));
-  return unreadCount;
-}
-
-function markAppQuitting() {
-  isQuitting = true;
-}
-
-function applyLaunchOnStartupPreference() {
-  if (process.platform !== "win32" && process.platform !== "darwin") return;
-  app.setLoginItemSettings({ openAtLogin: Boolean(getDesktopPreferences().launchOnStartup) });
-}
-
-function publishDesktopPreferences() {
-  const payload = { preferences: getDesktopPreferences(), storage: getStorageInfo() };
-  getLiveWindows().forEach((window) => window.webContents.send("desktop:preferences-changed", payload));
-  return payload;
-}
-
-function updateDesktopPreferences(patch = {}) {
-  const current = getDesktopPreferences();
-  const next = { ...current, ...patch };
-  if (!String(next.downloadsDir || "").trim()) {
-    next.downloadsDir = getDefaultDesktopPreferences().downloadsDir;
-  }
-  writeDesktopPreferences(next);
-  ensureStorageDirectories();
-  applyLaunchOnStartupPreference();
-  if (tray && !tray.isDestroyed?.()) {
-    tray.setToolTip(buildTrayTooltip(unreadCount));
-    tray.setContextMenu(buildTrayMenu({
-      Menu,
-      getDesktopPreferences,
-      updateDesktopPreferences,
-      showPrimaryWindowFromTray: () => showPrimaryWindowFromTray({
-        listWindow,
-        loginWindow,
-        restoreListWindowPosition,
-        focusWindow,
-        createLoginWindow,
-      }),
-      logoutToLoginFromTray: () => logoutToLoginFromTray({
-        getLiveWindows,
-        listWindow: () => listWindow,
-        closeAllChatWindows,
-        createLoginWindow,
-      }),
-      quitDesktopApp,
-    }));
-  }
-  return publishDesktopPreferences();
-}
 
 function sendWindowState(window) {
   if (!window || window.isDestroyed()) return;
@@ -149,10 +109,7 @@ function hideWindowToTray(window) {
   window.hide();
 }
 
-function quitDesktopApp() {
-  if (isQuitting) return;
-  isQuitting = true;
-  tray = destroyTray(tray);
+function quitWindows() {
   for (const window of chatWindows.values()) {
     if (window && !window.isDestroyed()) {
       window.close();
@@ -164,7 +121,6 @@ function quitDesktopApp() {
   if (loginWindow && !loginWindow.isDestroyed()) {
     loginWindow.close();
   }
-  app.quit();
 }
 
 const desktopWindowState = {
@@ -207,7 +163,7 @@ const desktopWindows = createDesktopWindowController({
   getDesktopPreferences,
   hideAllChatWindows,
   hideWindowToTray,
-  isQuittingRef: () => isQuitting,
+  isQuittingRef: () => desktopAppState.isQuitting,
   listPagePath,
   loginPagePath,
   preloadPath,
@@ -229,47 +185,53 @@ const desktopUpdates = createDesktopUpdateController({
   autoUpdater,
   getLiveWindows,
 });
-
-function logout() {
-  if (listWindow && !listWindow.isDestroyed()) {
-    listWindow.destroy();
-    listWindow = null;
-  }
-  closeAllChatWindows();
-  createLoginWindow();
-}
-
-function openPrimaryFromTray() {
-  showPrimaryWindowFromTray({
-    listWindow,
-    loginWindow,
-    restoreListWindowPosition,
-    focusWindow,
-    createLoginWindow,
-  });
-}
-
-function buildTrayMenuForApp() {
-  return buildTrayMenu({
-    Menu,
-    getDesktopPreferences,
-    updateDesktopPreferences,
-    showPrimaryWindowFromTray: openPrimaryFromTray,
-    logoutToLoginFromTray: () => logoutToLoginFromTray({
-      getLiveWindows,
-      listWindow: () => listWindow,
-      closeAllChatWindows,
-      createLoginWindow,
-    }),
-    quitDesktopApp,
-  });
-}
+const desktopApp = createDesktopAppController({
+  app,
+  Menu,
+  Tray,
+  buildTrayMenu,
+  buildTrayTooltip,
+  closeAllChatWindows,
+  createLoginWindow,
+  createTrayIcon: () => createTrayIcon({
+    nativeImage,
+    resolveTrayIconPath: () => resolveTrayIconPath({ path, process, projectRoot }),
+  }),
+  destroyTray,
+  ensureStorageDirectories,
+  ensureTray,
+  focusWindow,
+  getDefaultDesktopPreferences,
+  getDesktopPreferences,
+  getLiveWindows,
+  getStorageInfo,
+  logoutToLoginFromTray,
+  quitWindows,
+  restoreListWindowPosition,
+  setTray: (value) => {
+    tray = value;
+  },
+  showPrimaryWindowFromTray,
+  state: {
+    ...desktopAppState,
+    getLoginWindow: () => loginWindow,
+    getListWindow: () => listWindow,
+    getTray: () => tray,
+  },
+  updateTrayMenu: (tooltip, buildMenu) => {
+    if (tray && !tray.isDestroyed?.()) {
+      tray.setToolTip(tooltip);
+      tray.setContextMenu(buildMenu());
+    }
+  },
+  writeDesktopPreferences,
+});
 
 registerDesktopIpcHandlers({
   STICKER_EXTENSIONS,
   app,
   autoUpdater,
-  buildTrayMenu: buildTrayMenuForApp,
+  buildTrayMenu: desktopApp.buildTrayMenuForApp,
   buildTrayTooltip,
   clearDesktopCaches,
   copyStickerIntoLibrary,
@@ -283,9 +245,9 @@ registerDesktopIpcHandlers({
   getDesktopPreferences,
   getStorageInfo,
   listStickerEntries,
-  logout,
+  logout: desktopApp.logout,
   moveStickerEntry,
-  markAppQuitting,
+  markAppQuitting: desktopApp.markAppQuitting,
   pathApi: path,
   publishUpdateState: desktopUpdates.publishUpdateState,
   readStateCache,
@@ -294,7 +256,7 @@ registerDesktopIpcHandlers({
   resolveWindowByEvent,
   saveDownloadedAsset,
   screenshotSelection,
-  setUnreadCount,
+  setUnreadCount: desktopApp.setUnreadCount,
   shell,
   showDesktopNotification: (payload) => showDesktopNotification({
     Notification,
@@ -308,13 +270,13 @@ registerDesktopIpcHandlers({
     slideOutListWindow,
     focusWindow,
     listWindow: () => listWindow,
-    showPrimaryWindowFromTray: openPrimaryFromTray,
+    showPrimaryWindowFromTray: desktopApp.openPrimaryFromTray,
   }),
   slideOutListWindow,
   targetOrigin,
   toggleWindowMaximize,
   trayRef: () => tray,
-  updateDesktopPreferences,
+  updateDesktopPreferences: desktopApp.updateDesktopPreferences,
   updateStateRef: desktopUpdates.updateStateRef,
   walkStickerFiles,
   windowStateBuilder: buildWindowState,
@@ -323,36 +285,14 @@ registerDesktopIpcHandlers({
 });
 desktopUpdates.registerAutoUpdaterEvents();
 
-app.on("before-quit", () => {
-  isQuitting = true;
-  tray = destroyTray(tray);
-});
+app.on("before-quit", desktopApp.handleBeforeQuit);
 
-app.on("will-quit", () => {
-  chatWindows.clear();
-  listWindow = null;
-  loginWindow = null;
-});
+app.on("will-quit", desktopApp.handleWillQuit);
 
 app.whenReady().then(async () => {
-  getDesktopPreferences();
-  applyLaunchOnStartupPreference();
-  ensureStorageDirectories();
-  tray = ensureTray({
-    existingTray: tray,
-    Tray,
-    createTrayIcon: () => createTrayIcon({
-      nativeImage,
-      resolveTrayIconPath: () => resolveTrayIconPath({ path, process, projectRoot }),
-    }),
-    buildTrayTooltip,
-    unreadCount,
-    buildTrayMenu: buildTrayMenuForApp,
-    showPrimaryWindowFromTray: openPrimaryFromTray,
-  });
-  createLoginWindow();
+  desktopApp.handleReady();
   app.on("activate", async () => {
-    openPrimaryFromTray();
+    desktopApp.openPrimaryFromTray();
   });
 }).catch((error) => {
   console.error("[desktop] startup failed", error);
