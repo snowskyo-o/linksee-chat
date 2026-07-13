@@ -1,4 +1,6 @@
 import { normalizeMessage, normalizeUser, patchConversationLocally } from "./message-operations.js";
+import { readDraftAttachments, writeDraftAttachments } from "./draft-attachments-cache.js";
+import { restorePendingAttachment } from "./file-attachments.js";
 import { readChatCache, writeChatCache } from "./local-chat-cache.js";
 
 function pickVersionedField(cachedValue, serverValue, shouldUseServer, fallbackValue = "") {
@@ -46,22 +48,33 @@ export function createChatDataActions(store, chatApi) {
     target.value = { status, message };
   };
 
-  async function saveConversationDraft(conversationId, draft = "") {
+  async function saveConversationDraft(conversationId, draft = "", pendingFiles = []) {
     const targetId = String(conversationId || "").trim();
     if (!targetId) return;
-    await writeChatCache(cacheUserId(), getDraftCacheKey(targetId), {
-      data: {
-        text: String(draft || ""),
-      },
-      cachedAt: new Date().toISOString(),
-    }).catch(() => {});
+    const userId = cacheUserId();
+    await Promise.allSettled([
+      writeChatCache(userId, getDraftCacheKey(targetId), {
+        data: {
+          text: String(draft || ""),
+        },
+        cachedAt: new Date().toISOString(),
+      }).catch(() => {}),
+      writeDraftAttachments(userId, targetId, pendingFiles).catch(() => false),
+    ]);
   }
 
   async function loadConversationDraft(conversationId) {
     const targetId = String(conversationId || "").trim();
-    if (!targetId) return "";
-    const cached = await readChatCache(cacheUserId(), getDraftCacheKey(targetId));
-    return String(cached?.data?.text || "");
+    if (!targetId) return { text: "", files: [] };
+    const userId = cacheUserId();
+    const [cached, draftFiles] = await Promise.all([
+      readChatCache(userId, getDraftCacheKey(targetId)),
+      readDraftAttachments(userId, targetId),
+    ]);
+    return {
+      text: String(cached?.data?.text || ""),
+      files: draftFiles.map((entry) => restorePendingAttachment(entry)).filter(Boolean),
+    };
   }
 
   async function loadProfile(auth) {
@@ -225,7 +238,7 @@ export function createChatDataActions(store, chatApi) {
   async function selectConversation(id) {
     const previousId = String(store.selectedId.value || "").trim();
     if (previousId) {
-      await saveConversationDraft(previousId, store.messageInput.value);
+      await saveConversationDraft(previousId, store.messageInput.value, store.pendingFiles.value);
     }
     store.selectedId.value = id;
     store.searchKeyword.value = "";
@@ -235,8 +248,11 @@ export function createChatDataActions(store, chatApi) {
     store.hasMoreMessages.value = false;
     store.clearReplyState();
     store.messageInput.value = "";
+    store.clearPendingFiles();
     await refreshSelectedConversation();
-    store.messageInput.value = await loadConversationDraft(id);
+    const draft = await loadConversationDraft(id);
+    store.messageInput.value = draft.text || "";
+    store.pendingFiles.value = Array.isArray(draft.files) ? draft.files : [];
     store.updateMentionState(store.messageInput.value);
     await markConversationReadIfNeeded().catch(() => {});
   }

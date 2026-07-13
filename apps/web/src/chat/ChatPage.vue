@@ -606,7 +606,9 @@ onMounted(async () => {
     } else {
       await reloadSelectedConversation();
       if (store.selectedId.value) {
-        store.messageInput.value = await actions.loadConversationDraft(store.selectedId.value);
+        const draft = await actions.loadConversationDraft(store.selectedId.value);
+        store.messageInput.value = draft.text || "";
+        store.pendingFiles.value = Array.isArray(draft.files) ? draft.files : [];
         store.updateMentionState(store.messageInput.value);
       }
     }
@@ -630,7 +632,7 @@ onBeforeUnmount(() => {
   if (typeof detachAppSettings === "function") detachAppSettings();
   if (typeof detachSystemAppearance === "function") detachSystemAppearance();
   if (store.selectedId.value) {
-    actions.saveConversationDraft(store.selectedId.value, store.messageInput.value).catch(() => {});
+    actions.saveConversationDraft(store.selectedId.value, store.messageInput.value, store.pendingFiles.value).catch(() => {});
   }
   realtime.disconnect();
 });
@@ -667,7 +669,19 @@ watch(
     if (draftPersistTimer) window.clearTimeout(draftPersistTimer);
     if (!conversationId) return;
     draftPersistTimer = window.setTimeout(() => {
-      actions.saveConversationDraft(conversationId, messageInput).catch(() => {});
+      actions.saveConversationDraft(conversationId, messageInput, store.pendingFiles.value).catch(() => {});
+      draftPersistTimer = null;
+    }, 240);
+  },
+);
+
+watch(
+  () => [store.selectedId.value, store.pendingFiles.value.map((item) => `${item.name}:${item.size}:${item.lastModified}`).join("|")],
+  ([conversationId]) => {
+    if (draftPersistTimer) window.clearTimeout(draftPersistTimer);
+    if (!conversationId) return;
+    draftPersistTimer = window.setTimeout(() => {
+      actions.saveConversationDraft(conversationId, store.messageInput.value, store.pendingFiles.value).catch(() => {});
       draftPersistTimer = null;
     }, 240);
   },

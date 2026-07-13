@@ -290,7 +290,7 @@ export function useChatActions(store) {
         store.resetComposer();
       }
     }
-    dataActions.saveConversationDraft(activeConversationId, "").catch(() => {});
+    dataActions.saveConversationDraft(activeConversationId, "", []).catch(() => {});
     dataActions.loadConversations().catch(() => {});
     dataActions.markConversationReadIfNeeded().catch(() => {});
   }

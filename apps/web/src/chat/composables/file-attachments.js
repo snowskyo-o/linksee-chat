@@ -34,6 +34,7 @@ export function createPendingAttachment(file) {
     file,
     name: file.name || "attachment",
     size: file.size || 0,
+    lastModified: file.lastModified || Date.now(),
     sizeText: formatFileSize(file.size || 0),
     mimeType: file.type || "application/octet-stream",
     isImage,
@@ -43,6 +44,17 @@ export function createPendingAttachment(file) {
     uploadProgress: 0,
     uploadError: "",
   };
+}
+
+export function restorePendingAttachment(entry = {}) {
+  const blob = entry?.blob instanceof Blob
+    ? entry.blob
+    : new Blob([entry?.blob || []], { type: entry?.mimeType || "application/octet-stream" });
+  const file = new File([blob], entry?.name || "attachment", {
+    type: entry?.mimeType || blob.type || "application/octet-stream",
+    lastModified: Number(entry?.lastModified || Date.now()),
+  });
+  return createPendingAttachment(file);
 }
 
 export function revokePendingAttachment(item) {
