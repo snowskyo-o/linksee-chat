@@ -1,0 +1,79 @@
+.chat-app-body { min-height: 100vh; padding: 0; }
+
+.qq-list-shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 60px minmax(0, 1fr);
+  background: #eff4fb;
+}
+
+.qq-list-nav {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  align-items: start;
+  width: 60px;
+  padding: 10px 8px;
+  background: linear-gradient(180deg, #f8fbff 0%, #eff4fb 100%);
+  border-right: 1px solid rgba(221, 228, 238, 0.98);
+}
+
+.qq-list-nav-top,
+.qq-list-nav-bottom {
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+}
+
+.qq-list-nav-bottom {
+  align-self: end;
+  padding-bottom: 8px;
+}
+
+.qq-list-drag {
+  width: 100%;
+  display: grid;
+  justify-items: center;
+  padding-bottom: 8px;
+  -webkit-app-region: drag;
+}
+
+.qq-list-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 14px;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, var(--brand), #7ea6ff);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.qq-list-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.qq-list-nav-btn {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 14px;
+  background: transparent;
+  color: #586274;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 20px;
+}
+
+.qq-list-nav-btn svg,
+.qq-chat-icon-btn svg,
+.qq-chat-tool-btn svg {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+  pointer-events: none;
+}
