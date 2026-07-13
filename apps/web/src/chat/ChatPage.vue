@@ -12,6 +12,7 @@ import { usePasswordChange } from "./composables/usePasswordChange.js";
 import { useChatRealtime } from "./composables/useChatRealtime.js";
 import { useChatPageRuntime } from "./composables/useChatPageRuntime.js";
 import { useStickerLibrary } from "./composables/useStickerLibrary.js";
+import { formatChatTitle } from "./composables/chat-title-format.js";
 
 const auth = getAuth();
 const store = useChatStore(auth);
@@ -23,6 +24,11 @@ const queryConversationId = new URLSearchParams(window.location.search).get("con
 const desktopConversationId = getDesktopConversationId() || queryConversationId;
 const standaloneConversationMode = computed(() => (
   isDesktopRuntime() && getDesktopWindowKind() === "chat"
+));
+const desktopTitlebarTitle = computed(() => formatChatTitle(
+  store.chatTitle.value || "消息",
+  store.selectedConversation.value?.kind || "",
+  store.selectedConversation.value?.participantIds?.length || store.participants.value.length,
 ));
 let runtime = null;
 const realtime = useChatRealtime(
@@ -54,7 +60,7 @@ runtime = useChatPageRuntime({
     <DesktopTitlebar
       v-if="!standaloneConversationMode"
       app-title="Linksee Chat"
-      :view-title="store.chatTitle.value || '消息'"
+      :view-title="desktopTitlebarTitle"
       :view-meta="standaloneConversationMode ? '独立聊天窗口' : (store.socketOnline.value ? '实时连接已建立' : '正在连接服务端')"
     />
 

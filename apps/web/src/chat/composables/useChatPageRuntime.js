@@ -3,6 +3,7 @@ import { useChatDesktopControls } from "./useChatDesktopControls.js";
 import { useChatMediaControls } from "./useChatMediaControls.js";
 import { useChatPageLifecycle } from "./useChatPageLifecycle.js";
 import { useChatRealtimeRuntime } from "./useChatRealtimeRuntime.js";
+import { formatChatTitle } from "./chat-title-format.js";
 
 export function useChatPageRuntime({
   auth,
@@ -15,14 +16,11 @@ export function useChatPageRuntime({
   selectConversation,
 }) {
   function resolveDesktopWindowTitle() {
-    const baseTitle = "Linksee Chat";
-    const conversation = store.selectedConversation.value;
-    if (!conversation) return baseTitle;
-    const title = String(store.chatTitle.value || "").trim();
-    if (!title) return baseTitle;
-    if (conversation.kind !== "group") return title;
-    const count = Number(conversation.participantIds?.length || store.participants.value.length || 0);
-    return count > 0 ? `${title}（${count}）` : title;
+    return formatChatTitle(
+      store.chatTitle.value,
+      store.selectedConversation.value?.kind || "",
+      store.selectedConversation.value?.participantIds?.length || store.participants.value.length,
+    ) || "Linksee Chat";
   }
 
   const desktopControls = useChatDesktopControls({ store, actions });

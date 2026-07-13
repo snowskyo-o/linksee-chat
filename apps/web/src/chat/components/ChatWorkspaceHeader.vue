@@ -2,6 +2,7 @@
 import { computed } from "vue";
 import ChatStandaloneTopbar from "./ChatStandaloneTopbar.vue";
 import ChatWorkspaceSearchBar from "./ChatWorkspaceSearchBar.vue";
+import { formatChatTitle } from "../composables/chat-title-format.js";
 
 const props = defineProps({
   chatTitle: { type: String, default: "请选择会话" },
@@ -19,11 +20,7 @@ const props = defineProps({
 
 defineEmits(["update:messageKeyword", "search", "clear-search", "search-prev", "search-next"]);
 
-const displayChatTitle = computed(() => {
-  if (props.chatKind !== "group") return props.chatTitle;
-  const count = Number(props.participantCount || 0);
-  return count > 0 ? `${props.chatTitle}（${count}）` : props.chatTitle;
-});
+const displayChatTitle = computed(() => formatChatTitle(props.chatTitle, props.chatKind, props.participantCount));
 </script>
 
 <template>
