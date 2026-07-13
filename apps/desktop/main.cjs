@@ -1,9 +1,10 @@
-const { app, BrowserWindow, ipcMain, Menu, Notification, Tray, nativeImage, shell, dialog } = require("electron");
+const { app, BrowserWindow, Menu, Notification, Tray, nativeImage, shell, dialog } = require("electron");
 const { autoUpdater } = require("electron-updater");
 const fs = require("node:fs");
 const path = require("node:path");
 const { writeImageToClipboard } = require("./desktop-media.cjs");
 const { clearDesktopCaches } = require("./cache-maintenance.cjs");
+const { registerDesktopIpcHandlers } = require("./desktop-ipc.cjs");
 const { createScreenshotSelectionManager } = require("./screenshot-selection.cjs");
 const {
   ensureRemoteAvatarCached,
@@ -133,12 +134,30 @@ function buildWindowState(window) {
   return !window || window.isDestroyed() ? { isMaximized: false } : { isMaximized: window.isMaximized() };
 }
 
+function toggleWindowMaximize(window) {
+  if (!window || window.isDestroyed()) return;
+  if (window.isMaximized()) {
+    window.unmaximize();
+  } else {
+    window.maximize();
+  }
+}
+
 function getLiveWindows() {
   return [loginWindow, listWindow, ...chatWindows.values()].filter((window) => window && !window.isDestroyed());
 }
 
 function buildTrayTooltip() {
   return unreadCount <= 0 ? "Linksee Chat" : `Linksee Chat（${unreadCount > 99 ? "99+" : unreadCount} 条未读）`;
+}
+
+function setUnreadCount(nextCount) {
+  unreadCount = Math.max(0, Number(nextCount || 0));
+  return unreadCount;
+}
+
+function markAppQuitting() {
+  isQuitting = true;
 }
 
 function applyLaunchOnStartupPreference() {
@@ -505,11 +524,15 @@ function buildTrayMenuTemplate() {
   ];
 }
 
+function buildTrayMenu() {
+  return Menu.buildFromTemplate(buildTrayMenuTemplate());
+}
+
 function ensureTray() {
   if (tray && !tray.isDestroyed?.()) return tray;
   tray = new Tray(createTrayIcon());
   tray.setToolTip(buildTrayTooltip());
-  tray.setContextMenu(Menu.buildFromTemplate(buildTrayMenuTemplate()));
+  tray.setContextMenu(buildTrayMenu());
   tray.on("double-click", () => {
     showPrimaryWindowFromTray();
   });
@@ -658,221 +681,58 @@ function closeAllChatWindows() {
   chatWindows.clear();
 }
 
-function registerIpcHandlers() {
-  ipcMain.handle("desktop:get-window-state", (event) => buildWindowState(resolveWindowByEvent(event)));
-  ipcMain.handle("desktop:get-runtime-config", () => ({
-    serverOrigin: targetOrigin,
-  }));
-  ipcMain.handle("desktop:get-app-info", () => ({
-    productName: app.getName(),
-    version: app.getVersion(),
-    electron: process.versions.electron,
-    chrome: process.versions.chrome,
-    node: process.versions.node,
-    storage: getStorageInfo(),
-    desktopPreferences: getDesktopPreferences(),
-  }));
-  ipcMain.handle("desktop:get-preferences", () => ({
-    preferences: getDesktopPreferences(),
-    storage: getStorageInfo(),
-  }));
-  ipcMain.handle("desktop:update-preferences", (_event, patch = {}) => updateDesktopPreferences(patch));
-  ipcMain.handle("desktop:get-update-state", () => updateState);
-  ipcMain.handle("desktop:check-for-updates", async () => {
-    if (!app.isPackaged) {
-      return publishUpdateState({
-        status: "unavailable",
-        available: false,
-        error: "开发模式不执行自动更新",
-      });
-    }
-    await autoUpdater.checkForUpdates();
-    return updateState;
-  });
-  ipcMain.handle("desktop:download-update", async () => {
-    if (!app.isPackaged) return updateState;
-    publishUpdateState({ status: "downloading", error: "" });
-    await autoUpdater.downloadUpdate();
-    return updateState;
-  });
-  ipcMain.handle("desktop:install-update", () => {
-    if (!app.isPackaged || !updateState.downloaded) return updateState;
-    isQuitting = true;
-    publishUpdateState({ status: "installing", error: "" });
-    autoUpdater.quitAndInstall(false, true);
-    return updateState;
-  });
-  ipcMain.handle("desktop:update-window-context", (event, payload = {}) => {
-    const currentWindow = resolveWindowByEvent(event);
-    setWindowContext(currentWindow, payload || {});
-    return true;
-  });
-  ipcMain.handle("desktop:resolve-avatar-source", async (_event, sourceUrl) => {
-    try {
-      return await ensureRemoteAvatarCached(sourceUrl);
-    } catch {
-      return String(sourceUrl || "");
-    }
-  });
-  ipcMain.handle("desktop:save-downloaded-file", async (_event, payload = {}) => {
-    return saveDownloadedAsset({
-      fileName: payload.fileName,
-      bytes: payload.bytes,
-      conversationId: payload.conversationId,
-      cacheKey: payload.cacheKey,
-      saveAs: Boolean(payload.saveAs),
-    });
-  });
-  ipcMain.handle("desktop:capture-screenshot", async () => {
-    return screenshotSelection.captureRegionScreenshot();
-  });
-  ipcMain.handle("desktop:complete-screenshot-selection", (_event, payload = {}) => {
-    return screenshotSelection.completeScreenshotSelection(payload);
-  });
-  ipcMain.handle("desktop:cancel-screenshot-selection", () => {
-    return screenshotSelection.cancelScreenshotSelection();
-  });
-  ipcMain.handle("desktop:write-image-to-clipboard", (_event, payload = {}) => {
-    return writeImageToClipboard(payload);
-  });
-  ipcMain.handle("desktop:read-state-cache", (_event, payload = {}) => {
-    return readStateCache(payload.scope, payload.key);
-  });
-  ipcMain.handle("desktop:write-state-cache", (_event, payload = {}) => {
-    return writeStateCache(payload.scope, payload.key, payload.data);
-  });
-  ipcMain.handle("desktop:open-storage-path", async (_event, targetPath) => {
-    const nextPath = String(targetPath || "").trim();
-    if (!nextPath || !fs.existsSync(nextPath)) return false;
-    const stat = fs.statSync(nextPath);
-    if (stat.isFile()) {
-      shell.showItemInFolder(nextPath);
-      return true;
-    }
-    await shell.openPath(nextPath);
-    return true;
-  });
-  ipcMain.handle("desktop:open-file", async (_event, targetPath) => {
-    const nextPath = String(targetPath || "").trim();
-    if (!nextPath || !fs.existsSync(nextPath)) return false;
-    const stat = fs.statSync(nextPath);
-    if (!stat.isFile()) return false;
-    const result = await shell.openPath(nextPath);
-    return !result;
-  });
-  ipcMain.handle("desktop:clear-cache", () => {
-    const summary = clearDesktopCaches(getStorageInfo());
-    ensureStorageDirectories();
-    return {
-      summary,
-      storage: getStorageInfo(),
-    };
-  });
-  ipcMain.handle("desktop:choose-directory", async (_event, options = {}) => {
-    const result = await dialog.showOpenDialog({
-      title: options?.title || "选择目录",
-      defaultPath: String(options?.defaultPath || "").trim() || getStorageInfo().exports,
-      properties: ["openDirectory", "createDirectory"],
-    });
-    if (result.canceled || !result.filePaths?.[0]) return "";
-    return result.filePaths[0];
-  });
-  ipcMain.handle("desktop:list-stickers", () => listStickerEntries(ensureStorageDirectories().stickers));
-  ipcMain.handle("desktop:import-sticker-files", async () => {
-    const result = await dialog.showOpenDialog({
-      title: "导入表情图片",
-      properties: ["openFile", "multiSelections"],
-      filters: [{ name: "Images", extensions: Array.from(STICKER_EXTENSIONS).map((item) => item.replace(/^\./, "")) }],
-    });
-    const stickersDir = ensureStorageDirectories().stickers;
-    if (result.canceled || !result.filePaths?.length) return listStickerEntries(stickersDir);
-    result.filePaths.forEach((filePath) => copyStickerIntoLibrary(stickersDir, filePath));
-    return listStickerEntries(stickersDir);
-  });
-  ipcMain.handle("desktop:import-sticker-folder", async () => {
-    const result = await dialog.showOpenDialog({
-      title: "导入表情文件夹",
-      properties: ["openDirectory"],
-    });
-    const stickersDir = ensureStorageDirectories().stickers;
-    if (result.canceled || !result.filePaths?.[0]) return listStickerEntries(stickersDir);
-    const folderPath = result.filePaths[0];
-    const files = walkStickerFiles(folderPath).slice(0, 200);
-    const prefix = path.basename(folderPath);
-    files.forEach((filePath) => copyStickerIntoLibrary(stickersDir, filePath, prefix));
-    return listStickerEntries(stickersDir);
-  });
-  ipcMain.handle("desktop:rename-sticker", (_event, payload = {}) => {
-    return renameStickerEntry(ensureStorageDirectories().stickers, payload.id, payload.name);
-  });
-  ipcMain.handle("desktop:delete-sticker", (_event, stickerId) => {
-    return deleteStickerEntry(ensureStorageDirectories().stickers, stickerId);
-  });
-  ipcMain.handle("desktop:move-sticker", (_event, payload = {}) => {
-    return moveStickerEntry(ensureStorageDirectories().stickers, payload.id, payload.direction);
-  });
-  ipcMain.handle("desktop:minimize", (event) => {
-    const window = resolveWindowByEvent(event);
-    if (!window || window.isDestroyed()) return null;
-    window.minimize();
-    return buildWindowState(window);
-  });
-  ipcMain.handle("desktop:toggle-maximize", (event) => {
-    const window = resolveWindowByEvent(event);
-    if (!window || window.isDestroyed()) return null;
-    if (window.isMaximized()) {
-      window.unmaximize();
-    } else {
-      window.maximize();
-    }
-    return buildWindowState(window);
-  });
-  ipcMain.handle("desktop:close", (event) => {
-    const window = resolveWindowByEvent(event);
-    if (!window || window.isDestroyed()) return null;
-    window.close();
-    return null;
-  });
-  ipcMain.handle("desktop:login-success", (event) => {
-    createListWindow();
-    const window = resolveWindowByEvent(event);
-    if (window && !window.isDestroyed()) {
-      window.close();
-    }
-    return true;
-  });
-  ipcMain.handle("desktop:open-chat-window", (_event, conversationId) => {
-    createChatWindow(conversationId);
-    slideOutListWindow();
-    return true;
-  });
-  ipcMain.handle("desktop:logout", () => {
-    if (listWindow && !listWindow.isDestroyed()) {
-      listWindow.destroy();
-      listWindow = null;
-    }
-    closeAllChatWindows();
-    createLoginWindow();
-    return true;
-  });
-  ipcMain.handle("desktop:show-notification", (_event, payload) => {
-    return showDesktopNotification(payload || {});
-  });
-  ipcMain.handle("desktop:beep", () => {
-    shell.beep();
-    return true;
-  });
-  ipcMain.handle("desktop:update-unread-count", (_event, nextCount) => {
-    unreadCount = Math.max(0, Number(nextCount || 0));
-    if (tray && !tray.isDestroyed?.()) {
-      tray.setToolTip(buildTrayTooltip());
-      tray.setContextMenu(Menu.buildFromTemplate(buildTrayMenuTemplate()));
-    }
-    return unreadCount;
-  });
+function logout() {
+  if (listWindow && !listWindow.isDestroyed()) {
+    listWindow.destroy();
+    listWindow = null;
+  }
+  closeAllChatWindows();
+  createLoginWindow();
 }
 
-registerIpcHandlers();
+registerDesktopIpcHandlers({
+  STICKER_EXTENSIONS,
+  app,
+  autoUpdater,
+  buildTrayMenu,
+  buildTrayTooltip,
+  clearDesktopCaches,
+  copyStickerIntoLibrary,
+  createChatWindow,
+  createListWindow,
+  createLoginWindow,
+  deleteStickerEntry,
+  dialog,
+  ensureRemoteAvatarCached,
+  ensureStorageDirectories,
+  getDesktopPreferences,
+  getStorageInfo,
+  listStickerEntries,
+  logout,
+  moveStickerEntry,
+  markAppQuitting,
+  pathApi: path,
+  publishUpdateState,
+  readStateCache,
+  registerWindowContext: setWindowContext,
+  renameStickerEntry,
+  resolveWindowByEvent,
+  saveDownloadedAsset,
+  screenshotSelection,
+  setUnreadCount,
+  shell,
+  showDesktopNotification,
+  slideOutListWindow,
+  targetOrigin,
+  toggleWindowMaximize,
+  trayRef: () => tray,
+  updateDesktopPreferences,
+  updateStateRef: () => updateState,
+  walkStickerFiles,
+  windowStateBuilder: buildWindowState,
+  writeImageToClipboard,
+  writeStateCache,
+});
 registerAutoUpdaterEvents();
 
 app.on("before-quit", () => {
