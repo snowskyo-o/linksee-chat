@@ -4,7 +4,9 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { writeImageToClipboard } = require("./desktop-media.cjs");
 const { clearDesktopCaches } = require("./cache-maintenance.cjs");
+const { buildDesktopRuntimeConfig } = require("./desktop-config.cjs");
 const { registerDesktopIpcHandlers } = require("./desktop-ipc.cjs");
+const { createDesktopUpdateController } = require("./desktop-updates.cjs");
 const {
   buildWindowState,
   clearWindowContext,
@@ -42,7 +44,6 @@ const {
 } = require("./desktop-storage.cjs");
 const { STICKER_EXTENSIONS, listStickerEntries, copyStickerIntoLibrary, walkStickerFiles, renameStickerEntry, deleteStickerEntry, moveStickerEntry } = require("./sticker-library.cjs");
 
-const DEFAULT_REMOTE_ORIGIN = "http://186.241.89.102";
 const projectRoot = path.resolve(__dirname, "../..");
 const port = process.env.DESKTOP_PORT || process.env.PORT || "3010";
 const preloadPath = path.join(__dirname, "preload.cjs");
@@ -51,43 +52,13 @@ const rendererRoot = path.join(projectRoot, "apps", "web", "dist");
 const loginPagePath = path.join(rendererRoot, "login.html");
 const listPagePath = path.join(rendererRoot, "list.html");
 const chatPagePath = path.join(rendererRoot, "chat.html");
-const configCandidates = [
-  path.join(projectRoot, "desktop-config.json"),
-  path.join(process.resourcesPath || "", "desktop-config.json"),
-  path.join(path.dirname(process.execPath), "desktop-config.json"),
-];
-
-function normalizeOrigin(value) {
-  return String(value || "").trim().replace(/\/$/, "");
-}
-
-function readDesktopConfigValue(key) {
-  for (const file of configCandidates) {
-    try {
-      if (!file || !fs.existsSync(file)) continue;
-      const parsed = JSON.parse(fs.readFileSync(file, "utf8"));
-      const value = normalizeOrigin(parsed?.[key]);
-      if (value) return value;
-    } catch (error) {
-      console.error(`[desktop] failed to read config ${file}`, error);
-    }
-  }
-  return "";
-}
-
-function readRemoteOrigin() {
-  const envOrigin = normalizeOrigin(process.env.DESKTOP_REMOTE_ORIGIN);
-  if (envOrigin) return envOrigin;
-
-  return readDesktopConfigValue("remoteOrigin") || DEFAULT_REMOTE_ORIGIN;
-}
-
-const remoteOrigin = readRemoteOrigin();
-const localOrigin = `http://127.0.0.1:${port}`;
-const targetOrigin = remoteOrigin || localOrigin;
-const updateFeedUrl = normalizeOrigin(process.env.DESKTOP_UPDATE_FEED_URL)
-  || readDesktopConfigValue("updateFeedUrl")
-  || `${remoteOrigin}/updates/desktop/win/stable`;
+const { targetOrigin, updateFeedUrl } = buildDesktopRuntimeConfig({
+  projectRoot,
+  processEnv: process.env,
+  processResourcesPath: process.resourcesPath,
+  processExecPath: process.execPath,
+  port,
+});
 
 let loginWindow = null;
 let listWindow = null;
@@ -98,14 +69,6 @@ let isQuitting = false;
 let listWindowBoundsSnapshot = null;
 let listWindowAnimating = false;
 let unreadCount = 0;
-let updateState = {
-  status: "idle",
-  available: false,
-  downloaded: false,
-  progress: 0,
-  version: "",
-  error: "",
-};
 const screenshotSelection = createScreenshotSelectionManager({
   preloadPath: screenshotSelectionPreloadPath,
 });
@@ -166,64 +129,6 @@ function updateDesktopPreferences(patch = {}) {
     }));
   }
   return publishDesktopPreferences();
-}
-
-function publishUpdateState(patch = {}) {
-  updateState = { ...updateState, ...patch };
-  getLiveWindows().forEach((window) => {
-    window.webContents.send("desktop:update-state", updateState);
-  });
-  return updateState;
-}
-
-function registerAutoUpdaterEvents() {
-  autoUpdater.on("checking-for-update", () => {
-    publishUpdateState({ status: "checking", error: "" });
-  });
-  autoUpdater.on("update-available", (info) => {
-    publishUpdateState({
-      status: "available",
-      available: true,
-      downloaded: false,
-      progress: 0,
-      version: info?.version || "",
-      error: "",
-    });
-  });
-  autoUpdater.on("update-not-available", () => {
-    publishUpdateState({
-      status: "none",
-      available: false,
-      downloaded: false,
-      progress: 0,
-      version: "",
-      error: "",
-    });
-  });
-  autoUpdater.on("download-progress", (progress) => {
-    publishUpdateState({
-      status: "downloading",
-      available: true,
-      progress: Math.max(0, Math.min(100, Math.round(progress?.percent || 0))),
-      error: "",
-    });
-  });
-  autoUpdater.on("update-downloaded", (info) => {
-    publishUpdateState({
-      status: "downloaded",
-      available: true,
-      downloaded: true,
-      progress: 100,
-      version: info?.version || updateState.version || "",
-      error: "",
-    });
-  });
-  autoUpdater.on("error", (error) => {
-    publishUpdateState({
-      status: "error",
-      error: error?.message || "更新失败",
-    });
-  });
 }
 
 function sendWindowState(window) {
@@ -320,6 +225,10 @@ const {
   restoreListWindowPosition,
   slideOutListWindow,
 } = desktopWindows;
+const desktopUpdates = createDesktopUpdateController({
+  autoUpdater,
+  getLiveWindows,
+});
 
 function logout() {
   if (listWindow && !listWindow.isDestroyed()) {
@@ -378,7 +287,7 @@ registerDesktopIpcHandlers({
   moveStickerEntry,
   markAppQuitting,
   pathApi: path,
-  publishUpdateState,
+  publishUpdateState: desktopUpdates.publishUpdateState,
   readStateCache,
   registerWindowContext: setWindowContext,
   renameStickerEntry,
@@ -406,13 +315,13 @@ registerDesktopIpcHandlers({
   toggleWindowMaximize,
   trayRef: () => tray,
   updateDesktopPreferences,
-  updateStateRef: () => updateState,
+  updateStateRef: desktopUpdates.updateStateRef,
   walkStickerFiles,
   windowStateBuilder: buildWindowState,
   writeImageToClipboard,
   writeStateCache,
 });
-registerAutoUpdaterEvents();
+desktopUpdates.registerAutoUpdaterEvents();
 
 app.on("before-quit", () => {
   isQuitting = true;
@@ -434,7 +343,7 @@ app.whenReady().then(async () => {
     Tray,
     createTrayIcon: () => createTrayIcon({
       nativeImage,
-      resolveTrayIconPath: () => resolveTrayIconPath({ fs, path, process, projectRoot }),
+      resolveTrayIconPath: () => resolveTrayIconPath({ path, process, projectRoot }),
     }),
     buildTrayTooltip,
     unreadCount,
