@@ -15,6 +15,8 @@ export function createChatStoreMessageDerived(auth, state) {
     const senderName = message.sender?.profile?.realName || message.senderId || "未知用户";
     const deleted = Boolean(message.deletedAt);
     const isFileMessage = Array.isArray(message.files) && message.files.length > 0;
+    const textContent = String(message.content || "").trim();
+    const replyToText = buildDerivedReplyText(message);
     let html = deleted ? "" : escapeHtml(message.content || "");
     html = highlightMentionTokens(html, state.participants.value);
     const activeSearch = state.searchKeyword.value.trim();
@@ -34,10 +36,11 @@ export function createChatStoreMessageDerived(auth, state) {
       isFileMessage,
       isMe: String(message.senderId) === String(auth.userId),
       canRecall: String(message.senderId) === String(auth.userId) && !deleted && !message.operationState,
+      canCopy: !deleted && Boolean(textContent),
       canRetry: String(message.senderId) === String(auth.userId) && message.operationState === "failed",
       canDelete: String(message.senderId) === String(auth.userId) && !deleted && (!message.operationState || message.operationState === "failed"),
       canForward: !deleted && !message.operationState && (message.type === "text" || isFileMessage),
-      hasTextContent: !deleted && !isFileMessage && Boolean(String(message.content || "").trim()),
+      hasTextContent: !deleted && !isFileMessage && Boolean(textContent),
       isFavorite: state.favoriteMessages.value.some((item) => item.id === String(message.id)),
       timeText: formatDateTime(message.createdAt),
       html,
@@ -51,7 +54,7 @@ export function createChatStoreMessageDerived(auth, state) {
         expiryText: formatExpiry(file.expiresAt),
         transfer: state.fileTransfers.value[file.objectKey] || null,
       })) : [],
-      replyToText: buildDerivedReplyText(message),
+      replyToText,
       avatarUrl: resolveMediaUrl(message.sender?.profile?.avatarUrl || ""),
       avatarText: getInitials(senderName, senderName),
     };

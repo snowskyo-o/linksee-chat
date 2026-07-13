@@ -1,6 +1,17 @@
 import { findMessage, normalizeMessage, patchMessageLocally, replaceMessageLocally, syncConversationPreview } from "./message-operations.js";
 
 export function createChatMessageActions({ store, chatApi, dataActions, fileActions }) {
+  async function copyMessage(message) {
+    const text = String(message?.content || "").trim();
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      store.pushNotification({ title: "已复制", message: "消息内容已复制", tone: "success", ttl: 1600 });
+    } catch (error) {
+      store.pushNotification({ title: "复制失败", message: error?.message || "当前环境不支持剪贴板", tone: "error" });
+    }
+  }
+
   async function recallMessage(messageId) {
     const message = findMessage(store, messageId);
     if (!message || message.operationState) return;
@@ -25,6 +36,10 @@ export function createChatMessageActions({ store, chatApi, dataActions, fileActi
     if (!message || (message.operationState && !["retry", "delete"].includes(action))) return;
     if (action === "reply") {
       store.replyTo.value = message;
+      return;
+    }
+    if (action === "copy") {
+      copyMessage(message).catch(() => {});
       return;
     }
     if (action === "favorite") {
@@ -57,6 +72,7 @@ export function createChatMessageActions({ store, chatApi, dataActions, fileActi
   }
 
   return {
+    copyMessage,
     handleMessageAction,
     recallMessage,
   };

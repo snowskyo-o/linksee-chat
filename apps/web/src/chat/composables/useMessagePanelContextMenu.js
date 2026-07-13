@@ -12,6 +12,7 @@ export function useMessagePanelContextMenu(emit) {
     const message = messageMenu.value.message;
     if (!message) return [];
     const items = [{ key: "reply", label: "回复" }];
+    if (message.canCopy) items.push({ key: "copy", label: "复制" });
     if (message.canForward) items.push({ key: "forward", label: "转发" });
     items.push({ key: "favorite", label: message.isFavorite ? "取消收藏" : "收藏" });
     if (message.canRecall) items.push({ key: "recall", label: "撤回", tone: "danger" });
