@@ -84,6 +84,7 @@ services:
       - "80:80"
     volumes:
       - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./updates:/usr/share/nginx/html/updates:ro
 
 volumes:
   mysql_data:
