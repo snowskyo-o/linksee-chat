@@ -1,44 +1,8 @@
 import { readChatCache, writeChatCache } from "./local-chat-cache.js";
 import { normalizeMessage, normalizeUser, patchConversationLocally } from "./message-operations.js";
 import { applyLocalConversationVisibility, filterLocallyVisibleMessages } from "./message-visibility-cache.js";
-
-function pickVersionedField(cachedValue, serverValue, shouldUseServer, fallbackValue = "") {
-  if (shouldUseServer) return serverValue || fallbackValue;
-  return cachedValue || serverValue || fallbackValue;
-}
-
-function mergeSelfProfile(cachedUser, serverUser, fallbackUserId = "") {
-  const cachedProfile = cachedUser?.profile || {};
-  const serverProfile = serverUser?.profile || {};
-  const cachedProfileVersion = Number(cachedProfile.profileVersion || 0);
-  const serverProfileVersion = Number(serverProfile.profileVersion || 0);
-  const cachedAvatarVersion = Number(cachedProfile.avatarVersion || 0);
-  const serverAvatarVersion = Number(serverProfile.avatarVersion || 0);
-  const useServerProfile = serverProfileVersion > cachedProfileVersion;
-  const useServerAvatar = serverAvatarVersion > cachedAvatarVersion;
-  const userId = String(serverUser?.id || cachedUser?.id || fallbackUserId || "").trim();
-
-  return {
-    ...(cachedUser || {}),
-    ...(serverUser || {}),
-    id: userId,
-    profile: {
-      ...cachedProfile,
-      ...serverProfile,
-      realName: pickVersionedField(cachedProfile.realName, serverProfile.realName, useServerProfile, userId),
-      originalRealName: pickVersionedField(
-        cachedProfile.originalRealName || cachedProfile.realName,
-        serverProfile.originalRealName || serverProfile.realName,
-        useServerProfile,
-        userId,
-      ),
-      bio: pickVersionedField(cachedProfile.bio, serverProfile.bio, useServerProfile, ""),
-      avatarUrl: pickVersionedField(cachedProfile.avatarUrl, serverProfile.avatarUrl, useServerAvatar, ""),
-      profileVersion: Math.max(cachedProfileVersion, serverProfileVersion),
-      avatarVersion: Math.max(cachedAvatarVersion, serverAvatarVersion),
-    },
-  };
-}
+import { mergeUserProfile, mergeUsersById } from "./chat-profile-merge.js";
+import { mergeConversationsById, mergeMessagesById } from "./chat-profile-merge-conversations.js";
 
 export function createChatLoadActions({ store, chatApi, cacheUserId, setLoadState }) {
   async function loadProfile(auth) {
@@ -50,7 +14,7 @@ export function createChatLoadActions({ store, chatApi, cacheUserId, setLoadStat
       document.title = `Linksee Chat · ${store.profileName.value}`;
     }
     const payload = await chatApi.getJson("/api/v1/users/me");
-    const mergedProfile = mergeSelfProfile(cached?.data || null, payload.data || null, auth.userId);
+    const mergedProfile = mergeUserProfile(cached?.data || null, payload.data || null, auth.userId);
     store.me.value = normalizeUser(mergedProfile);
     store.profileName.value = store.me.value.profile?.realName || auth.userId;
     store.profileBio.value = store.me.value.profile?.bio || "";
@@ -64,8 +28,9 @@ export function createChatLoadActions({ store, chatApi, cacheUserId, setLoadStat
       store.contacts.value = cached.data.map(normalizeUser);
     }
     const payload = await chatApi.getJson("/api/v1/contacts");
-    store.contacts.value = (Array.isArray(payload.data) ? payload.data : []).map(normalizeUser);
-    writeChatCache(cacheUserId(), "contacts", { data: payload.data || [], cachedAt: new Date().toISOString() }).catch(() => {});
+    const mergedContacts = mergeUsersById(cached?.data, payload.data);
+    store.contacts.value = mergedContacts.map(normalizeUser);
+    writeChatCache(cacheUserId(), "contacts", { data: mergedContacts, cachedAt: new Date().toISOString() }).catch(() => {});
   }
 
   async function loadConversations() {
@@ -77,7 +42,8 @@ export function createChatLoadActions({ store, chatApi, cacheUserId, setLoadStat
     }
     try {
       const payload = await chatApi.getJson("/api/v1/conversations");
-      store.conversations.value = applyLocalConversationVisibility(cacheUserId(), payload.data);
+      const mergedConversations = mergeConversationsById(cached?.data, payload.data);
+      store.conversations.value = applyLocalConversationVisibility(cacheUserId(), mergedConversations);
       writeChatCache(cacheUserId(), "conversations", { data: store.conversations.value, cachedAt: new Date().toISOString() }).catch(() => {});
       setLoadState(store.conversationLoadState, "ready");
       if (!store.selectedId.value && store.conversations.value.length) {
@@ -105,9 +71,10 @@ export function createChatLoadActions({ store, chatApi, cacheUserId, setLoadStat
       store.participants.value = cached.data.map(normalizeUser);
     }
     const payload = await chatApi.getJson(`/api/v1/conversations/${encodeURIComponent(store.selectedId.value)}/participants`);
-    store.participants.value = (Array.isArray(payload.data) ? payload.data : []).map(normalizeUser);
+    const mergedParticipants = mergeUsersById(cached?.data, payload.data);
+    store.participants.value = mergedParticipants.map(normalizeUser);
     writeChatCache(cacheUserId(), cacheKey, {
-      data: payload.data || [],
+      data: mergedParticipants,
       cachedAt: new Date().toISOString(),
     }).catch(() => {});
   }
@@ -121,8 +88,9 @@ export function createChatLoadActions({ store, chatApi, cacheUserId, setLoadStat
     }
     if (!store.messages.value.length) setLoadState(store.messageLoadState, "loading");
     const canUseCache = !store.searchKeyword.value;
+    let cached = null;
     if (canUseCache) {
-      const cached = await readChatCache(cacheUserId(), `messages-${store.selectedId.value}`);
+      cached = await readChatCache(cacheUserId(), `messages-${store.selectedId.value}`);
       if (Array.isArray(cached?.data) && cached.data.length && !store.messages.value.length) {
         store.messages.value = filterLocallyVisibleMessages(cacheUserId(), store.selectedId.value, cached.data).map(normalizeMessage);
         store.hasMoreMessages.value = Boolean(cached?.hasMoreMessages);
@@ -134,7 +102,8 @@ export function createChatLoadActions({ store, chatApi, cacheUserId, setLoadStat
       : `/api/v1/conversations/${encodeURIComponent(store.selectedId.value)}/messages?limit=50`;
     try {
       const payload = await chatApi.getJson(path);
-      const visibleMessages = filterLocallyVisibleMessages(cacheUserId(), store.selectedId.value, payload.data);
+      const mergedMessages = mergeMessagesById(canUseCache ? cached?.data : store.messages.value, payload.data);
+      const visibleMessages = filterLocallyVisibleMessages(cacheUserId(), store.selectedId.value, mergedMessages);
       store.messages.value = visibleMessages.map(normalizeMessage);
       store.hasMoreMessages.value = !store.searchKeyword.value && store.messages.value.length >= 50;
       setLoadState(store.messageLoadState, "ready");
