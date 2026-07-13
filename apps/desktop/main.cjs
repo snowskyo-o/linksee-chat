@@ -5,6 +5,19 @@ const path = require("node:path");
 const { writeImageToClipboard } = require("./desktop-media.cjs");
 const { clearDesktopCaches } = require("./cache-maintenance.cjs");
 const { registerDesktopIpcHandlers } = require("./desktop-ipc.cjs");
+const {
+  broadcastOpenConversation,
+  buildTrayMenu,
+  buildTrayTooltip,
+  createTrayIcon,
+  destroyTray,
+  ensureTray,
+  hideAllChatWindows,
+  logoutToLoginFromTray,
+  resolveTrayIconPath,
+  showDesktopNotification,
+  showPrimaryWindowFromTray,
+} = require("./desktop-tray.cjs");
 const { createScreenshotSelectionManager } = require("./screenshot-selection.cjs");
 const {
   ensureRemoteAvatarCached,
@@ -91,41 +104,6 @@ autoUpdater.autoDownload = false;
 autoUpdater.autoInstallOnAppQuit = false;
 autoUpdater.setFeedURL({ provider: "generic", url: updateFeedUrl });
 
-function createFallbackTrayIcon() {
-  const svg = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
-      <rect x="6" y="6" width="52" height="52" rx="16" fill="#4f7cff"/>
-      <path d="M22 18h8v28h16v8H22V18z" fill="#ffffff"/>
-    </svg>
-  `.trim();
-  return nativeImage.createFromDataURL(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`).resize({ width: 16, height: 16 });
-}
-
-function resolveTrayIconPath() {
-  const candidates = process.platform === "win32"
-    ? [
-        path.join(process.resourcesPath || "", "icon.ico"),
-        path.join(path.dirname(process.execPath), "resources", "icon.ico"),
-        path.join(projectRoot, "build", "icon.ico"),
-      ]
-    : [
-        path.join(process.resourcesPath || "", "icon.png"),
-        path.join(path.dirname(process.execPath), "resources", "icon.png"),
-        path.join(projectRoot, "build", "icon.png"),
-      ];
-
-  return candidates.find((file) => file && fs.existsSync(file)) || "";
-}
-
-function createTrayIcon() {
-  const trayIconPath = resolveTrayIconPath();
-  if (trayIconPath) {
-    const icon = nativeImage.createFromPath(trayIconPath);
-    if (!icon.isEmpty()) return icon.resize({ width: 16, height: 16 });
-  }
-  return createFallbackTrayIcon();
-}
-
 function resolveWindowByEvent(event) {
   return BrowserWindow.fromWebContents(event.sender);
 }
@@ -145,10 +123,6 @@ function toggleWindowMaximize(window) {
 
 function getLiveWindows() {
   return [loginWindow, listWindow, ...chatWindows.values()].filter((window) => window && !window.isDestroyed());
-}
-
-function buildTrayTooltip() {
-  return unreadCount <= 0 ? "Linksee Chat" : `Linksee Chat（${unreadCount > 99 ? "99+" : unreadCount} 条未读）`;
 }
 
 function setUnreadCount(nextCount) {
@@ -181,8 +155,26 @@ function updateDesktopPreferences(patch = {}) {
   ensureStorageDirectories();
   applyLaunchOnStartupPreference();
   if (tray && !tray.isDestroyed?.()) {
-    tray.setToolTip(buildTrayTooltip());
-    tray.setContextMenu(Menu.buildFromTemplate(buildTrayMenuTemplate()));
+    tray.setToolTip(buildTrayTooltip(unreadCount));
+    tray.setContextMenu(buildTrayMenu({
+      Menu,
+      getDesktopPreferences,
+      updateDesktopPreferences,
+      showPrimaryWindowFromTray: () => showPrimaryWindowFromTray({
+        listWindow,
+        loginWindow,
+        restoreListWindowPosition,
+        focusWindow,
+        createLoginWindow,
+      }),
+      logoutToLoginFromTray: () => logoutToLoginFromTray({
+        getLiveWindows,
+        listWindow: () => listWindow,
+        closeAllChatWindows,
+        createLoginWindow,
+      }),
+      quitDesktopApp,
+    }));
   }
   return publishDesktopPreferences();
 }
@@ -402,48 +394,6 @@ function hideWindowToTray(window) {
   window.hide();
 }
 
-function destroyTray() {
-  if (!tray) return;
-  tray.removeAllListeners();
-  tray.destroy();
-  tray = null;
-}
-
-function hideAllChatWindows() {
-  for (const window of chatWindows.values()) if (window && !window.isDestroyed()) window.hide();
-}
-
-function showPrimaryWindowFromTray() {
-  if (listWindow && !listWindow.isDestroyed()) {
-    restoreListWindowPosition();
-    focusWindow(listWindow);
-    return;
-  }
-  if (loginWindow && !loginWindow.isDestroyed()) {
-    focusWindow(loginWindow);
-    return;
-  }
-  createLoginWindow();
-}
-
-function sendConversationToWindow(window, conversationId) {
-  if (!window || window.isDestroyed()) return;
-  const payload = { conversationId: String(conversationId || "").trim() };
-  if (!payload.conversationId) return;
-  const emit = () => window.webContents.send("desktop:open-conversation", payload);
-  if (window.webContents.isLoadingMainFrame()) return void window.webContents.once("did-finish-load", emit);
-  emit();
-}
-
-function broadcastOpenConversation(conversationId) {
-  const targetId = String(conversationId || "").trim();
-  if (!targetId) return;
-  sendConversationToWindow(listWindow, targetId);
-  for (const window of chatWindows.values()) {
-    sendConversationToWindow(window, targetId);
-  }
-}
-
 function setWindowContext(window, context = {}) {
   if (!window || window.isDestroyed()) return;
   const existing = windowContextById.get(window.id) || {};
@@ -459,94 +409,10 @@ function clearWindowContext(window) {
   windowContextById.delete(window.id);
 }
 
-function shouldSuppressDesktopNotification(conversationId = "") {
-  const targetConversationId = String(conversationId || "").trim();
-  if (!targetConversationId) return false;
-  for (const [windowId, context] of windowContextById.entries()) {
-    const currentWindow = BrowserWindow.fromId(windowId);
-    if (!currentWindow || currentWindow.isDestroyed() || currentWindow.isMinimized() || !currentWindow.isVisible()) continue;
-    if (!currentWindow.isFocused()) continue;
-    if (String(context?.conversationId || "").trim() === targetConversationId) return true;
-  }
-  return false;
-}
-
-function showDesktopNotification({ title, body, conversationId = "" }) {
-  if (getDesktopPreferences().notificationsMuted) return false;
-  if (shouldSuppressDesktopNotification(conversationId)) return false;
-  if (!Notification.isSupported()) return false;
-  const notification = new Notification({
-    title: String(title || "Linksee Chat"),
-    body: String(body || "你收到一条新消息"),
-    silent: true,
-    icon: resolveTrayIconPath() || undefined,
-  });
-  notification.on("click", () => {
-    if (conversationId) {
-      createListWindow();
-      const chatWindow = createChatWindow(conversationId);
-      broadcastOpenConversation(conversationId);
-      slideOutListWindow();
-      focusWindow(chatWindow || listWindow);
-      return;
-    }
-    showPrimaryWindowFromTray();
-  });
-  notification.show();
-  return true;
-}
-
-function clearSessionStorageInWindow(window) {
-  if (!window || window.isDestroyed()) return Promise.resolve();
-  return window.webContents.executeJavaScript(`
-    ["chat_access_token","chat_refresh_token","chat_user_id","chat_role"].forEach((key) => window.localStorage.removeItem(key));
-  `, true).catch(() => {});
-}
-
-async function logoutToLoginFromTray() {
-  await Promise.all(getLiveWindows().map((window) => clearSessionStorageInWindow(window)));
-  if (listWindow && !listWindow.isDestroyed()) {
-    listWindow.destroy();
-    listWindow = null;
-  }
-  closeAllChatWindows();
-  createLoginWindow();
-}
-
-function buildTrayMenuTemplate() {
-  const preferences = getDesktopPreferences();
-  return [
-    { label: "打开主窗口", click: () => { showPrimaryWindowFromTray(); } },
-    { label: preferences.notificationsMuted ? "关闭消息免打扰" : "消息免打扰", click: () => { updateDesktopPreferences({ notificationsMuted: !getDesktopPreferences().notificationsMuted }); } },
-    { label: "退出登录", click: () => { logoutToLoginFromTray().catch(() => {}); } },
-    { type: "separator" },
-    { label: "退出程序", click: () => { quitDesktopApp(); } },
-  ];
-}
-
-function buildTrayMenu() {
-  return Menu.buildFromTemplate(buildTrayMenuTemplate());
-}
-
-function ensureTray() {
-  if (tray && !tray.isDestroyed?.()) return tray;
-  tray = new Tray(createTrayIcon());
-  tray.setToolTip(buildTrayTooltip());
-  tray.setContextMenu(buildTrayMenu());
-  tray.on("double-click", () => {
-    showPrimaryWindowFromTray();
-  });
-  tray.on("click", () => {
-    showPrimaryWindowFromTray();
-  });
-
-  return tray;
-}
-
 function quitDesktopApp() {
   if (isQuitting) return;
   isQuitting = true;
-  destroyTray();
+  tray = destroyTray(tray);
   for (const window of chatWindows.values()) {
     if (window && !window.isDestroyed()) {
       window.close();
@@ -626,7 +492,7 @@ function createListWindow() {
     }
     event.preventDefault();
     hideWindowToTray(listWindow);
-    hideAllChatWindows();
+    hideAllChatWindows(chatWindows);
   });
 
   listWindow.on("move", () => {
@@ -690,11 +556,37 @@ function logout() {
   createLoginWindow();
 }
 
+function openPrimaryFromTray() {
+  showPrimaryWindowFromTray({
+    listWindow,
+    loginWindow,
+    restoreListWindowPosition,
+    focusWindow,
+    createLoginWindow,
+  });
+}
+
+function buildTrayMenuForApp() {
+  return buildTrayMenu({
+    Menu,
+    getDesktopPreferences,
+    updateDesktopPreferences,
+    showPrimaryWindowFromTray: openPrimaryFromTray,
+    logoutToLoginFromTray: () => logoutToLoginFromTray({
+      getLiveWindows,
+      listWindow: () => listWindow,
+      closeAllChatWindows,
+      createLoginWindow,
+    }),
+    quitDesktopApp,
+  });
+}
+
 registerDesktopIpcHandlers({
   STICKER_EXTENSIONS,
   app,
   autoUpdater,
-  buildTrayMenu,
+  buildTrayMenu: buildTrayMenuForApp,
   buildTrayTooltip,
   clearDesktopCaches,
   copyStickerIntoLibrary,
@@ -721,7 +613,30 @@ registerDesktopIpcHandlers({
   screenshotSelection,
   setUnreadCount,
   shell,
-  showDesktopNotification,
+  showDesktopNotification: (payload) => showDesktopNotification({
+    Notification,
+    ...payload,
+    getDesktopPreferences,
+    resolveTrayIconPath: () => resolveTrayIconPath({ fs, path, process, projectRoot }),
+    shouldSuppressDesktopNotification: (conversationId) => {
+      const targetConversationId = String(conversationId || "").trim();
+      if (!targetConversationId) return false;
+      for (const [windowId, context] of windowContextById.entries()) {
+        const currentWindow = BrowserWindow.fromId(windowId);
+        if (!currentWindow || currentWindow.isDestroyed() || currentWindow.isMinimized() || !currentWindow.isVisible()) continue;
+        if (!currentWindow.isFocused()) continue;
+        if (String(context?.conversationId || "").trim() === targetConversationId) return true;
+      }
+      return false;
+    },
+    createListWindow,
+    createChatWindow,
+    broadcastOpenConversation: (conversationId) => broadcastOpenConversation(conversationId, { listWindow, chatWindows }),
+    slideOutListWindow,
+    focusWindow,
+    listWindow: () => listWindow,
+    showPrimaryWindowFromTray: openPrimaryFromTray,
+  }),
   slideOutListWindow,
   targetOrigin,
   toggleWindowMaximize,
@@ -737,7 +652,7 @@ registerAutoUpdaterEvents();
 
 app.on("before-quit", () => {
   isQuitting = true;
-  destroyTray();
+  tray = destroyTray(tray);
 });
 
 app.on("will-quit", () => {
@@ -750,10 +665,21 @@ app.whenReady().then(async () => {
   getDesktopPreferences();
   applyLaunchOnStartupPreference();
   ensureStorageDirectories();
-  ensureTray();
+  tray = ensureTray({
+    existingTray: tray,
+    Tray,
+    createTrayIcon: () => createTrayIcon({
+      nativeImage,
+      resolveTrayIconPath: () => resolveTrayIconPath({ fs, path, process, projectRoot }),
+    }),
+    buildTrayTooltip,
+    unreadCount,
+    buildTrayMenu: buildTrayMenuForApp,
+    showPrimaryWindowFromTray: openPrimaryFromTray,
+  });
   createLoginWindow();
   app.on("activate", async () => {
-    showPrimaryWindowFromTray();
+    openPrimaryFromTray();
   });
 }).catch((error) => {
   console.error("[desktop] startup failed", error);
