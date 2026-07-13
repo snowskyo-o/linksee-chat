@@ -163,8 +163,15 @@ async function handleUpdateNow() {
     applyDesktopUpdateState(state);
     return;
   }
-  const url = update.downloadUrl || update.notesUrl || "";
-  if (url) window.open(url, "_blank", "noopener,noreferrer");
+  appInfo.value = {
+    ...appInfo.value,
+    update: {
+      ...update,
+      status: "error",
+      error: "当前客户端不支持自动更新，请安装正式桌面版后重试",
+    },
+  };
+  updatePromptOpen.value = true;
 }
 
 function remindUpdateLater() {

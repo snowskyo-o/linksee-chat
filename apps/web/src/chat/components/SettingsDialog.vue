@@ -186,7 +186,7 @@ function exportLogs() {
                 <strong>发现新版本 {{ appInfo.update.latestVersion }}</strong>
                 <p class="muted">{{ appInfo.update.mandatory ? "当前版本需要尽快更新" : "可在方便时更新客户端" }}</p>
               </div>
-              <button class="secondary-btn compact-btn" type="button" @click="$emit('open-update')">查看更新</button>
+              <button class="secondary-btn compact-btn" type="button" @click="$emit('open-update')">立即更新</button>
             </div>
             <div v-else class="settings-meta-row"><span>更新状态</span><strong>已是最新</strong></div>
             <div class="settings-meta-row"><span>Electron</span><strong>{{ appInfo.electron || "-" }}</strong></div>
