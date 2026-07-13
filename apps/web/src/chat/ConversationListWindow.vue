@@ -219,6 +219,13 @@ const toggleConversationMute = (row) => {
   const muted = store.toggleConversationMuted(row?.id);
   store.pushNotification({ title: muted ? "已开启免打扰" : "已取消免打扰", message: row?.displayTitle || "会话", tone: "success", ttl: 1600 });
 };
+const markConversationRead = (row) => {
+  actions.markConversationReadById(row?.id).then(() => {
+    store.pushNotification({ title: "已标记已读", message: row?.displayTitle || "会话", tone: "success", ttl: 1400 });
+  }).catch((error) => {
+    store.pushNotification({ title: "操作失败", message: error?.message || "暂时无法标记已读", tone: "error" });
+  });
+};
 const hideConversationFromList = (row) => {
   if (!row?.id) return;
   store.hideConversation(row.id);
@@ -512,6 +519,7 @@ watch(() => friendCenter.keyword.value, () => {
           @select="selectConversation"
           @open="openConversation"
           @toggle-pin="actions.toggleConversationPinById($event.id)"
+          @mark-read="markConversationRead"
           @toggle-mute="toggleConversationMute"
           @hide-conversation="hideConversationFromList"
           @copy-title="copyConversationTitle"

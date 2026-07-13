@@ -8,7 +8,7 @@ defineProps({
   desktop: { type: Boolean, default: false },
 });
 
-defineEmits(["toggle-pin", "toggle-mute", "hide-conversation", "open-window", "copy-title", "close"]);
+defineEmits(["toggle-pin", "mark-read", "toggle-mute", "hide-conversation", "open-window", "copy-title", "close"]);
 </script>
 
 <template>
@@ -19,6 +19,9 @@ defineEmits(["toggle-pin", "toggle-mute", "hide-conversation", "open-window", "c
       </button>
       <button v-if="desktop" class="qq-thread-context-item" type="button" @click="$emit('open-window')">
         <span>打开独立窗口</span>
+      </button>
+      <button class="qq-thread-context-item" type="button" @click="$emit('mark-read')">
+        <span>标记已读</span>
       </button>
       <button class="qq-thread-context-item" type="button" @click="$emit('toggle-mute')">
         <span>{{ muted ? "取消免打扰" : "消息免打扰" }}</span>

@@ -10,7 +10,7 @@ defineProps({
   desktop: { type: Boolean, default: false },
 });
 
-const emit = defineEmits(["select", "open", "toggle-pin", "toggle-mute", "hide-conversation", "copy-title"]);
+const emit = defineEmits(["select", "open", "toggle-pin", "mark-read", "toggle-mute", "hide-conversation", "copy-title"]);
 
 const menuOpen = ref(false);
 const menuX = ref(0);
@@ -42,6 +42,12 @@ function handleTogglePin(row) {
 
 function handleToggleMute(row) {
   emit("toggle-mute", row);
+  closeMenu();
+}
+
+function handleMarkRead() {
+  if (!menuRow.value) return;
+  emit("mark-read", menuRow.value);
   closeMenu();
 }
 
@@ -131,6 +137,7 @@ onBeforeUnmount(() => {
       :desktop="desktop"
       @close="closeMenu"
       @toggle-pin="handleTogglePin(menuRow)"
+      @mark-read="handleMarkRead"
       @toggle-mute="handleToggleMute(menuRow)"
       @hide-conversation="handleHideConversation"
       @open-window="menuRow && $emit('open', menuRow.id); closeMenu()"

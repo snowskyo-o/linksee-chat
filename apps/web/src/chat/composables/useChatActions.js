@@ -572,6 +572,21 @@ export function useChatActions(store) {
     patchConversationLocally(store, conversationId, { pinnedAt: new Date().toISOString() });
   }
 
+  async function markConversationReadById(conversationId) {
+    const target = store.conversations.value.find((item) => String(item.id) === String(conversationId));
+    const lastMessageId = target?.lastMessage?.id ? String(target.lastMessage.id) : "";
+    if (!target?.id || !lastMessageId) return;
+    if (!target.unreadCount && !target.unreadMentionCount) return;
+    await chatApi.postJson(`/api/v1/conversations/${encodeURIComponent(target.id)}/read`, {
+      messageId: lastMessageId,
+    });
+    patchConversationLocally(store, target.id, {
+      unreadCount: 0,
+      unreadMentionCount: 0,
+      lastReadAt: new Date().toISOString(),
+    });
+  }
+
   function handleMessageAction({ id, action }) {
     const message = findMessage(store, id);
     if (!message || (message.operationState && action !== "retry")) return;
@@ -694,6 +709,7 @@ export function useChatActions(store) {
     submitConfirmDialog,
     toggleConversationPin,
     toggleConversationPinById,
+    markConversationReadById,
     saveProfile,
     uploadAvatar,
     applyUserProfileUpdate,
