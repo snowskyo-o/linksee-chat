@@ -1,5 +1,6 @@
 <script setup>
 import AvatarImage from "../../shared/components/AvatarImage.vue";
+import InfoSidebarInfoRow from "./InfoSidebarInfoRow.vue";
 
 defineProps({
   directPeer: { type: Object, default: null },
@@ -27,10 +28,11 @@ defineProps({
       </div>
 
       <dl class="sidebar-info-list">
-        <div v-for="row in infoRows" :key="row.label" class="sidebar-info-item">
-          <dt>{{ row.label }}</dt>
-          <dd>{{ row.value }}</dd>
-        </div>
+        <InfoSidebarInfoRow
+          v-for="row in infoRows"
+          :key="row.label"
+          :row="row"
+        />
       </dl>
     </div>
   </section>
@@ -85,25 +87,5 @@ defineProps({
   margin: 0;
   display: grid;
   gap: 10px;
-}
-
-.sidebar-info-item {
-  display: grid;
-  gap: 4px;
-  padding: 12px 14px;
-  border-radius: 14px;
-  background: #f7faff;
-}
-
-.sidebar-info-item dt {
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.sidebar-info-item dd {
-  margin: 0;
-  color: #24324d;
-  line-height: 1.5;
-  word-break: break-word;
 }
 </style>
