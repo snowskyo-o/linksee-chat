@@ -1,4 +1,5 @@
 import { computed, ref } from "vue";
+import { buildFavoriteMessagePreview } from "../store/chat-store-derived-utils.js";
 
 export function useConversationListDerivedState(store) {
   const searchFocused = ref(false);
@@ -16,7 +17,7 @@ export function useConversationListDerivedState(store) {
     const keyword = store.conversationKeyword.value.trim().toLowerCase();
     return store.favoriteMessages.value.filter((item) => {
       if (!keyword) return true;
-      return [item.conversationTitle, item.senderName, item.content]
+      return [item.conversationTitle, item.senderName, item.content, buildFavoriteMessagePreview(item)]
         .some((value) => String(value || "").toLowerCase().includes(keyword));
     });
   });
