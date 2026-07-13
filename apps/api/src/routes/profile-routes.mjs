@@ -1,36 +1,22 @@
-﻿import express, { Router } from "express";
+import express, { Router } from "express";
 import { prisma } from "../../../../infra/db/prisma.mjs";
 import { env } from "../../../../infra/config/env.mjs";
 import { minioClient } from "../../../../infra/storage/minio.mjs";
+import {
+  emitProfileUpdate,
+  publicAvatarUrl,
+  readAvatarUpload,
+  readPasswordPayload,
+  readProfilePayload,
+  serializePublicProfile,
+  validateAvatarUpload,
+  validatePasswordPayload,
+  validateProfilePayload,
+} from "./profile-route-helpers.mjs";
 import { findUserById } from "../services/chat-store.mjs";
 import { hashPassword, verifyPassword } from "../services/password-service.mjs";
 
 export const publicProfileRouter = Router();
-
-function publicAvatarUrl(userId) {
-  return `/api/v1/users/${encodeURIComponent(userId)}/avatar`;
-}
-
-function serializePublicProfile(user) {
-  return {
-    id: user.id,
-    profile: {
-      realName: user.profile?.realName || user.id,
-      bio: user.profile?.bio || "",
-      avatarUrl: user.profile?.avatarUrl ? publicAvatarUrl(user.id) : "",
-      profileVersion: Number(user.profile?.profileVersion || 0),
-      avatarVersion: Number(user.profile?.avatarVersion || 0),
-    },
-  };
-}
-
-function emitProfileUpdate(emitUserProfileEvent, userId, profile) {
-  if (typeof emitUserProfileEvent !== "function") return;
-  emitUserProfileEvent(userId, "user.profile.dirty", {
-    profileVersion: Number(profile?.profileVersion || 0),
-    avatarVersion: Number(profile?.avatarVersion || 0),
-  }).catch(() => {});
-}
 
 async function streamUserAvatar(req, res) {
   const user = await prisma.user.findUnique({
@@ -57,11 +43,9 @@ publicProfileRouter.get("/users/:userId/profile", async (req, res) => {
     where: { id: req.params.userId },
     include: { profile: true },
   });
-
   if (!user || !user.isActive) {
     return res.status(404).json({ ok: false, code: "NOT_FOUND", message: "用户不存在" });
   }
-
   return res.json({ ok: true, data: serializePublicProfile(user) });
 });
 
@@ -71,29 +55,27 @@ export function createProfileRouter(emitUserProfileEvent) {
   const router = Router();
 
   router.get("/users/me", async (req, res) => {
-  const user = await findUserById(req.userId);
-  if (!user) {
-    return res.status(404).json({ ok: false, code: "NOT_FOUND", message: "用户不存在" });
-  }
+    const user = await findUserById(req.userId);
+    if (!user) {
+      return res.status(404).json({ ok: false, code: "NOT_FOUND", message: "用户不存在" });
+    }
 
-  return res.json({
-    ok: true,
-    data: {
-      id: user.id,
-      role: user.role,
-      isActive: user.isActive,
-      forceChangePassword: false,
-      profile: serializePublicProfile(user).profile,
-    },
+    return res.json({
+      ok: true,
+      data: {
+        id: user.id,
+        role: user.role,
+        isActive: user.isActive,
+        forceChangePassword: false,
+        profile: serializePublicProfile(user).profile,
+      },
+    });
   });
-});
 
   router.post("/users/profiles/check", async (req, res) => {
     const items = Array.isArray(req.body?.items) ? req.body.items.slice(0, 100) : [];
     const requestedIds = [...new Set(items.map((item) => String(item?.userId || "").trim()).filter(Boolean))];
-    if (!requestedIds.length) {
-      return res.json({ ok: true, data: [] });
-    }
+    if (!requestedIds.length) return res.json({ ok: true, data: [] });
 
     const visibleRows = await prisma.chatConversationMember.findMany({
       where: {
@@ -136,97 +118,64 @@ export function createProfileRouter(emitUserProfileEvent) {
   });
 
   router.patch("/users/me/profile", async (req, res) => {
-  const realName = typeof req.body?.realName === "string" ? req.body.realName.trim() : "";
-  const bio = typeof req.body?.bio === "string" ? req.body.bio.trim() : "";
+    const { bio, realName } = readProfilePayload(req.body);
+    const validationError = validateProfilePayload({ realName, bio });
+    if (validationError) return res.status(400).json({ ok: false, code: "VALIDATION_FAILED", message: validationError });
 
-  if (!realName) {
-    return res.status(400).json({ ok: false, code: "VALIDATION_FAILED", message: "realName 必填" });
-  }
-  if (realName.length > 40) {
-    return res.status(400).json({ ok: false, code: "VALIDATION_FAILED", message: "realName 不能超过 40 个字符" });
-  }
-  if (bio.length > 1000) {
-    return res.status(400).json({ ok: false, code: "VALIDATION_FAILED", message: "bio 不能超过 1000 个字符" });
-  }
+    const updated = await prisma.userProfile.upsert({
+      where: { userId: req.userId },
+      update: { realName, bio, profileVersion: { increment: 1 } },
+      create: { userId: req.userId, realName, bio, profileVersion: 1, avatarVersion: 1 },
+    });
 
-  const updated = await prisma.userProfile.upsert({
-    where: { userId: req.userId },
-    update: { realName, bio, profileVersion: { increment: 1 } },
-    create: { userId: req.userId, realName, bio, profileVersion: 1, avatarVersion: 1 },
+    emitProfileUpdate(emitUserProfileEvent, req.userId, updated);
+    return res.json({ ok: true, data: { userId: req.userId, ...updated } });
   });
-
-  emitProfileUpdate(emitUserProfileEvent, req.userId, updated);
-  return res.json({ ok: true, data: { userId: req.userId, ...updated } });
-});
 
   router.patch("/users/me/password", async (req, res) => {
-  const currentPassword = typeof req.body?.currentPassword === "string" ? req.body.currentPassword : "";
-  const nextPassword = typeof req.body?.nextPassword === "string" ? req.body.nextPassword : "";
+    const { currentPassword, nextPassword } = readPasswordPayload(req.body);
+    const validationError = validatePasswordPayload({ currentPassword, nextPassword });
+    if (validationError) return res.status(400).json({ ok: false, code: "VALIDATION_FAILED", message: validationError });
 
-  if (!currentPassword || !nextPassword) {
-    return res.status(400).json({ ok: false, code: "VALIDATION_FAILED", message: "请填写当前密码和新密码" });
-  }
-  if (nextPassword.length < 6) {
-    return res.status(400).json({ ok: false, code: "VALIDATION_FAILED", message: "新密码至少需要 6 位" });
-  }
-  if (nextPassword.length > 64) {
-    return res.status(400).json({ ok: false, code: "VALIDATION_FAILED", message: "新密码不能超过 64 位" });
-  }
-  if (currentPassword === nextPassword) {
-    return res.status(400).json({ ok: false, code: "VALIDATION_FAILED", message: "新密码不能与当前密码相同" });
-  }
+    const user = await findUserById(req.userId);
+    if (!user || !verifyPassword(currentPassword, user.passwordHash)) {
+      return res.status(400).json({ ok: false, code: "VALIDATION_FAILED", message: "当前密码不正确" });
+    }
 
-  const user = await findUserById(req.userId);
-  if (!user || !verifyPassword(currentPassword, user.passwordHash)) {
-    return res.status(400).json({ ok: false, code: "VALIDATION_FAILED", message: "当前密码不正确" });
-  }
+    await prisma.user.update({
+      where: { id: req.userId },
+      data: { passwordHash: hashPassword(nextPassword) },
+    });
 
-  await prisma.user.update({
-    where: { id: req.userId },
-    data: { passwordHash: hashPassword(nextPassword) },
+    return res.json({ ok: true, data: { userId: req.userId, changed: true } });
   });
 
-  return res.json({ ok: true, data: { userId: req.userId, changed: true } });
-});
+  router.post("/users/me/avatar", express.raw({ type: () => true, limit: "5mb" }), async (req, res) => {
+    const { buffer, fileName, mimeType } = readAvatarUpload(req);
+    const validationError = validateAvatarUpload({ buffer, fileName, mimeType });
+    if (validationError) return res.status(400).json({ ok: false, code: "VALIDATION_FAILED", message: validationError });
 
-  router.post("/users/me/avatar", express.raw({
-  type: () => true,
-  limit: "5mb",
-}), async (req, res) => {
-  const fileName = decodeURIComponent(String(req.header("x-file-name") || "").trim());
-  const mimeType = String(req.header("content-type") || "application/octet-stream").split(";")[0].trim();
-  const buffer = Buffer.isBuffer(req.body) ? req.body : Buffer.from([]);
-  if (!fileName || buffer.length === 0) {
-    return res.status(400).json({ ok: false, code: "VALIDATION_FAILED", message: "头像文件不能为空" });
-  }
-  if (!mimeType.startsWith("image/")) {
-    return res.status(400).json({ ok: false, code: "VALIDATION_FAILED", message: "头像必须是图片" });
-  }
-  if (buffer.length > 5 * 1024 * 1024) {
-    return res.status(400).json({ ok: false, code: "VALIDATION_FAILED", message: "头像不能超过 5MB" });
-  }
+    const objectKey = `avatars/${req.userId}/${Date.now()}-${fileName.replace(/[^A-Za-z0-9._-]+/g, "_")}`;
+    await minioClient.putObject(env.minio.bucketAvatars, objectKey, buffer, buffer.length, {
+      "Content-Type": mimeType,
+    });
 
-  const objectKey = `avatars/${req.userId}/${Date.now()}-${fileName.replace(/[^A-Za-z0-9._-]+/g, "_")}`;
-  await minioClient.putObject(env.minio.bucketAvatars, objectKey, buffer, buffer.length, {
-    "Content-Type": mimeType,
+    const stored = `minio:${objectKey}`;
+    const updated = await prisma.userProfile.upsert({
+      where: { userId: req.userId },
+      update: { avatarUrl: stored, avatarVersion: { increment: 1 } },
+      create: { userId: req.userId, realName: req.userId, avatarUrl: stored, profileVersion: 1, avatarVersion: 1 },
+    });
+
+    emitProfileUpdate(emitUserProfileEvent, req.userId, updated);
+    return res.json({
+      ok: true,
+      data: {
+        avatarUrl: publicAvatarUrl(req.userId),
+        avatarVersion: Number(updated.avatarVersion || 0),
+      },
+    });
   });
-
-  const stored = `minio:${objectKey}`;
-  const updated = await prisma.userProfile.upsert({
-    where: { userId: req.userId },
-    update: { avatarUrl: stored, avatarVersion: { increment: 1 } },
-    create: { userId: req.userId, realName: req.userId, avatarUrl: stored, profileVersion: 1, avatarVersion: 1 },
-  });
-
-  emitProfileUpdate(emitUserProfileEvent, req.userId, updated);
-  return res.json({
-    ok: true,
-    data: {
-      avatarUrl: publicAvatarUrl(req.userId),
-      avatarVersion: Number(updated.avatarVersion || 0),
-    },
-  });
-});
 
   return router;
 }
