@@ -32,7 +32,7 @@ defineEmits(["pick", "import-files"]);
           :title="sticker.name"
           @click="$emit('pick', sticker)"
         >
-          <img :src="sticker.src" :alt="sticker.name" />
+          <img :src="sticker.previewSrc || sticker.src" :alt="sticker.name" />
           <span class="sticker-card-label">{{ sticker.name }}</span>
         </button>
       </div>

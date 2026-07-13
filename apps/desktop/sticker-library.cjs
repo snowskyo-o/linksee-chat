@@ -34,6 +34,10 @@ function createDataUrl(filePath) {
   return `data:${mimeType};base64,${fs.readFileSync(filePath).toString("base64")}`;
 }
 
+function isAnimatedStickerExtension(extension = "") {
+  return [".gif", ".webp"].includes(String(extension || "").toLowerCase());
+}
+
 function ensureLibraryDirs(stickersDir) {
   const oriDir = path.join(stickersDir, ORI_DIR_NAME);
   const thumbDir = path.join(stickersDir, THUMB_DIR_NAME);
@@ -78,9 +82,10 @@ function resolveThumbBuffer(sourcePath) {
 function createStickerRecord(stickersDir, sourcePath, suggestedName = "") {
   const { oriDir, thumbDir } = ensureLibraryDirs(stickersDir);
   const parsed = path.parse(sourcePath);
+  const extension = parsed.ext.toLowerCase();
   const displayName = sanitizeStickerName(suggestedName || parsed.name);
   const id = createStickerId(displayName);
-  const originalFileName = `${id}${parsed.ext.toLowerCase()}`;
+  const originalFileName = `${id}${extension}`;
   const thumbFileName = `${id}.png`;
   const originalPath = path.join(oriDir, originalFileName);
   const thumbPath = path.join(thumbDir, thumbFileName);
@@ -91,6 +96,7 @@ function createStickerRecord(stickersDir, sourcePath, suggestedName = "") {
     name: displayName,
     originalFileName,
     thumbFileName,
+    isAnimated: isAnimatedStickerExtension(extension),
     size: fs.statSync(originalPath).size,
     updatedAt: new Date().toISOString(),
   };
@@ -145,7 +151,11 @@ function listStickerEntries(stickersDir) {
       fileName: item.originalFileName,
       size: Number(item.size || 0),
       updatedAt: item.updatedAt || "",
+      isAnimated: Boolean(item.isAnimated),
       src: createDataUrl(path.join(thumbDir, item.thumbFileName)),
+      previewSrc: Boolean(item.isAnimated)
+        ? createDataUrl(path.join(oriDir, item.originalFileName))
+        : createDataUrl(path.join(thumbDir, item.thumbFileName)),
       originalSrc: createDataUrl(path.join(oriDir, item.originalFileName)),
     }));
 }
