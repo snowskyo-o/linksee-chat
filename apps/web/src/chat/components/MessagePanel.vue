@@ -547,9 +547,10 @@ onBeforeUnmount(() => {
     />
 
     <div v-if="dragActive" class="chat-drop-overlay">
-      <div class="chat-drop-card">
-        <strong>添加到待发送</strong>
-        <p class="muted">松开鼠标后会出现在输入区，按 Enter 发送。</p>
+      <div class="chat-drop-card chat-drop-card-quiet">
+        <svg viewBox="0 0 48 48" aria-hidden="true">
+          <path d="M10 10h12l4 5h12a4 4 0 0 1 4 4v15a4 4 0 0 1-4 4H10a4 4 0 0 1-4-4V14a4 4 0 0 1 4-4Zm14 10-8 8h5v7h6v-7h5l-8-8Z"/>
+        </svg>
       </div>
     </div>
   </section>

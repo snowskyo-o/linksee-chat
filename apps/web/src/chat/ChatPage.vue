@@ -13,7 +13,7 @@ import StickerImportDialog from "./components/StickerImportDialog.vue";
 import ToastStack from "./components/ToastStack.vue";
 import UpdatePromptDialog from "./components/UpdatePromptDialog.vue";
 import DesktopTitlebar from "../shared/components/DesktopTitlebar.vue";
-import { appendAppLog, clearAppLogs, onAppLogsUpdated, readAppLogs } from "../shared/app-log.js";
+import { appendAppLog } from "../shared/app-log.js";
 import { chatApi } from "../shared/api-client.js";
 import { getAuth, logout } from "../shared/session.js";
 import { loadAppSettings, saveAppSettings } from "../shared/app-settings.js";
@@ -31,7 +31,6 @@ const queryConversationId = new URLSearchParams(window.location.search).get("con
 const desktopConversationId = getDesktopConversationId() || queryConversationId;
 const settingsOpen = ref(false);
 const appSettings = ref(loadAppSettings());
-const appLogs = ref(readAppLogs());
 const stickerImportOpen = ref(false);
 const imageViewerOpen = ref(false);
 const imageViewerTitle = ref("");
@@ -57,7 +56,6 @@ const showStandaloneInfoSidebar = computed(() => (
 
 let conversationsRefreshTimer = null;
 let selectedRefreshTimer = null;
-let detachLogs = null;
 let detachUpdateState = null;
 
 function updateReminderKey(version) {
@@ -368,9 +366,6 @@ function handleAvatarUpload(event) {
 
 onMounted(async () => {
   try {
-    detachLogs = onAppLogsUpdated((logs) => {
-      appLogs.value = logs;
-    });
     const runtimeInfo = await window.desktopShell?.getAppInfo?.().catch(() => null);
     if (runtimeInfo) {
       appInfo.value = {
@@ -405,7 +400,6 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   if (conversationsRefreshTimer) window.clearTimeout(conversationsRefreshTimer);
   if (selectedRefreshTimer) window.clearTimeout(selectedRefreshTimer);
-  if (typeof detachLogs === "function") detachLogs();
   if (typeof detachUpdateState === "function") detachUpdateState();
   realtime.disconnect();
 });
@@ -523,9 +517,7 @@ watch(() => store.selectedId.value, () => {
       :profile-hint-tone="store.profileHintTone.value"
       :me-avatar-url="store.meAvatarUrl.value"
       :app-info="appInfo"
-      :logs="appLogs"
       @close="closeSettings"
-      @clear-logs="clearAppLogs()"
       @update:settings="persistSettings"
       @update:profile-name="store.profileName.value = $event"
       @update:profile-bio="store.profileBio.value = $event"

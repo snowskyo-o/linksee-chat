@@ -1,5 +1,4 @@
 <script setup>
-import { computed, ref } from "vue";
 import AvatarImage from "../../shared/components/AvatarImage.vue";
 
 const props = defineProps({
@@ -11,12 +10,10 @@ const props = defineProps({
   profileHintTone: { type: String, default: "" },
   meAvatarUrl: { type: String, default: "" },
   appInfo: { type: Object, default: () => ({}) },
-  logs: { type: Array, default: () => [] },
 });
 
 const emit = defineEmits([
   "close",
-  "clear-logs",
   "update:settings",
   "update:profileName",
   "update:profileBio",
@@ -33,29 +30,6 @@ function patchSettings(section, key, value) {
       [key]: value,
     },
   });
-}
-
-const activeLogCategory = ref("all");
-const logCategories = computed(() => {
-  const categories = Array.from(new Set((props.logs || []).map((item) => String(item.category || "app"))));
-  return ["all", ...categories];
-});
-const filteredLogs = computed(() => {
-  if (activeLogCategory.value === "all") return props.logs || [];
-  return (props.logs || []).filter((item) => String(item.category || "app") === activeLogCategory.value);
-});
-
-function exportLogs() {
-  const payload = JSON.stringify(filteredLogs.value, null, 2);
-  const blob = new Blob([payload], { type: "application/json" });
-  const objectUrl = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = objectUrl;
-  link.download = `linksee-chat-logs-${activeLogCategory.value}-${Date.now()}.json`;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
 }
 </script>
 
@@ -205,39 +179,6 @@ function exportLogs() {
             <div class="settings-meta-row"><span>头像缓存</span><strong>{{ appInfo.storage?.avatars || "-" }}</strong></div>
             <div class="settings-meta-row"><span>聊天缓存</span><strong>{{ appInfo.storage?.chatCache || "-" }}</strong></div>
             <div class="settings-meta-row"><span>导出目录</span><strong>{{ appInfo.storage?.exports || "-" }}</strong></div>
-          </div>
-        </section>
-
-        <section class="settings-card">
-          <div class="detail-card-head">
-            <h3>运行日志</h3>
-            <div class="settings-log-actions">
-              <button class="ghost-btn compact-btn" type="button" @click="exportLogs">导出</button>
-              <button class="ghost-btn compact-btn" type="button" @click="$emit('clear-logs')">清空</button>
-            </div>
-          </div>
-          <div class="settings-log-filters">
-            <button
-              v-for="category in logCategories"
-              :key="category"
-              class="settings-log-filter"
-              :class="{ 'is-active': activeLogCategory === category }"
-              type="button"
-              @click="activeLogCategory = category"
-            >
-              {{ category === "all" ? "全部" : category }}
-            </button>
-          </div>
-          <div class="settings-log-list">
-            <div v-if="!filteredLogs.length" class="muted">暂无日志</div>
-            <article v-for="item in filteredLogs" :key="item.id" class="settings-log-item">
-              <div class="settings-log-head">
-                <strong>{{ item.category }}</strong>
-                <span class="muted">{{ item.timestamp }}</span>
-              </div>
-              <p>{{ item.message }}</p>
-              <small v-if="item.meta" class="muted">{{ item.meta }}</small>
-            </article>
           </div>
         </section>
       </div>

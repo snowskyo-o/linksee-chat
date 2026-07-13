@@ -47,7 +47,7 @@ watch(() => props.open, (nextValue) => {
         <strong>{{ title || "图片预览" }}</strong>
         <div class="image-viewer-actions">
           <button type="button" title="缩小" @click="zoomOut">−</button>
-          <button type="button" title="适应窗口" @click="resetFit">{{ fitMode ? "适应" : `${Math.round(scale * 100)}%` }}</button>
+          <button type="button" title="适应窗口" @click="resetFit">{{ fitMode ? "1:1" : `${Math.round(scale * 100)}%` }}</button>
           <button type="button" title="放大" @click="zoomIn">+</button>
           <button type="button" title="下载" @click="$emit('download')">下载</button>
           <button type="button" title="关闭" @click="$emit('close')">关闭</button>

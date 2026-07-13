@@ -6,6 +6,7 @@ import { createProfileRouter, publicProfileRouter } from "./routes/profile-route
 import { realtimeRouter } from "./routes/realtime-routes.mjs";
 import { updateRouter } from "./routes/update-routes.mjs";
 import { findUserIdByAccessToken } from "./services/session-store.mjs";
+import { errorLogger, requestLogger } from "../../../infra/logging/logger.mjs";
 import { webStaticDir } from "../../../infra/paths/index.mjs";
 
 const loginPagePath = path.join(webStaticDir, "login.html");
@@ -47,6 +48,7 @@ export function createApp(realtime = {}) {
     next();
   });
 
+  app.use(requestLogger);
   app.use(express.json());
 
   app.get("/", (_req, res) => {
@@ -74,6 +76,7 @@ export function createApp(realtime = {}) {
   app.use("/api/v1", requireAuth, createProfileRouter(realtime.emitUserProfileEvent));
   app.use("/api/v1", requireAuth, realtimeRouter);
   app.use("/api/v1", requireAuth, createChatRouter(realtime.emitConversationEvent));
+  app.use(errorLogger);
 
   return app;
 }

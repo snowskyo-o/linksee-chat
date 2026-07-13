@@ -4,6 +4,7 @@ import { ensureStorageReady } from "../../../../infra/storage/minio.mjs";
 import { createApp } from "../app.mjs";
 import { setupSocketGateway } from "../realtime/socket-gateway.mjs";
 import { cleanupExpiredChatFiles } from "../services/chat-file-service.mjs";
+import { logger } from "../../../../infra/logging/logger.mjs";
 
 const server = http.createServer();
 const gateway = setupSocketGateway(server);
@@ -15,9 +16,11 @@ server.on("request", app);
 await ensureStorageReady();
 
 setInterval(() => {
-  cleanupExpiredChatFiles().catch(() => {});
+  cleanupExpiredChatFiles().catch((error) => {
+    logger.warn("chat_files.cleanup_failed", { error: error?.message || String(error) });
+  });
 }, 60 * 1000).unref();
 
 server.listen(env.port, () => {
-  console.log(`[linksee-chat] listening on http://localhost:${env.port}`);
+  logger.info("server.listening", { port: env.port });
 });

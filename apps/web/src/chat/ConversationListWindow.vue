@@ -11,7 +11,6 @@ import SettingsDialog from "./components/SettingsDialog.vue";
 import FriendRemarkDialog from "./components/FriendRemarkDialog.vue";
 import UpdatePromptDialog from "./components/UpdatePromptDialog.vue";
 import { useDesktopShell } from "../shared/useDesktopShell.js";
-import { clearAppLogs, onAppLogsUpdated, readAppLogs } from "../shared/app-log.js";
 import { chatApi } from "../shared/api-client.js";
 import { getAuth, logout } from "../shared/session.js";
 import { loadAppSettings, saveAppSettings } from "../shared/app-settings.js";
@@ -37,7 +36,6 @@ const settingsOpen = ref(false);
 const searchFocused = ref(false);
 const quickCreateOpen = ref(false);
 const appSettings = ref(loadAppSettings());
-const appLogs = ref(readAppLogs());
 const { recentKeywords, pushRecentKeyword, clearRecentKeywords } = useRecentKeywords();
 const appInfo = ref({
   productName: "Linksee Chat",
@@ -98,7 +96,6 @@ const searchController = useListSearch({
   onFooterPick: () => handleSearchFooterPick(),
 });
 
-let detachLogs = null;
 let detachUpdateState = null;
 let friendSearchTimer = 0;
 const selectConversation = (id) => { store.selectedId.value = id; };
@@ -355,9 +352,6 @@ const openGroupCreation = () => {
 
 onMounted(async () => {
   window.addEventListener("pointerdown", handleGlobalPointer);
-  detachLogs = onAppLogsUpdated((logs) => {
-    appLogs.value = logs;
-  });
   const runtimeInfo = await window.desktopShell?.getAppInfo?.().catch(() => null);
   if (runtimeInfo) {
     appInfo.value = {
@@ -382,7 +376,6 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   window.removeEventListener("pointerdown", handleGlobalPointer);
-  if (typeof detachLogs === "function") detachLogs();
   if (typeof detachUpdateState === "function") detachUpdateState();
   window.clearTimeout(friendSearchTimer);
   realtime.disconnect();
@@ -619,9 +612,7 @@ watch(() => friendCenter.keyword.value, () => {
       :profile-hint-tone="store.profileHintTone.value"
       :me-avatar-url="store.meAvatarUrl.value"
       :app-info="appInfo"
-      :logs="appLogs"
       @close="settingsOpen = false"
-      @clear-logs="clearAppLogs()"
       @update:settings="persistSettings"
       @update:profile-name="store.profileName.value = $event"
       @update:profile-bio="store.profileBio.value = $event"
