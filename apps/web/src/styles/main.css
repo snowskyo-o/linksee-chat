@@ -20,6 +20,23 @@
   font-family: "IBM Plex Sans", "Noto Sans SC", "Segoe UI", sans-serif;
 }
 
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0f1620;
+  --panel: rgba(19, 27, 39, 0.98);
+  --panel-soft: #111b28;
+  --panel-strong: #182231;
+  --line: #2a3b50;
+  --text: #edf3fb;
+  --muted: #94a6bc;
+  --brand: #72a7ff;
+  --brand-soft: rgba(114, 167, 255, 0.12);
+  --brand-strong: #8ab6ff;
+  --danger: #ff828f;
+  --ok: #4bc98d;
+  --shadow: 0 24px 56px rgba(0, 0, 0, 0.38);
+}
+
 * { box-sizing: border-box; }
 html, body, #app { height: 100%; min-height: 100%; }
 body {
@@ -29,6 +46,95 @@ body {
     radial-gradient(circle at 0% 0%, rgba(47, 107, 255, 0.14), transparent 24%),
     radial-gradient(circle at 100% 100%, rgba(102, 178, 255, 0.18), transparent 26%),
     linear-gradient(180deg, #f8fbff 0%, var(--bg) 100%);
+}
+
+body[data-theme="dark"] {
+  background:
+    radial-gradient(circle at 0% 0%, rgba(66, 111, 196, 0.22), transparent 24%),
+    radial-gradient(circle at 100% 100%, rgba(44, 76, 120, 0.28), transparent 30%),
+    linear-gradient(180deg, #0d141d 0%, var(--bg) 100%);
+}
+
+:root[data-theme="dark"] .compact-auth-card,
+:root[data-theme="dark"] .compact-auth-body,
+:root[data-theme="dark"] .qq-list-panel,
+:root[data-theme="dark"] .qq-list-nav,
+:root[data-theme="dark"] .chat-rail,
+:root[data-theme="dark"] .chat-workspace,
+:root[data-theme="dark"] .chat-detail-panel,
+:root[data-theme="dark"] .settings-dialog,
+:root[data-theme="dark"] .settings-card,
+:root[data-theme="dark"] .dialog-card,
+:root[data-theme="dark"] .toast-card,
+:root[data-theme="dark"] .qq-search-panel,
+:root[data-theme="dark"] .qq-quick-create-menu,
+:root[data-theme="dark"] .message-context-menu {
+  color: var(--text);
+  background: var(--panel);
+  border-color: rgba(63, 83, 108, 0.92);
+}
+
+:root[data-theme="dark"] .desktop-titlebar,
+:root[data-theme="dark"] .qq-list-shell,
+:root[data-theme="dark"] .qq-list-overview,
+:root[data-theme="dark"] .qq-shell,
+:root[data-theme="dark"] .settings-layout,
+:root[data-theme="dark"] .chat-page-shell,
+:root[data-theme="dark"] .auth-page-shell {
+  background:
+    radial-gradient(circle at 0% 0%, rgba(66, 111, 196, 0.18), transparent 24%),
+    linear-gradient(180deg, #101925 0%, var(--bg) 100%);
+}
+
+:root[data-theme="dark"] .qq-list-overview,
+:root[data-theme="dark"] .compact-auth-header {
+  background: linear-gradient(180deg, #213755 0%, #1a2d46 100%);
+}
+
+:root[data-theme="dark"] .field input,
+:root[data-theme="dark"] .field textarea,
+:root[data-theme="dark"] .qq-search,
+:root[data-theme="dark"] .message-input,
+:root[data-theme="dark"] .compact-auth-field input,
+:root[data-theme="dark"] .settings-toggle,
+:root[data-theme="dark"] .settings-field-group,
+:root[data-theme="dark"] .settings-meta-row,
+:root[data-theme="dark"] .forward-dialog-item,
+:root[data-theme="dark"] .sticker-manager-item,
+:root[data-theme="dark"] .new-friends-item,
+:root[data-theme="dark"] .qq-contact-item,
+:root[data-theme="dark"] .qq-contact-entry-card,
+:root[data-theme="dark"] .qq-thread-item,
+:root[data-theme="dark"] .dialog-contact-item {
+  color: var(--text);
+  background: var(--panel-strong);
+  border-color: rgba(58, 79, 104, 0.94);
+}
+
+:root[data-theme="dark"] .ghost-btn {
+  background: rgba(21, 31, 45, 0.88);
+  color: var(--muted);
+  border-color: rgba(63, 83, 108, 0.92);
+}
+
+:root[data-theme="dark"] .ghost-btn:hover {
+  color: var(--brand);
+  border-color: rgba(114, 167, 255, 0.36);
+  background: rgba(114, 167, 255, 0.08);
+}
+
+:root[data-theme="dark"] .muted,
+:root[data-theme="dark"] .hint,
+:root[data-theme="dark"] .compact-auth-copy p,
+:root[data-theme="dark"] .compact-auth-form-head span,
+:root[data-theme="dark"] .compact-auth-field span,
+:root[data-theme="dark"] .compact-auth-check,
+:root[data-theme="dark"] .compact-auth-links button,
+:root[data-theme="dark"] .toast-copy p,
+:root[data-theme="dark"] .dialog-contact-copy p,
+:root[data-theme="dark"] .conversation-subtitle,
+:root[data-theme="dark"] .conversation-preview {
+  color: var(--muted);
 }
 
 body.chat-auth-body {

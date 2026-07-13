@@ -1,4 +1,5 @@
 const STORAGE_KEY = "linksee_chat_settings";
+const SETTINGS_EVENT = "linksee:app-settings";
 
 export function getDefaultAppSettings() {
   return {
@@ -12,6 +13,9 @@ export function getDefaultAppSettings() {
     general: {
       openLinksExternally: true,
       sendShortcut: "enter",
+    },
+    appearance: {
+      themeMode: "system",
     },
   };
 }
@@ -43,6 +47,12 @@ function mergeSettings(base, overrides) {
         overrides?.general?.sendByEnter ?? base.general.sendShortcut === "enter",
       ),
     },
+    appearance: {
+      ...(base.appearance || {}),
+      themeMode: ["light", "dark", "system"].includes(overrides?.appearance?.themeMode)
+        ? overrides.appearance.themeMode
+        : (base.appearance?.themeMode || "system"),
+    },
   };
 }
 
@@ -60,5 +70,21 @@ export function loadAppSettings() {
 export function saveAppSettings(settings) {
   const nextValue = mergeSettings(getDefaultAppSettings(), settings);
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(nextValue));
+  window.dispatchEvent(new CustomEvent(SETTINGS_EVENT, { detail: nextValue }));
   return nextValue;
+}
+
+export function subscribeAppSettings(callback) {
+  if (typeof callback !== "function") return () => {};
+  const settingsHandler = (event) => callback(mergeSettings(getDefaultAppSettings(), event.detail || {}));
+  const storageHandler = (event) => {
+    if (event.key && event.key !== STORAGE_KEY) return;
+    callback(loadAppSettings());
+  };
+  window.addEventListener(SETTINGS_EVENT, settingsHandler);
+  window.addEventListener("storage", storageHandler);
+  return () => {
+    window.removeEventListener(SETTINGS_EVENT, settingsHandler);
+    window.removeEventListener("storage", storageHandler);
+  };
 }

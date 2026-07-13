@@ -11,9 +11,10 @@ import SettingsDialog from "./components/SettingsDialog.vue";
 import FriendRemarkDialog from "./components/FriendRemarkDialog.vue";
 import UpdatePromptDialog from "./components/UpdatePromptDialog.vue";
 import { useDesktopShell } from "../shared/useDesktopShell.js";
+import { applyAppearanceMode, watchSystemAppearance } from "../shared/appearance-mode.js";
 import { chatApi } from "../shared/api-client.js";
 import { getAuth, logout } from "../shared/session.js";
-import { loadAppSettings, saveAppSettings } from "../shared/app-settings.js";
+import { loadAppSettings, saveAppSettings, subscribeAppSettings } from "../shared/app-settings.js";
 import { mergeDesktopPreferences } from "../shared/desktop-preferences.js";
 import { useChatStore } from "./store/useChatStore.js";
 import { useChatActions } from "./composables/useChatActions.js";
@@ -101,8 +102,14 @@ const searchController = useListSearch({
 let detachUpdateState = null;
 let detachDesktopPreferences = null;
 let detachOpenConversation = null;
+let detachAppSettings = null;
+let detachSystemAppearance = null;
 let friendSearchTimer = 0;
 const selectConversation = (id) => { store.selectedId.value = id; };
+
+function syncAppearance() {
+  applyAppearanceMode(appSettings.value.appearance?.themeMode || "system");
+}
 
 function updateReminderKey(version) {
   return `linksee_update_remind_after_${String(version || "latest")}`;
@@ -230,7 +237,10 @@ async function openFavorite(item) {
 }
 
 const removeFavorite = (item) => store.removeFavoriteMessage(item?.id);
-const persistSettings = (nextSettings) => { appSettings.value = saveAppSettings(nextSettings); };
+const persistSettings = (nextSettings) => {
+  appSettings.value = saveAppSettings(nextSettings);
+  syncAppearance();
+};
 async function persistDesktopPreferences(nextPreferences) {
   if (typeof window.desktopShell?.updateDesktopPreferences !== "function") {
     desktopPreferences.value = mergeDesktopPreferences(nextPreferences);
@@ -436,7 +446,15 @@ async function clearDesktopCache() {
 }
 
 onMounted(async () => {
+  syncAppearance();
   window.addEventListener("pointerdown", handleGlobalPointer);
+  detachAppSettings = subscribeAppSettings((nextSettings) => {
+    appSettings.value = nextSettings;
+    syncAppearance();
+  });
+  detachSystemAppearance = watchSystemAppearance(() => {
+    if ((appSettings.value.appearance?.themeMode || "system") === "system") syncAppearance();
+  });
   const runtimeInfo = await window.desktopShell?.getAppInfo?.().catch(() => null);
   if (runtimeInfo) {
     appInfo.value = {
@@ -473,6 +491,8 @@ onBeforeUnmount(() => {
   if (typeof detachUpdateState === "function") detachUpdateState();
   if (typeof detachDesktopPreferences === "function") detachDesktopPreferences();
   if (typeof detachOpenConversation === "function") detachOpenConversation();
+  if (typeof detachAppSettings === "function") detachAppSettings();
+  if (typeof detachSystemAppearance === "function") detachSystemAppearance();
   window.clearTimeout(friendSearchTimer);
   realtime.disconnect();
 });

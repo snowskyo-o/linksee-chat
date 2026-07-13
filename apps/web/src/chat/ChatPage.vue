@@ -14,9 +14,10 @@ import ToastStack from "./components/ToastStack.vue";
 import UpdatePromptDialog from "./components/UpdatePromptDialog.vue";
 import DesktopTitlebar from "../shared/components/DesktopTitlebar.vue";
 import { appendAppLog } from "../shared/app-log.js";
+import { applyAppearanceMode, watchSystemAppearance } from "../shared/appearance-mode.js";
 import { chatApi } from "../shared/api-client.js";
 import { getAuth, logout } from "../shared/session.js";
-import { loadAppSettings, saveAppSettings } from "../shared/app-settings.js";
+import { loadAppSettings, saveAppSettings, subscribeAppSettings } from "../shared/app-settings.js";
 import { createObjectUrlFromBlobLike } from "../shared/blob-source.js";
 import { mergeDesktopPreferences } from "../shared/desktop-preferences.js";
 import { playNotificationSound } from "../shared/notification-sound.js";
@@ -94,7 +95,13 @@ let selectedRefreshTimer = null;
 let detachUpdateState = null;
 let detachDesktopPreferences = null;
 let detachOpenConversation = null;
+let detachAppSettings = null;
+let detachSystemAppearance = null;
 let draftPersistTimer = null;
+
+function syncAppearance() {
+  applyAppearanceMode(appSettings.value.appearance?.themeMode || "system");
+}
 
 function updateReminderKey(version) {
   return `linksee_update_remind_after_${String(version || "latest")}`;
@@ -168,6 +175,7 @@ const realtime = useChatRealtime(auth, store.selectedId, store.conversations, st
 
 function persistSettings(nextSettings) {
   appSettings.value = saveAppSettings(nextSettings);
+  syncAppearance();
 }
 
 async function persistDesktopPreferences(nextPreferences) {
@@ -556,8 +564,16 @@ function handleAvatarUpload(event) {
 
 onMounted(async () => {
   try {
+    syncAppearance();
     window.addEventListener("focus", syncReadStateIfFocused);
     document.addEventListener("visibilitychange", syncReadStateIfFocused);
+    detachAppSettings = subscribeAppSettings((nextSettings) => {
+      appSettings.value = nextSettings;
+      syncAppearance();
+    });
+    detachSystemAppearance = watchSystemAppearance(() => {
+      if ((appSettings.value.appearance?.themeMode || "system") === "system") syncAppearance();
+    });
     const runtimeInfo = await window.desktopShell?.getAppInfo?.().catch(() => null);
     if (runtimeInfo) {
       appInfo.value = {
@@ -611,6 +627,8 @@ onBeforeUnmount(() => {
   if (typeof detachUpdateState === "function") detachUpdateState();
   if (typeof detachDesktopPreferences === "function") detachDesktopPreferences();
   if (typeof detachOpenConversation === "function") detachOpenConversation();
+  if (typeof detachAppSettings === "function") detachAppSettings();
+  if (typeof detachSystemAppearance === "function") detachSystemAppearance();
   if (store.selectedId.value) {
     actions.saveConversationDraft(store.selectedId.value, store.messageInput.value).catch(() => {});
   }

@@ -3,7 +3,7 @@ import AvatarImage from "../../shared/components/AvatarImage.vue";
 
 const props = defineProps({
   open: { type: Boolean, default: false },
-  settings: { type: Object, default: () => ({ notifications: {}, general: {} }) },
+  settings: { type: Object, default: () => ({ notifications: {}, general: {}, appearance: {} }) },
   desktopPreferences: { type: Object, default: () => ({}) },
   profileName: { type: String, default: "" },
   profileBio: { type: String, default: "" },
@@ -192,6 +192,44 @@ function patchDesktopPreferences(key, value) {
               @change="patchDesktopPreferences('launchOnStartup', $event.target.checked)"
             />
           </label>
+        </section>
+
+        <section class="settings-card">
+          <div class="detail-card-head">
+            <h3>外观</h3>
+          </div>
+          <div class="settings-field-group">
+            <span>主题模式</span>
+            <div class="settings-choice-row">
+              <label class="settings-choice">
+                <input
+                  :checked="(settings?.appearance?.themeMode || 'system') === 'light'"
+                  type="radio"
+                  name="theme-mode"
+                  @change="patchSettings('appearance', 'themeMode', 'light')"
+                />
+                <span>浅色模式</span>
+              </label>
+              <label class="settings-choice">
+                <input
+                  :checked="(settings?.appearance?.themeMode || 'system') === 'dark'"
+                  type="radio"
+                  name="theme-mode"
+                  @change="patchSettings('appearance', 'themeMode', 'dark')"
+                />
+                <span>深色模式</span>
+              </label>
+              <label class="settings-choice">
+                <input
+                  :checked="(settings?.appearance?.themeMode || 'system') === 'system'"
+                  type="radio"
+                  name="theme-mode"
+                  @change="patchSettings('appearance', 'themeMode', 'system')"
+                />
+                <span>跟随系统</span>
+              </label>
+            </div>
+          </div>
         </section>
 
         <section class="settings-card">

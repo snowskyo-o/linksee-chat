@@ -1,14 +1,17 @@
 <script setup>
-import { computed, nextTick, onMounted, ref } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import { chatApi } from "../shared/api-client.js";
 import AvatarImage from "../shared/components/AvatarImage.vue";
 import LoginAssistDialog from "./components/LoginAssistDialog.vue";
+import { applyAppearanceMode, watchSystemAppearance } from "../shared/appearance-mode.js";
+import { loadAppSettings, subscribeAppSettings } from "../shared/app-settings.js";
 import { resolveMediaUrl } from "../shared/media.js";
 import { useDesktopShell } from "../shared/useDesktopShell.js";
 import { isDesktopRuntime, navigateTo } from "../shared/runtime.js";
 import { getInitials } from "../shared/utils.js";
 
 const shell = useDesktopShell();
+const appSettings = ref(loadAppSettings());
 const rememberedAccount = localStorage.getItem("login_remember_account") === "true";
 const rememberedAutoLogin = localStorage.getItem("login_auto_login") === "true";
 const userId = ref(rememberedAccount ? (localStorage.getItem("login_last_user_id") || "") : "");
@@ -28,6 +31,8 @@ const passwordInput = ref(null);
 const assistTitle = ref("");
 const assistMessage = ref("");
 const assistOpen = ref(false);
+let detachAppSettings = null;
+let detachSystemAppearance = null;
 
 const previewInitials = computed(() => getInitials(previewName.value, userId.value || "LC"));
 
@@ -121,6 +126,10 @@ function openRegisterAccount() {
   );
 }
 
+function syncAppearance() {
+  applyAppearanceMode(appSettings.value.appearance?.themeMode || "system");
+}
+
 async function submitLogin() {
   if (!userId.value.trim() || !password.value) {
     hint.value = "请输入账号和密码";
@@ -177,8 +186,21 @@ async function tryAutoLogin() {
 }
 
 onMounted(() => {
+  syncAppearance();
+  detachAppSettings = subscribeAppSettings((nextSettings) => {
+    appSettings.value = nextSettings;
+    syncAppearance();
+  });
+  detachSystemAppearance = watchSystemAppearance(() => {
+    if ((appSettings.value.appearance?.themeMode || "system") === "system") syncAppearance();
+  });
   if (userId.value) loadPreview(userId.value);
   tryAutoLogin();
+});
+
+onBeforeUnmount(() => {
+  if (typeof detachAppSettings === "function") detachAppSettings();
+  if (typeof detachSystemAppearance === "function") detachSystemAppearance();
 });
 </script>
 
