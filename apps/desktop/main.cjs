@@ -19,9 +19,48 @@ const configCandidates = [
   path.join(path.dirname(process.execPath), "desktop-config.json"),
 ];
 
+function getDefaultDesktopPreferences() {
+  return { downloadsDir: path.join(app.getPath("downloads"), "Linksee Chat"), launchOnStartup: false, notificationsMuted: false, closeToTray: true };
+}
+
+function getDesktopPreferencesPath() {
+  return path.join(app.getPath("userData"), "desktop-preferences.json");
+}
+
+function loadDesktopPreferences() {
+  const defaults = getDefaultDesktopPreferences();
+  try {
+    const filePath = getDesktopPreferencesPath();
+    if (!fs.existsSync(filePath)) return defaults;
+    const parsed = JSON.parse(fs.readFileSync(filePath, "utf8"));
+    return {
+      downloadsDir: String(parsed?.downloadsDir || defaults.downloadsDir).trim() || defaults.downloadsDir,
+      launchOnStartup: Boolean(parsed?.launchOnStartup),
+      notificationsMuted: Boolean(parsed?.notificationsMuted),
+      closeToTray: parsed?.closeToTray !== false,
+    };
+  } catch {
+    return defaults;
+  }
+}
+
+let desktopPreferences = null;
+
+function getDesktopPreferences() {
+  if (!desktopPreferences) desktopPreferences = loadDesktopPreferences();
+  return desktopPreferences;
+}
+
+function writeDesktopPreferences(nextPreferences) {
+  desktopPreferences = { ...getDefaultDesktopPreferences(), ...(nextPreferences || {}) };
+  fs.writeFileSync(getDesktopPreferencesPath(), JSON.stringify(desktopPreferences, null, 2), "utf8");
+  return desktopPreferences;
+}
+
 function getStorageInfo() {
+  const preferences = getDesktopPreferences();
   const root = app.getPath("userData");
-  const downloads = path.join(app.getPath("downloads"), "Linksee Chat");
+  const downloads = String(preferences.downloadsDir || "").trim() || path.join(app.getPath("downloads"), "Linksee Chat");
   return {
     root,
     stickers: path.join(root, "stickers"),
@@ -242,6 +281,7 @@ let tray = null;
 let isQuitting = false;
 let listWindowBoundsSnapshot = null;
 let listWindowAnimating = false;
+let unreadCount = 0;
 let updateState = {
   status: "idle",
   available: false,
@@ -312,6 +352,44 @@ function buildWindowState(window) {
 
 function getLiveWindows() {
   return [loginWindow, listWindow, ...chatWindows.values()].filter((window) => window && !window.isDestroyed());
+}
+
+function buildTrayTooltip() {
+  const base = "Linksee Chat";
+  if (unreadCount <= 0) return base;
+  return `${base}（${unreadCount > 99 ? "99+" : unreadCount} 条未读）`;
+}
+
+function applyLaunchOnStartupPreference() {
+  const preferences = getDesktopPreferences();
+  if (process.platform !== "win32" && process.platform !== "darwin") return;
+  app.setLoginItemSettings({
+    openAtLogin: Boolean(preferences.launchOnStartup),
+  });
+}
+
+function publishDesktopPreferences() {
+  const payload = { preferences: getDesktopPreferences(), storage: getStorageInfo() };
+  getLiveWindows().forEach((window) => {
+    window.webContents.send("desktop:preferences-changed", payload);
+  });
+  return payload;
+}
+
+function updateDesktopPreferences(patch = {}) {
+  const current = getDesktopPreferences();
+  const next = { ...current, ...patch };
+  if (!String(next.downloadsDir || "").trim()) {
+    next.downloadsDir = getDefaultDesktopPreferences().downloadsDir;
+  }
+  writeDesktopPreferences(next);
+  ensureStorageDirectories();
+  applyLaunchOnStartupPreference();
+  if (tray && !tray.isDestroyed?.()) {
+    tray.setToolTip(buildTrayTooltip());
+    tray.setContextMenu(Menu.buildFromTemplate(buildTrayMenuTemplate()));
+  }
+  return publishDesktopPreferences();
 }
 
 function publishUpdateState(patch = {}) {
@@ -588,6 +666,7 @@ function shouldSuppressDesktopNotification(conversationId = "") {
 }
 
 function showDesktopNotification({ title, body, conversationId = "" }) {
+  if (getDesktopPreferences().notificationsMuted) return false;
   if (shouldSuppressDesktopNotification(conversationId)) return false;
   if (!Notification.isSupported()) return false;
   const notification = new Notification({
@@ -608,28 +687,42 @@ function showDesktopNotification({ title, body, conversationId = "" }) {
   return true;
 }
 
+function clearSessionStorageInWindow(window) {
+  if (!window || window.isDestroyed()) return Promise.resolve();
+  return window.webContents.executeJavaScript(`
+    ["chat_access_token","chat_refresh_token","chat_user_id","chat_role"].forEach((key) => window.localStorage.removeItem(key));
+  `, true).catch(() => {});
+}
+
+async function logoutToLoginFromTray() {
+  await Promise.all(getLiveWindows().map((window) => clearSessionStorageInWindow(window)));
+  if (listWindow && !listWindow.isDestroyed()) {
+    listWindow.destroy();
+    listWindow = null;
+  }
+  closeAllChatWindows();
+  createLoginWindow();
+}
+
+function buildTrayMenuTemplate() {
+  const preferences = getDesktopPreferences();
+  return [
+    { label: "打开主窗口", click: () => { showPrimaryWindowFromTray(); } },
+    { label: preferences.notificationsMuted ? "关闭消息免打扰" : "消息免打扰", click: () => { updateDesktopPreferences({ notificationsMuted: !getDesktopPreferences().notificationsMuted }); } },
+    { label: "退出登录", click: () => { logoutToLoginFromTray().catch(() => {}); } },
+    {
+      type: "separator",
+    },
+    { label: "退出程序", click: () => { quitDesktopApp(); } },
+  ];
+}
+
 function ensureTray() {
   if (tray && !tray.isDestroyed?.()) return tray;
 
   tray = new Tray(createTrayIcon());
-  tray.setToolTip("Linksee Chat");
-  tray.setContextMenu(Menu.buildFromTemplate([
-    {
-      label: "Open Linksee Chat",
-      click: () => {
-        showPrimaryWindowFromTray();
-      },
-    },
-    {
-      type: "separator",
-    },
-    {
-      label: "Exit",
-      click: () => {
-        quitDesktopApp();
-      },
-    },
-  ]));
+  tray.setToolTip(buildTrayTooltip());
+  tray.setContextMenu(Menu.buildFromTemplate(buildTrayMenuTemplate()));
   tray.on("double-click", () => {
     showPrimaryWindowFromTray();
   });
@@ -682,6 +775,10 @@ function createLoginWindow() {
 
   loginWindow.on("close", (event) => {
     if (isQuitting) return;
+    if (!getDesktopPreferences().closeToTray) {
+      quitDesktopApp();
+      return;
+    }
     event.preventDefault();
     hideWindowToTray(loginWindow);
   });
@@ -715,6 +812,10 @@ function createListWindow() {
 
   listWindow.on("close", (event) => {
     if (isQuitting) return;
+    if (!getDesktopPreferences().closeToTray) {
+      quitDesktopApp();
+      return;
+    }
     event.preventDefault();
     hideWindowToTray(listWindow);
     hideAllChatWindows();
@@ -787,7 +888,13 @@ function registerIpcHandlers() {
     chrome: process.versions.chrome,
     node: process.versions.node,
     storage: getStorageInfo(),
+    desktopPreferences: getDesktopPreferences(),
   }));
+  ipcMain.handle("desktop:get-preferences", () => ({
+    preferences: getDesktopPreferences(),
+    storage: getStorageInfo(),
+  }));
+  ipcMain.handle("desktop:update-preferences", (_event, patch = {}) => updateDesktopPreferences(patch));
   ipcMain.handle("desktop:get-update-state", () => updateState);
   ipcMain.handle("desktop:check-for-updates", async () => {
     if (!app.isPackaged) {
@@ -844,6 +951,15 @@ function registerIpcHandlers() {
     if (!nextPath || !fs.existsSync(nextPath)) return false;
     await shell.openPath(nextPath);
     return true;
+  });
+  ipcMain.handle("desktop:choose-directory", async (_event, options = {}) => {
+    const result = await dialog.showOpenDialog({
+      title: options?.title || "选择目录",
+      defaultPath: String(options?.defaultPath || "").trim() || getStorageInfo().exports,
+      properties: ["openDirectory", "createDirectory"],
+    });
+    if (result.canceled || !result.filePaths?.[0]) return "";
+    return result.filePaths[0];
   });
   ipcMain.handle("desktop:list-stickers", () => listStickerEntries());
   ipcMain.handle("desktop:import-sticker-files", async () => {
@@ -919,6 +1035,14 @@ function registerIpcHandlers() {
     shell.beep();
     return true;
   });
+  ipcMain.handle("desktop:update-unread-count", (_event, nextCount) => {
+    unreadCount = Math.max(0, Number(nextCount || 0));
+    if (tray && !tray.isDestroyed?.()) {
+      tray.setToolTip(buildTrayTooltip());
+      tray.setContextMenu(Menu.buildFromTemplate(buildTrayMenuTemplate()));
+    }
+    return unreadCount;
+  });
 }
 
 registerIpcHandlers();
@@ -936,6 +1060,8 @@ app.on("will-quit", () => {
 });
 
 app.whenReady().then(async () => {
+  getDesktopPreferences();
+  applyLaunchOnStartupPreference();
   ensureStorageDirectories();
   ensureTray();
   createLoginWindow();

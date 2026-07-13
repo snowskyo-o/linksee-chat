@@ -8,21 +8,33 @@ export function getDefaultAppSettings() {
     },
     general: {
       openLinksExternally: true,
-      sendByEnter: true,
-      minimizeToTray: true,
+      sendShortcut: "enter",
     },
   };
 }
 
+function normalizeSendShortcut(value, legacySendByEnter = true) {
+  if (value === "ctrlEnter") return "ctrlEnter";
+  if (value === "enter") return "enter";
+  return legacySendByEnter === false ? "ctrlEnter" : "enter";
+}
+
 function mergeSettings(base, overrides) {
+  const nextGeneral = {
+    ...base.general,
+    ...(overrides?.general || {}),
+  };
   return {
     notifications: {
       ...base.notifications,
       ...(overrides?.notifications || {}),
     },
     general: {
-      ...base.general,
-      ...(overrides?.general || {}),
+      ...nextGeneral,
+      sendShortcut: normalizeSendShortcut(
+        overrides?.general?.sendShortcut,
+        overrides?.general?.sendByEnter ?? base.general.sendShortcut === "enter",
+      ),
     },
   };
 }

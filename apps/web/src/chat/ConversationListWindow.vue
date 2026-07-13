@@ -14,6 +14,7 @@ import { useDesktopShell } from "../shared/useDesktopShell.js";
 import { chatApi } from "../shared/api-client.js";
 import { getAuth, logout } from "../shared/session.js";
 import { loadAppSettings, saveAppSettings } from "../shared/app-settings.js";
+import { mergeDesktopPreferences } from "../shared/desktop-preferences.js";
 import { useChatStore } from "./store/useChatStore.js";
 import { useChatActions } from "./composables/useChatActions.js";
 import { useChatRealtime } from "./composables/useChatRealtime.js";
@@ -36,6 +37,7 @@ const settingsOpen = ref(false);
 const searchFocused = ref(false);
 const quickCreateOpen = ref(false);
 const appSettings = ref(loadAppSettings());
+const desktopPreferences = ref(mergeDesktopPreferences());
 const { recentKeywords, pushRecentKeyword, clearRecentKeywords } = useRecentKeywords();
 const appInfo = ref({
   productName: "Linksee Chat",
@@ -97,6 +99,7 @@ const searchController = useListSearch({
 });
 
 let detachUpdateState = null;
+let detachDesktopPreferences = null;
 let friendSearchTimer = 0;
 const selectConversation = (id) => { store.selectedId.value = id; };
 
@@ -124,6 +127,13 @@ function applyDesktopUpdateState(state = {}) {
   };
   appInfo.value = { ...appInfo.value, update };
   updatePromptOpen.value = shouldShowUpdatePrompt(update);
+}
+
+function applyDesktopPreferenceState(payload = {}) {
+  desktopPreferences.value = mergeDesktopPreferences(payload.preferences || payload.desktopPreferences);
+  if (payload.storage) {
+    appInfo.value = { ...appInfo.value, storage: payload.storage };
+  }
 }
 
 async function checkForUpdates() {
@@ -205,6 +215,18 @@ async function openFavorite(item) {
 
 const removeFavorite = (item) => store.removeFavoriteMessage(item?.id);
 const persistSettings = (nextSettings) => { appSettings.value = saveAppSettings(nextSettings); };
+async function persistDesktopPreferences(nextPreferences) {
+  if (typeof window.desktopShell?.updateDesktopPreferences !== "function") {
+    desktopPreferences.value = mergeDesktopPreferences(nextPreferences);
+    return;
+  }
+  const payload = await window.desktopShell.updateDesktopPreferences(nextPreferences).catch(() => null);
+  if (payload) {
+    applyDesktopPreferenceState(payload);
+    return;
+  }
+  desktopPreferences.value = mergeDesktopPreferences(nextPreferences);
+}
 const handleAvatarUpload = (event) => actions.uploadAvatar(event.target?.files?.[0]).catch((error) => {
   store.profileHint.value = error?.message || "头像上传失败";
   store.profileHintTone.value = "error";
@@ -362,6 +384,25 @@ const openGroupCreation = () => {
   actions.createGroupConversation();
 };
 
+async function chooseDownloadDirectory() {
+  if (typeof window.desktopShell?.chooseDirectory !== "function") return;
+  const folder = await window.desktopShell.chooseDirectory({
+    title: "选择下载保存目录",
+    defaultPath: desktopPreferences.value.downloadsDir || appInfo.value.storage?.exports || "",
+  }).catch(() => "");
+  if (!folder) return;
+  await persistDesktopPreferences({
+    ...desktopPreferences.value,
+    downloadsDir: folder,
+  });
+}
+
+async function openDownloadDirectory() {
+  const folder = desktopPreferences.value.downloadsDir || appInfo.value.storage?.exports || "";
+  if (!folder || typeof window.desktopShell?.openStoragePath !== "function") return;
+  await window.desktopShell.openStoragePath(folder).catch(() => {});
+}
+
 onMounted(async () => {
   window.addEventListener("pointerdown", handleGlobalPointer);
   const runtimeInfo = await window.desktopShell?.getAppInfo?.().catch(() => null);
@@ -374,9 +415,13 @@ onMounted(async () => {
       node: runtimeInfo.node || appInfo.value.node,
       storage: runtimeInfo.storage || null,
     };
+    applyDesktopPreferenceState(runtimeInfo);
   }
   if (typeof window.desktopShell?.onUpdateState === "function") {
     detachUpdateState = window.desktopShell.onUpdateState((state) => applyDesktopUpdateState(state));
+  }
+  if (typeof window.desktopShell?.onDesktopPreferences === "function") {
+    detachDesktopPreferences = window.desktopShell.onDesktopPreferences((payload) => applyDesktopPreferenceState(payload));
   }
   await actions.loadProfile(auth);
   await actions.loadContacts();
@@ -389,9 +434,18 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   window.removeEventListener("pointerdown", handleGlobalPointer);
   if (typeof detachUpdateState === "function") detachUpdateState();
+  if (typeof detachDesktopPreferences === "function") detachDesktopPreferences();
   window.clearTimeout(friendSearchTimer);
   realtime.disconnect();
 });
+
+watch(
+  unreadTotal,
+  (value) => {
+    window.desktopShell?.updateUnreadCount?.(value).catch?.(() => {});
+  },
+  { immediate: true },
+);
 
 watch(searchKeyword, (value) => {
   if (value) quickCreateOpen.value = false;
@@ -619,6 +673,7 @@ watch(() => friendCenter.keyword.value, () => {
     <SettingsDialog
       :open="settingsOpen"
       :settings="appSettings"
+      :desktop-preferences="desktopPreferences"
       :profile-name="store.profileName.value"
       :profile-bio="store.profileBio.value"
       :profile-hint="store.profileHint.value"
@@ -627,10 +682,13 @@ watch(() => friendCenter.keyword.value, () => {
       :app-info="appInfo"
       @close="settingsOpen = false"
       @update:settings="persistSettings"
+      @update:desktop-preferences="persistDesktopPreferences"
       @update:profile-name="store.profileName.value = $event"
       @update:profile-bio="store.profileBio.value = $event"
       @save-profile="actions.saveProfile"
       @upload-avatar="handleAvatarUpload"
+      @choose-download-dir="chooseDownloadDirectory"
+      @open-download-dir="openDownloadDirectory"
       @open-update="handleUpdateNow"
     />
 

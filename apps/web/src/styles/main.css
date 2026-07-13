@@ -2763,8 +2763,33 @@ html body .desktop-page-shell { min-height: 100vh; }
   height: 18px;
   flex: none;
 }
+.settings-field-group {
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: #f8fbff;
+  border: 1px solid rgba(226, 233, 243, 0.96);
+}
+.settings-choice-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.settings-choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #425466;
+}
 .settings-meta-list {
   display: grid;
+  gap: 10px;
+}
+.settings-inline-actions {
+  display: flex;
+  flex-wrap: wrap;
   gap: 10px;
 }
 .settings-meta-row {
@@ -2781,6 +2806,9 @@ html body .desktop-page-shell { min-height: 100vh; }
   max-width: 62%;
   text-align: right;
   word-break: break-all;
+}
+.settings-meta-row-wrap strong {
+  max-width: 70%;
 }
 .settings-update-card {
   display: flex;

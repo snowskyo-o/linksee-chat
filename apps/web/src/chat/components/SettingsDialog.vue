@@ -4,6 +4,7 @@ import AvatarImage from "../../shared/components/AvatarImage.vue";
 const props = defineProps({
   open: { type: Boolean, default: false },
   settings: { type: Object, default: () => ({ notifications: {}, general: {} }) },
+  desktopPreferences: { type: Object, default: () => ({}) },
   profileName: { type: String, default: "" },
   profileBio: { type: String, default: "" },
   profileHint: { type: String, default: "" },
@@ -20,6 +21,9 @@ const emit = defineEmits([
   "save-profile",
   "upload-avatar",
   "open-update",
+  "update:desktopPreferences",
+  "choose-download-dir",
+  "open-download-dir",
 ]);
 
 function patchSettings(section, key, value) {
@@ -29,6 +33,13 @@ function patchSettings(section, key, value) {
       ...(props.settings?.[section] || {}),
       [key]: value,
     },
+  });
+}
+
+function patchDesktopPreferences(key, value) {
+  emit("update:desktopPreferences", {
+    ...(props.desktopPreferences || {}),
+    [key]: value,
   });
 }
 </script>
@@ -107,32 +118,55 @@ function patchSettings(section, key, value) {
               @change="patchSettings('notifications', 'soundEnabled', $event.target.checked)"
             />
           </label>
+          <label class="settings-toggle">
+            <div>
+              <strong>消息免打扰</strong>
+              <p class="muted">同步托盘菜单状态，开启后不再弹系统通知。</p>
+            </div>
+            <input
+              :checked="Boolean(desktopPreferences?.notificationsMuted)"
+              type="checkbox"
+              @change="patchDesktopPreferences('notificationsMuted', $event.target.checked)"
+            />
+          </label>
         </section>
 
         <section class="settings-card">
           <div class="detail-card-head">
             <h3>常用设置</h3>
           </div>
-          <label class="settings-toggle">
-            <div>
-              <strong>按 Enter 发送消息</strong>
-              <p class="muted">关闭后可改成仅手动点击发送。</p>
+          <div class="settings-field-group">
+            <span>发送快捷键</span>
+            <div class="settings-choice-row">
+              <label class="settings-choice">
+                <input
+                  :checked="(settings?.general?.sendShortcut || 'enter') === 'enter'"
+                  type="radio"
+                  name="send-shortcut"
+                  @change="patchSettings('general', 'sendShortcut', 'enter')"
+                />
+                <span>Enter 发送</span>
+              </label>
+              <label class="settings-choice">
+                <input
+                  :checked="(settings?.general?.sendShortcut || 'enter') === 'ctrlEnter'"
+                  type="radio"
+                  name="send-shortcut"
+                  @change="patchSettings('general', 'sendShortcut', 'ctrlEnter')"
+                />
+                <span>Ctrl+Enter 发送</span>
+              </label>
             </div>
-            <input
-              :checked="Boolean(settings?.general?.sendByEnter)"
-              type="checkbox"
-              @change="patchSettings('general', 'sendByEnter', $event.target.checked)"
-            />
-          </label>
+          </div>
           <label class="settings-toggle">
             <div>
               <strong>关闭窗口时最小化到托盘</strong>
               <p class="muted">保持桌面端常驻，类似常见聊天软件。</p>
             </div>
             <input
-              :checked="Boolean(settings?.general?.minimizeToTray)"
+              :checked="desktopPreferences?.closeToTray !== false"
               type="checkbox"
-              @change="patchSettings('general', 'minimizeToTray', $event.target.checked)"
+              @change="patchDesktopPreferences('closeToTray', $event.target.checked)"
             />
           </label>
           <label class="settings-toggle">
@@ -144,6 +178,17 @@ function patchSettings(section, key, value) {
               :checked="Boolean(settings?.general?.openLinksExternally)"
               type="checkbox"
               @change="patchSettings('general', 'openLinksExternally', $event.target.checked)"
+            />
+          </label>
+          <label class="settings-toggle">
+            <div>
+              <strong>开机启动</strong>
+              <p class="muted">系统登录后自动启动桌面客户端。</p>
+            </div>
+            <input
+              :checked="Boolean(desktopPreferences?.launchOnStartup)"
+              type="checkbox"
+              @change="patchDesktopPreferences('launchOnStartup', $event.target.checked)"
             />
           </label>
         </section>
@@ -174,6 +219,14 @@ function patchSettings(section, key, value) {
             <h3>本地数据目录</h3>
           </div>
           <div class="settings-meta-list">
+            <div class="settings-meta-row settings-meta-row-wrap">
+              <span>下载保存位置</span>
+              <strong>{{ desktopPreferences?.downloadsDir || appInfo.storage?.exports || "-" }}</strong>
+            </div>
+            <div class="settings-inline-actions">
+              <button class="secondary-btn compact-btn" type="button" @click="$emit('choose-download-dir')">更换目录</button>
+              <button class="ghost-btn compact-btn" type="button" @click="$emit('open-download-dir')">打开目录</button>
+            </div>
             <div class="settings-meta-row"><span>根目录</span><strong>{{ appInfo.storage?.root || "-" }}</strong></div>
             <div class="settings-meta-row"><span>表情包目录</span><strong>{{ appInfo.storage?.stickers || "-" }}</strong></div>
             <div class="settings-meta-row"><span>头像缓存</span><strong>{{ appInfo.storage?.avatars || "-" }}</strong></div>

@@ -17,6 +17,7 @@ import { appendAppLog } from "../shared/app-log.js";
 import { chatApi } from "../shared/api-client.js";
 import { getAuth, logout } from "../shared/session.js";
 import { loadAppSettings, saveAppSettings } from "../shared/app-settings.js";
+import { mergeDesktopPreferences } from "../shared/desktop-preferences.js";
 import { getDesktopConversationId, getDesktopWindowKind, isDesktopRuntime } from "../shared/runtime.js";
 import { useChatStore } from "./store/useChatStore.js";
 import { useChatActions } from "./composables/useChatActions.js";
@@ -31,6 +32,7 @@ const queryConversationId = new URLSearchParams(window.location.search).get("con
 const desktopConversationId = getDesktopConversationId() || queryConversationId;
 const settingsOpen = ref(false);
 const appSettings = ref(loadAppSettings());
+const desktopPreferences = ref(mergeDesktopPreferences());
 const stickerImportOpen = ref(false);
 const imageViewerOpen = ref(false);
 const imageViewerTitle = ref("");
@@ -53,10 +55,14 @@ const standaloneConversationMode = computed(() => (
 const showStandaloneInfoSidebar = computed(() => (
   standaloneConversationMode.value && Boolean(store.selectedConversation.value)
 ));
+const unreadTotal = computed(() => store.conversations.value.reduce((sum, row) => {
+  return sum + Number(row.unreadCount || 0) + Number(row.unreadMentionCount || 0);
+}, 0));
 
 let conversationsRefreshTimer = null;
 let selectedRefreshTimer = null;
 let detachUpdateState = null;
+let detachDesktopPreferences = null;
 let draftPersistTimer = null;
 
 function updateReminderKey(version) {
@@ -83,6 +89,13 @@ function applyDesktopUpdateState(state = {}) {
   };
   appInfo.value = { ...appInfo.value, update };
   updatePromptOpen.value = shouldShowUpdatePrompt(update);
+}
+
+function applyDesktopPreferenceState(payload = {}) {
+  desktopPreferences.value = mergeDesktopPreferences(payload.preferences || payload.desktopPreferences);
+  if (payload.storage) {
+    appInfo.value = { ...appInfo.value, storage: payload.storage };
+  }
 }
 
 function scheduleConversationsRefresh() {
@@ -122,6 +135,19 @@ const realtime = useChatRealtime(auth, store.selectedId, store.conversations, st
 
 function persistSettings(nextSettings) {
   appSettings.value = saveAppSettings(nextSettings);
+}
+
+async function persistDesktopPreferences(nextPreferences) {
+  if (typeof window.desktopShell?.updateDesktopPreferences !== "function") {
+    desktopPreferences.value = mergeDesktopPreferences(nextPreferences);
+    return;
+  }
+  const payload = await window.desktopShell.updateDesktopPreferences(nextPreferences).catch(() => null);
+  if (payload) {
+    applyDesktopPreferenceState(payload);
+    return;
+  }
+  desktopPreferences.value = mergeDesktopPreferences(nextPreferences);
 }
 
 function openSettings() {
@@ -199,7 +225,7 @@ function syncDesktopWindowContext() {
 }
 
 async function notifyIncomingMessage(conversationId) {
-  if (!conversationId || !appSettings.value.notifications?.desktopEnabled && !appSettings.value.notifications?.soundEnabled) {
+  if (!conversationId || desktopPreferences.value.notificationsMuted || !appSettings.value.notifications?.desktopEnabled && !appSettings.value.notifications?.soundEnabled) {
     return;
   }
   if (isCurrentConversationFocused(conversationId)) {
@@ -235,11 +261,17 @@ async function notifyIncomingMessage(conversationId) {
 }
 
 function handleComposerKeydown(event) {
+  const shortcut = appSettings.value.general?.sendShortcut || "enter";
   if (event.key === "Escape") {
     store.mentionOpen.value = false;
     store.mentionOptions.value = [];
   }
-  if (event.key === "Enter" && !event.shiftKey && appSettings.value.general?.sendByEnter !== false) {
+  const shouldSend = event.key === "Enter" && (
+    shortcut === "ctrlEnter"
+      ? event.ctrlKey
+      : !event.shiftKey
+  );
+  if (shouldSend) {
     event.preventDefault();
     actions.submitComposer().catch((error) => {
       store.setComposerHint(error?.message || "发送失败", "error");
@@ -294,6 +326,25 @@ async function importStickerFolder() {
 
 async function openStickerFolder() {
   const folder = appInfo.value.storage?.stickers || "";
+  if (!folder || typeof window.desktopShell?.openStoragePath !== "function") return;
+  await window.desktopShell.openStoragePath(folder).catch(() => {});
+}
+
+async function chooseDownloadDirectory() {
+  if (typeof window.desktopShell?.chooseDirectory !== "function") return;
+  const folder = await window.desktopShell.chooseDirectory({
+    title: "选择下载保存目录",
+    defaultPath: desktopPreferences.value.downloadsDir || appInfo.value.storage?.exports || "",
+  }).catch(() => "");
+  if (!folder) return;
+  await persistDesktopPreferences({
+    ...desktopPreferences.value,
+    downloadsDir: folder,
+  });
+}
+
+async function openDownloadDirectory() {
+  const folder = desktopPreferences.value.downloadsDir || appInfo.value.storage?.exports || "";
   if (!folder || typeof window.desktopShell?.openStoragePath !== "function") return;
   await window.desktopShell.openStoragePath(folder).catch(() => {});
 }
@@ -377,9 +428,13 @@ onMounted(async () => {
         node: runtimeInfo.node || appInfo.value.node,
         storage: runtimeInfo.storage || null,
       };
+      applyDesktopPreferenceState(runtimeInfo);
     }
     if (typeof window.desktopShell?.onUpdateState === "function") {
       detachUpdateState = window.desktopShell.onUpdateState((state) => applyDesktopUpdateState(state));
+    }
+    if (typeof window.desktopShell?.onDesktopPreferences === "function") {
+      detachDesktopPreferences = window.desktopShell.onDesktopPreferences((payload) => applyDesktopPreferenceState(payload));
     }
     await actions.loadProfile(auth);
     await actions.loadContacts();
@@ -407,6 +462,7 @@ onBeforeUnmount(() => {
   if (selectedRefreshTimer) window.clearTimeout(selectedRefreshTimer);
   if (draftPersistTimer) window.clearTimeout(draftPersistTimer);
   if (typeof detachUpdateState === "function") detachUpdateState();
+  if (typeof detachDesktopPreferences === "function") detachDesktopPreferences();
   if (store.selectedId.value) {
     actions.saveConversationDraft(store.selectedId.value, store.messageInput.value).catch(() => {});
   }
@@ -416,6 +472,14 @@ onBeforeUnmount(() => {
 watch(() => store.selectedId.value, () => {
   syncDesktopWindowContext();
 });
+
+watch(
+  unreadTotal,
+  (value) => {
+    window.desktopShell?.updateUnreadCount?.(value).catch?.(() => {});
+  },
+  { immediate: true },
+);
 
 watch(
   () => [store.selectedId.value, store.messageInput.value],
@@ -533,6 +597,7 @@ watch(
     <SettingsDialog
       :open="settingsOpen"
       :settings="appSettings"
+      :desktop-preferences="desktopPreferences"
       :profile-name="store.profileName.value"
       :profile-bio="store.profileBio.value"
       :profile-hint="store.profileHint.value"
@@ -541,10 +606,13 @@ watch(
       :app-info="appInfo"
       @close="closeSettings"
       @update:settings="persistSettings"
+      @update:desktop-preferences="persistDesktopPreferences"
       @update:profile-name="store.profileName.value = $event"
       @update:profile-bio="store.profileBio.value = $event"
       @save-profile="actions.saveProfile"
       @upload-avatar="handleAvatarUpload"
+      @choose-download-dir="chooseDownloadDirectory"
+      @open-download-dir="openDownloadDirectory"
       @open-update="handleUpdateNow"
     />
 
