@@ -49,7 +49,7 @@ try {
 
   Write-Host "Packaging desktop app to $versionReleaseDir"
 
-  & npx electron-builder --win portable --x64 "--config.electronDist=$electronDist" "--config.directories.output=$versionReleaseDir"
+  & npx electron-builder --win nsis --x64 "--config.electronDist=$electronDist" "--config.directories.output=$versionReleaseDir"
   if ($LASTEXITCODE -ne 0) {
     throw "electron-builder failed"
   }

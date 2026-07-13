@@ -1,4 +1,5 @@
 const { app, BrowserWindow, ipcMain, Menu, Notification, Tray, nativeImage, shell, dialog } = require("electron");
+const { autoUpdater } = require("electron-updater");
 const { createHash } = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
@@ -224,6 +225,7 @@ function readRemoteOrigin() {
 const remoteOrigin = readRemoteOrigin();
 const localOrigin = `http://127.0.0.1:${port}`;
 const targetOrigin = remoteOrigin || localOrigin;
+const updateFeedUrl = normalizeOrigin(process.env.DESKTOP_UPDATE_FEED_URL) || `${remoteOrigin}/updates/desktop/win`;
 
 let loginWindow = null;
 let listWindow = null;
@@ -233,6 +235,18 @@ let tray = null;
 let isQuitting = false;
 let listWindowBoundsSnapshot = null;
 let listWindowAnimating = false;
+let updateState = {
+  status: "idle",
+  available: false,
+  downloaded: false,
+  progress: 0,
+  version: "",
+  error: "",
+};
+
+autoUpdater.autoDownload = false;
+autoUpdater.autoInstallOnAppQuit = false;
+autoUpdater.setFeedURL({ provider: "generic", url: updateFeedUrl });
 
 function createFallbackTrayIcon() {
   const svg = `
@@ -287,6 +301,68 @@ function buildWindowState(window) {
   return {
     isMaximized: window.isMaximized(),
   };
+}
+
+function getLiveWindows() {
+  return [loginWindow, listWindow, ...chatWindows.values()].filter((window) => window && !window.isDestroyed());
+}
+
+function publishUpdateState(patch = {}) {
+  updateState = { ...updateState, ...patch };
+  getLiveWindows().forEach((window) => {
+    window.webContents.send("desktop:update-state", updateState);
+  });
+  return updateState;
+}
+
+function registerAutoUpdaterEvents() {
+  autoUpdater.on("checking-for-update", () => {
+    publishUpdateState({ status: "checking", error: "" });
+  });
+  autoUpdater.on("update-available", (info) => {
+    publishUpdateState({
+      status: "available",
+      available: true,
+      downloaded: false,
+      progress: 0,
+      version: info?.version || "",
+      error: "",
+    });
+  });
+  autoUpdater.on("update-not-available", () => {
+    publishUpdateState({
+      status: "none",
+      available: false,
+      downloaded: false,
+      progress: 0,
+      version: "",
+      error: "",
+    });
+  });
+  autoUpdater.on("download-progress", (progress) => {
+    publishUpdateState({
+      status: "downloading",
+      available: true,
+      progress: Math.max(0, Math.min(100, Math.round(progress?.percent || 0))),
+      error: "",
+    });
+  });
+  autoUpdater.on("update-downloaded", (info) => {
+    publishUpdateState({
+      status: "downloaded",
+      available: true,
+      downloaded: true,
+      progress: 100,
+      version: info?.version || updateState.version || "",
+      error: "",
+    });
+  });
+  autoUpdater.on("error", (error) => {
+    publishUpdateState({
+      status: "error",
+      error: error?.message || "更新失败",
+    });
+  });
 }
 
 function sendWindowState(window) {
@@ -705,6 +781,31 @@ function registerIpcHandlers() {
     node: process.versions.node,
     storage: getStorageInfo(),
   }));
+  ipcMain.handle("desktop:get-update-state", () => updateState);
+  ipcMain.handle("desktop:check-for-updates", async () => {
+    if (!app.isPackaged) {
+      return publishUpdateState({
+        status: "unavailable",
+        available: false,
+        error: "开发模式不执行自动更新",
+      });
+    }
+    await autoUpdater.checkForUpdates();
+    return updateState;
+  });
+  ipcMain.handle("desktop:download-update", async () => {
+    if (!app.isPackaged) return updateState;
+    publishUpdateState({ status: "downloading", error: "" });
+    await autoUpdater.downloadUpdate();
+    return updateState;
+  });
+  ipcMain.handle("desktop:install-update", () => {
+    if (!app.isPackaged || !updateState.downloaded) return updateState;
+    isQuitting = true;
+    publishUpdateState({ status: "installing", error: "" });
+    autoUpdater.quitAndInstall(false, true);
+    return updateState;
+  });
   ipcMain.handle("desktop:update-window-context", (event, payload = {}) => {
     const currentWindow = resolveWindowByEvent(event);
     setWindowContext(currentWindow, payload || {});
@@ -814,6 +915,7 @@ function registerIpcHandlers() {
 }
 
 registerIpcHandlers();
+registerAutoUpdaterEvents();
 
 app.on("before-quit", () => {
   isQuitting = true;

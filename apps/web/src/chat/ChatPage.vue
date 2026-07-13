@@ -58,6 +58,7 @@ const showStandaloneInfoSidebar = computed(() => (
 let conversationsRefreshTimer = null;
 let selectedRefreshTimer = null;
 let detachLogs = null;
+let detachUpdateState = null;
 
 function updateReminderKey(version) {
   return `linksee_update_remind_after_${String(version || "latest")}`;
@@ -68,6 +69,21 @@ function shouldShowUpdatePrompt(update) {
   if (update.mandatory) return true;
   const remindAfter = Number(window.localStorage.getItem(updateReminderKey(update.latestVersion)) || 0);
   return Date.now() >= remindAfter;
+}
+
+function applyDesktopUpdateState(state = {}) {
+  const update = {
+    native: true,
+    hasUpdate: Boolean(state.available),
+    latestVersion: state.version || "",
+    mandatory: false,
+    downloaded: Boolean(state.downloaded),
+    progress: Number(state.progress || 0),
+    status: state.status || "idle",
+    error: state.error || "",
+  };
+  appInfo.value = { ...appInfo.value, update };
+  updatePromptOpen.value = shouldShowUpdatePrompt(update);
 }
 
 function scheduleConversationsRefresh() {
@@ -120,6 +136,14 @@ function closeSettings() {
 async function checkForUpdates() {
   const currentVersion = appInfo.value.version || "";
   if (!currentVersion) return;
+  if (typeof window.desktopShell?.checkForUpdates === "function") {
+    const state = await window.desktopShell.checkForUpdates().catch((error) => ({
+      status: "error",
+      error: error?.message || "检查更新失败",
+    }));
+    applyDesktopUpdateState(state);
+    return;
+  }
   const payload = await chatApi.getJson(`/api/v1/updates/latest?currentVersion=${encodeURIComponent(currentVersion)}`).catch(() => null);
   if (payload?.data) {
     appInfo.value = { ...appInfo.value, update: payload.data };
@@ -127,10 +151,24 @@ async function checkForUpdates() {
   }
 }
 
-function openUpdatePage() {
-  const url = appInfo.value.update?.downloadUrl || appInfo.value.update?.notesUrl || "";
+async function handleUpdateNow() {
+  const update = appInfo.value.update || {};
+  if (update.native && typeof window.desktopShell?.downloadUpdate === "function") {
+    if (update.downloaded && typeof window.desktopShell?.installUpdate === "function") {
+      await window.desktopShell.installUpdate();
+      return;
+    }
+    updatePromptOpen.value = true;
+    const state = await window.desktopShell.downloadUpdate().catch((error) => ({
+      ...update,
+      status: "error",
+      error: error?.message || "下载更新失败",
+    }));
+    applyDesktopUpdateState(state);
+    return;
+  }
+  const url = update.downloadUrl || update.notesUrl || "";
   if (url) window.open(url, "_blank", "noopener,noreferrer");
-  updatePromptOpen.value = false;
 }
 
 function remindUpdateLater() {
@@ -343,6 +381,9 @@ onMounted(async () => {
         storage: runtimeInfo.storage || null,
       };
     }
+    if (typeof window.desktopShell?.onUpdateState === "function") {
+      detachUpdateState = window.desktopShell.onUpdateState((state) => applyDesktopUpdateState(state));
+    }
     await actions.loadProfile(auth);
     await actions.loadContacts();
     await actions.loadConversations();
@@ -364,6 +405,7 @@ onBeforeUnmount(() => {
   if (conversationsRefreshTimer) window.clearTimeout(conversationsRefreshTimer);
   if (selectedRefreshTimer) window.clearTimeout(selectedRefreshTimer);
   if (typeof detachLogs === "function") detachLogs();
+  if (typeof detachUpdateState === "function") detachUpdateState();
   realtime.disconnect();
 });
 
@@ -464,7 +506,7 @@ watch(() => store.selectedId.value, () => {
     <UpdatePromptDialog
       :open="updatePromptOpen"
       :update="appInfo.update"
-      @update-now="openUpdatePage"
+      @update-now="handleUpdateNow"
       @remind-later="remindUpdateLater"
       @close="updatePromptOpen = false"
     />
@@ -486,7 +528,7 @@ watch(() => store.selectedId.value, () => {
       @update:profile-bio="store.profileBio.value = $event"
       @save-profile="actions.saveProfile"
       @upload-avatar="handleAvatarUpload"
-      @open-update="openUpdatePage"
+      @open-update="handleUpdateNow"
     />
 
     <StickerImportDialog

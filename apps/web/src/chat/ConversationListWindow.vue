@@ -99,6 +99,7 @@ const searchController = useListSearch({
 });
 
 let detachLogs = null;
+let detachUpdateState = null;
 let friendSearchTimer = 0;
 const selectConversation = (id) => { store.selectedId.value = id; };
 
@@ -113,9 +114,32 @@ function shouldShowUpdatePrompt(update) {
   return Date.now() >= remindAfter;
 }
 
+function applyDesktopUpdateState(state = {}) {
+  const update = {
+    native: true,
+    hasUpdate: Boolean(state.available),
+    latestVersion: state.version || "",
+    mandatory: false,
+    downloaded: Boolean(state.downloaded),
+    progress: Number(state.progress || 0),
+    status: state.status || "idle",
+    error: state.error || "",
+  };
+  appInfo.value = { ...appInfo.value, update };
+  updatePromptOpen.value = shouldShowUpdatePrompt(update);
+}
+
 async function checkForUpdates() {
   const currentVersion = appInfo.value.version || "";
   if (!currentVersion) return;
+  if (typeof window.desktopShell?.checkForUpdates === "function") {
+    const state = await window.desktopShell.checkForUpdates().catch((error) => ({
+      status: "error",
+      error: error?.message || "检查更新失败",
+    }));
+    applyDesktopUpdateState(state);
+    return;
+  }
   const payload = await chatApi.getJson(`/api/v1/updates/latest?currentVersion=${encodeURIComponent(currentVersion)}`).catch(() => null);
   if (payload?.data) {
     appInfo.value = { ...appInfo.value, update: payload.data };
@@ -123,10 +147,24 @@ async function checkForUpdates() {
   }
 }
 
-function openUpdatePage() {
-  const url = appInfo.value.update?.downloadUrl || appInfo.value.update?.notesUrl || "";
+async function handleUpdateNow() {
+  const update = appInfo.value.update || {};
+  if (update.native && typeof window.desktopShell?.downloadUpdate === "function") {
+    if (update.downloaded && typeof window.desktopShell?.installUpdate === "function") {
+      await window.desktopShell.installUpdate();
+      return;
+    }
+    updatePromptOpen.value = true;
+    const state = await window.desktopShell.downloadUpdate().catch((error) => ({
+      ...update,
+      status: "error",
+      error: error?.message || "下载更新失败",
+    }));
+    applyDesktopUpdateState(state);
+    return;
+  }
+  const url = update.downloadUrl || update.notesUrl || "";
   if (url) window.open(url, "_blank", "noopener,noreferrer");
-  updatePromptOpen.value = false;
 }
 
 function remindUpdateLater() {
@@ -324,6 +362,9 @@ onMounted(async () => {
       storage: runtimeInfo.storage || null,
     };
   }
+  if (typeof window.desktopShell?.onUpdateState === "function") {
+    detachUpdateState = window.desktopShell.onUpdateState((state) => applyDesktopUpdateState(state));
+  }
   await actions.loadProfile(auth);
   await actions.loadContacts();
   await actions.loadConversations();
@@ -335,6 +376,7 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   window.removeEventListener("pointerdown", handleGlobalPointer);
   if (typeof detachLogs === "function") detachLogs();
+  if (typeof detachUpdateState === "function") detachUpdateState();
   window.clearTimeout(friendSearchTimer);
   realtime.disconnect();
 });
@@ -578,13 +620,13 @@ watch(() => friendCenter.keyword.value, () => {
       @update:profile-bio="store.profileBio.value = $event"
       @save-profile="actions.saveProfile"
       @upload-avatar="handleAvatarUpload"
-      @open-update="openUpdatePage"
+      @open-update="handleUpdateNow"
     />
 
     <UpdatePromptDialog
       :open="updatePromptOpen"
       :update="appInfo.update"
-      @update-now="openUpdatePage"
+      @update-now="handleUpdateNow"
       @remind-later="remindUpdateLater"
       @close="updatePromptOpen = false"
     />

@@ -19,6 +19,10 @@ contextBridge.exposeInMainWorld("desktopShell", {
   },
   getRuntimeConfig: () => ipcRenderer.invoke("desktop:get-runtime-config"),
   getAppInfo: () => ipcRenderer.invoke("desktop:get-app-info"),
+  getUpdateState: () => ipcRenderer.invoke("desktop:get-update-state"),
+  checkForUpdates: () => ipcRenderer.invoke("desktop:check-for-updates"),
+  downloadUpdate: () => ipcRenderer.invoke("desktop:download-update"),
+  installUpdate: () => ipcRenderer.invoke("desktop:install-update"),
   updateWindowContext: (payload) => ipcRenderer.invoke("desktop:update-window-context", payload),
   resolveAvatarSource: (sourceUrl) => ipcRenderer.invoke("desktop:resolve-avatar-source", sourceUrl),
   saveDownloadedFile: (payload) => ipcRenderer.invoke("desktop:save-downloaded-file", payload),
@@ -45,6 +49,16 @@ contextBridge.exposeInMainWorld("desktopShell", {
     ipcRenderer.on("desktop:window-state", handler);
     return () => {
       ipcRenderer.removeListener("desktop:window-state", handler);
+    };
+  },
+  onUpdateState(callback) {
+    if (typeof callback !== "function") {
+      return () => {};
+    }
+    const handler = (_event, state) => callback(state || {});
+    ipcRenderer.on("desktop:update-state", handler);
+    return () => {
+      ipcRenderer.removeListener("desktop:update-state", handler);
     };
   },
 });

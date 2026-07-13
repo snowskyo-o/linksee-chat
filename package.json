@@ -1,6 +1,6 @@
 {
     "name": "linksee-chat",
-    "version": "0.4.7",
+    "version": "0.4.8",
     "private": true,
     "type": "module",
     "main": "apps/desktop/main.cjs",
@@ -47,8 +47,24 @@
         "win": {
             "icon": "build/icon.ico",
             "target": [
-                "portable"
-            ]
+                "nsis"
+            ],
+            "artifactName": "${productName} Setup ${version}.${ext}"
+        },
+        "nsis": {
+            "oneClick": false,
+            "perMachine": false,
+            "allowElevation": true,
+            "allowToChangeInstallationDirectory": false,
+            "createDesktopShortcut": true,
+            "createStartMenuShortcut": true,
+            "shortcutName": "Linksee Chat",
+            "runAfterFinish": true,
+            "deleteAppDataOnUninstall": false
+        },
+        "publish": {
+            "provider": "generic",
+            "url": "http://186.241.89.102/updates/desktop/win"
         },
         "extraResources": [
             {
@@ -67,6 +83,7 @@
     },
     "dependencies": {
         "@prisma/client": "^5.18.0",
+        "electron-updater": "^6.8.9",
         "express": "^4.19.2",
         "ioredis": "^5.4.1",
         "minio": "^8.0.1",

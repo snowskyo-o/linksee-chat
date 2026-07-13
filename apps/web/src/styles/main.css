@@ -2580,6 +2580,25 @@ html body .desktop-page-shell { min-height: 100vh; }
   color: #5b6472;
   line-height: 1.7;
 }
+.update-progress {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+}
+.update-progress-track {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e8eef8;
+}
+.update-progress-track span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #4f7cff, #4ecdc4);
+  transition: width 180ms ease;
+}
 .update-prompt-actions {
   display: flex;
   justify-content: flex-end;
