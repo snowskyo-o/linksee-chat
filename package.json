@@ -12,6 +12,7 @@
         "build:web": "vite build --config ./apps/web/vite.config.mjs",
         "preview:web": "vite preview --config ./apps/web/vite.config.mjs",
         "check": "node --check ./apps/api/src/server/index.mjs && node --check ./apps/api/src/app.mjs && npm run build:web",
+        "audit:file-limits": "node ./scripts/audit-file-limits.mjs",
         "dist:desktop": "powershell -ExecutionPolicy Bypass -File ./scripts/dist-desktop-stable.ps1",
         "version:patch": "npm version patch --no-git-tag-version",
         "version:minor": "npm version minor --no-git-tag-version",
