@@ -100,6 +100,7 @@ const searchController = useListSearch({
 
 let detachUpdateState = null;
 let detachDesktopPreferences = null;
+let detachOpenConversation = null;
 let friendSearchTimer = 0;
 const selectConversation = (id) => { store.selectedId.value = id; };
 
@@ -206,6 +207,15 @@ async function openConversation(id) {
   const conversation = store.conversations.value.find((item) => String(item.id) === String(id));
   await actions.refreshProfilesIfDirty((conversation?.participants || []).map((user) => user.id)).catch(() => {});
   if (typeof window.desktopShell?.openChatWindow === "function") await window.desktopShell.openChatWindow(id);
+}
+
+async function handleDesktopOpenConversation(payload = {}) {
+  const conversationId = String(payload.conversationId || "").trim();
+  if (!conversationId) return;
+  activePane.value = "messages";
+  await actions.loadConversations().catch(() => {});
+  store.showConversation(conversationId);
+  store.selectedId.value = conversationId;
 }
 async function openFavorite(item) {
   if (!item?.conversationId) return;
@@ -423,6 +433,11 @@ onMounted(async () => {
   if (typeof window.desktopShell?.onDesktopPreferences === "function") {
     detachDesktopPreferences = window.desktopShell.onDesktopPreferences((payload) => applyDesktopPreferenceState(payload));
   }
+  if (typeof window.desktopShell?.onOpenConversation === "function") {
+    detachOpenConversation = window.desktopShell.onOpenConversation((payload) => {
+      handleDesktopOpenConversation(payload).catch(() => {});
+    });
+  }
   await actions.loadProfile(auth);
   await actions.loadContacts();
   await actions.loadConversations();
@@ -435,6 +450,7 @@ onBeforeUnmount(() => {
   window.removeEventListener("pointerdown", handleGlobalPointer);
   if (typeof detachUpdateState === "function") detachUpdateState();
   if (typeof detachDesktopPreferences === "function") detachDesktopPreferences();
+  if (typeof detachOpenConversation === "function") detachOpenConversation();
   window.clearTimeout(friendSearchTimer);
   realtime.disconnect();
 });

@@ -78,4 +78,14 @@ contextBridge.exposeInMainWorld("desktopShell", {
       ipcRenderer.removeListener("desktop:preferences-changed", handler);
     };
   },
+  onOpenConversation(callback) {
+    if (typeof callback !== "function") {
+      return () => {};
+    }
+    const handler = (_event, payload) => callback(payload || {});
+    ipcRenderer.on("desktop:open-conversation", handler);
+    return () => {
+      ipcRenderer.removeListener("desktop:open-conversation", handler);
+    };
+  },
 });

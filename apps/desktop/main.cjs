@@ -315,10 +315,7 @@ function createFallbackTrayIcon() {
       <path d="M22 18h8v28h16v8H22V18z" fill="#ffffff"/>
     </svg>
   `.trim();
-
-  return nativeImage
-    .createFromDataURL(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`)
-    .resize({ width: 16, height: 16 });
+  return nativeImage.createFromDataURL(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`).resize({ width: 16, height: 16 });
 }
 
 function resolveTrayIconPath() {
@@ -351,13 +348,7 @@ function resolveWindowByEvent(event) {
 }
 
 function buildWindowState(window) {
-  if (!window || window.isDestroyed()) {
-    return { isMaximized: false };
-  }
-
-  return {
-    isMaximized: window.isMaximized(),
-  };
+  return !window || window.isDestroyed() ? { isMaximized: false } : { isMaximized: window.isMaximized() };
 }
 
 function getLiveWindows() {
@@ -365,24 +356,17 @@ function getLiveWindows() {
 }
 
 function buildTrayTooltip() {
-  const base = "Linksee Chat";
-  if (unreadCount <= 0) return base;
-  return `${base}（${unreadCount > 99 ? "99+" : unreadCount} 条未读）`;
+  return unreadCount <= 0 ? "Linksee Chat" : `Linksee Chat（${unreadCount > 99 ? "99+" : unreadCount} 条未读）`;
 }
 
 function applyLaunchOnStartupPreference() {
-  const preferences = getDesktopPreferences();
   if (process.platform !== "win32" && process.platform !== "darwin") return;
-  app.setLoginItemSettings({
-    openAtLogin: Boolean(preferences.launchOnStartup),
-  });
+  app.setLoginItemSettings({ openAtLogin: Boolean(getDesktopPreferences().launchOnStartup) });
 }
 
 function publishDesktopPreferences() {
   const payload = { preferences: getDesktopPreferences(), storage: getStorageInfo() };
-  getLiveWindows().forEach((window) => {
-    window.webContents.send("desktop:preferences-changed", payload);
-  });
+  getLiveWindows().forEach((window) => window.webContents.send("desktop:preferences-changed", payload));
   return payload;
 }
 
@@ -625,10 +609,7 @@ function destroyTray() {
 }
 
 function hideAllChatWindows() {
-  for (const window of chatWindows.values()) {
-    if (!window || window.isDestroyed()) continue;
-    window.hide();
-  }
+  for (const window of chatWindows.values()) if (window && !window.isDestroyed()) window.hide();
 }
 
 function showPrimaryWindowFromTray() {
@@ -642,6 +623,24 @@ function showPrimaryWindowFromTray() {
     return;
   }
   createLoginWindow();
+}
+
+function sendConversationToWindow(window, conversationId) {
+  if (!window || window.isDestroyed()) return;
+  const payload = { conversationId: String(conversationId || "").trim() };
+  if (!payload.conversationId) return;
+  const emit = () => window.webContents.send("desktop:open-conversation", payload);
+  if (window.webContents.isLoadingMainFrame()) return void window.webContents.once("did-finish-load", emit);
+  emit();
+}
+
+function broadcastOpenConversation(conversationId) {
+  const targetId = String(conversationId || "").trim();
+  if (!targetId) return;
+  sendConversationToWindow(listWindow, targetId);
+  for (const window of chatWindows.values()) {
+    sendConversationToWindow(window, targetId);
+  }
 }
 
 function setWindowContext(window, context = {}) {
@@ -684,7 +683,10 @@ function showDesktopNotification({ title, body, conversationId = "" }) {
   notification.on("click", () => {
     if (conversationId) {
       createListWindow();
-      createChatWindow(conversationId);
+      const chatWindow = createChatWindow(conversationId);
+      broadcastOpenConversation(conversationId);
+      slideOutListWindow();
+      focusWindow(chatWindow || listWindow);
       return;
     }
     showPrimaryWindowFromTray();

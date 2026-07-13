@@ -91,6 +91,7 @@ let conversationsRefreshTimer = null;
 let selectedRefreshTimer = null;
 let detachUpdateState = null;
 let detachDesktopPreferences = null;
+let detachOpenConversation = null;
 let draftPersistTimer = null;
 
 function updateReminderKey(version) {
@@ -314,6 +315,13 @@ async function selectConversation(id) {
   realtime.joinSelectedConversation();
 }
 
+async function handleDesktopOpenConversation(payload = {}) {
+  if (standaloneConversationMode.value) return;
+  const conversationId = String(payload.conversationId || "").trim();
+  if (!conversationId || conversationId === String(store.selectedId.value || "")) return;
+  await selectConversation(conversationId);
+}
+
 function cancelEdit() {
   store.clearReplyState();
   store.messageInput.value = "";
@@ -514,6 +522,11 @@ onMounted(async () => {
     if (typeof window.desktopShell?.onDesktopPreferences === "function") {
       detachDesktopPreferences = window.desktopShell.onDesktopPreferences((payload) => applyDesktopPreferenceState(payload));
     }
+    if (typeof window.desktopShell?.onOpenConversation === "function") {
+      detachOpenConversation = window.desktopShell.onOpenConversation((payload) => {
+        handleDesktopOpenConversation(payload).catch(() => {});
+      });
+    }
     await actions.loadProfile(auth);
     await actions.loadContacts();
     await actions.loadConversations();
@@ -541,6 +554,7 @@ onBeforeUnmount(() => {
   if (draftPersistTimer) window.clearTimeout(draftPersistTimer);
   if (typeof detachUpdateState === "function") detachUpdateState();
   if (typeof detachDesktopPreferences === "function") detachDesktopPreferences();
+  if (typeof detachOpenConversation === "function") detachOpenConversation();
   if (store.selectedId.value) {
     actions.saveConversationDraft(store.selectedId.value, store.messageInput.value).catch(() => {});
   }
