@@ -1974,7 +1974,13 @@ html body .desktop-page-shell { min-height: 100vh; }
   user-select: none;
 }
 
-.chat-title-block { min-width: 0; display: grid; gap: 6px; }
+.chat-title-block { min-width: 0; display: grid; gap: 0; }
+.chat-title-block h2 {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .chat-window-drag {
   min-width: 0;
   display: flex;
@@ -2017,30 +2023,6 @@ html body .desktop-page-shell { min-height: 100vh; }
   height: 38px;
   border-radius: 12px;
 }
-.head-actions { flex-wrap: wrap; }
-.qq-chat-head-actions {
-  gap: 8px;
-  justify-content: flex-end;
-  flex-wrap: nowrap;
-  -webkit-app-region: no-drag;
-}
-.qq-chat-icon-btn {
-  width: 34px;
-  height: 34px;
-  border: 0;
-  border-radius: 12px;
-  background: transparent;
-  color: #1d2430;
-  font-size: 20px;
-  font-weight: 500;
-  cursor: pointer;
-}
-.qq-chat-icon-btn:hover {
-  background: rgba(47, 107, 255, 0.08);
-}
-.socket-pill { padding: 6px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; }
-.socket-pill.online { background: rgba(34, 160, 107, 0.13); color: var(--ok); }
-.socket-pill.offline { background: rgba(216, 77, 87, 0.14); color: var(--danger); }
 .chat-toolbar-search {
   display: flex;
   justify-content: flex-end;

@@ -44,6 +44,11 @@ function sanitizeFileName(originalName) {
   return safeName.length > 0 ? safeName : "file";
 }
 
+function normalizeDisplayFileName(originalName) {
+  const safeName = path.basename(String(originalName || "")).trim();
+  return safeName || "file";
+}
+
 export function buildFileSummary(files) {
   if (!Array.isArray(files) || files.length === 0) return "附件";
   if (files.length === 1) return files[0].name || "附件";
@@ -83,7 +88,7 @@ export function normalizeChatFiles(files) {
   if (!Array.isArray(files)) return [];
   return files.flatMap((item) => {
     if (!item || typeof item !== "object" || Array.isArray(item)) return [];
-    const name = typeof item.name === "string" ? sanitizeFileName(item.name) : "";
+    const name = typeof item.name === "string" ? normalizeDisplayFileName(item.name) : "";
     const objectKey = typeof item.objectKey === "string" ? item.objectKey : "";
     const size = typeof item.size === "number" ? item.size : NaN;
     const mimeType = typeof item.mimeType === "string" ? item.mimeType : "";
@@ -103,7 +108,7 @@ export async function uploadChatFile({ conversationId, fileName, mimeType, size,
   const expiresAt = new Date(Date.now() + ttlMs).toISOString();
 
   return {
-    name: sanitizeFileName(fileName),
+    name: normalizeDisplayFileName(fileName),
     objectKey,
     size,
     mimeType,

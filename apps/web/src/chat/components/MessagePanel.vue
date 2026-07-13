@@ -12,6 +12,8 @@ const shell = useDesktopShell();
 const props = defineProps({
   chatTitle: { type: String, default: "请选择会话" },
   chatSubtitle: { type: String, default: "选择一个会话开始聊天" },
+  chatKind: { type: String, default: "" },
+  participantCount: { type: Number, default: 0 },
   messageKeyword: { type: String, default: "" },
   socketOnline: { type: Boolean, default: false },
   searchResultText: { type: String, default: "" },
@@ -41,7 +43,6 @@ const emit = defineEmits([
   "update:messageKeyword",
   "search",
   "clear-search",
-  "announcement",
   "cancel-edit",
   "update:messageInput",
   "message-keydown",
@@ -95,6 +96,12 @@ const contextMenuItems = computed(() => {
     }));
   }
   return items;
+});
+
+const displayChatTitle = computed(() => {
+  if (props.chatKind !== "group") return props.chatTitle;
+  const count = Number(props.participantCount || 0);
+  return count > 0 ? `${props.chatTitle}（${count}）` : props.chatTitle;
 });
 
 function closeFloatingPanels() {
@@ -391,19 +398,7 @@ onBeforeUnmount(() => {
 
     <header class="chat-workspace-head" :class="{ 'is-standalone': standaloneMode }">
       <div class="chat-title-block">
-        <h2>{{ chatTitle }}</h2>
-        <p class="muted">{{ chatSubtitle }}</p>
-      </div>
-      <div class="head-actions qq-chat-head-actions">
-        <button class="qq-chat-icon-btn" type="button" title="搜索消息" @click="$emit('search')">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.5 4a6.5 6.5 0 1 1 0 13a6.5 6.5 0 0 1 0-13Zm0 2a4.5 4.5 0 1 0 0 9a4.5 4.5 0 0 0 0-9Zm8.91 11.5 2.8 2.79-1.42 1.42-2.79-2.8 1.41-1.41Z"/></svg>
-        </button>
-        <button class="qq-chat-icon-btn" type="button" title="公告" @click="$emit('announcement')">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10.5v3c0 .83.67 1.5 1.5 1.5H6l2 4h2l-1.5-4H12l6 3V6l-6 3H4.5c-.83 0-1.5.67-1.5 1.5Zm9-.28 4-2v7.56l-4-2V10.22Z"/></svg>
-        </button>
-        <div class="socket-pill" :class="socketOnline ? 'online' : 'offline'">
-          {{ socketOnline ? "在线" : "离线" }}
-        </div>
+        <h2>{{ displayChatTitle }}</h2>
       </div>
     </header>
 

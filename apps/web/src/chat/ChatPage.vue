@@ -57,6 +57,7 @@ const showStandaloneInfoSidebar = computed(() => (
 let conversationsRefreshTimer = null;
 let selectedRefreshTimer = null;
 let detachUpdateState = null;
+let draftPersistTimer = null;
 
 function updateReminderKey(version) {
   return `linksee_update_remind_after_${String(version || "latest")}`;
@@ -388,6 +389,10 @@ onMounted(async () => {
       await actions.selectConversation(desktopConversationId);
     } else {
       await actions.refreshSelectedConversation();
+      if (store.selectedId.value) {
+        store.messageInput.value = await actions.loadConversationDraft(store.selectedId.value);
+        store.updateMentionState(store.messageInput.value);
+      }
     }
     syncDesktopWindowContext();
     realtime.connect();
@@ -400,13 +405,29 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   if (conversationsRefreshTimer) window.clearTimeout(conversationsRefreshTimer);
   if (selectedRefreshTimer) window.clearTimeout(selectedRefreshTimer);
+  if (draftPersistTimer) window.clearTimeout(draftPersistTimer);
   if (typeof detachUpdateState === "function") detachUpdateState();
+  if (store.selectedId.value) {
+    actions.saveConversationDraft(store.selectedId.value, store.messageInput.value).catch(() => {});
+  }
   realtime.disconnect();
 });
 
 watch(() => store.selectedId.value, () => {
   syncDesktopWindowContext();
 });
+
+watch(
+  () => [store.selectedId.value, store.messageInput.value],
+  ([conversationId, messageInput]) => {
+    if (draftPersistTimer) window.clearTimeout(draftPersistTimer);
+    if (!conversationId) return;
+    draftPersistTimer = window.setTimeout(() => {
+      actions.saveConversationDraft(conversationId, messageInput).catch(() => {});
+      draftPersistTimer = null;
+    }, 240);
+  },
+);
 </script>
 
 <template>
@@ -447,6 +468,8 @@ watch(() => store.selectedId.value, () => {
       <MessagePanel
         :chat-title="store.chatTitle.value"
         :chat-subtitle="store.chatSubtitle.value"
+        :chat-kind="store.selectedConversation.value?.kind || ''"
+        :participant-count="store.selectedConversation.value?.participantIds?.length || store.participants.value.length"
         :message-keyword="store.messageKeyword.value"
         :socket-online="store.socketOnline.value"
         :search-result-text="store.searchResultText.value"
@@ -473,7 +496,6 @@ watch(() => store.selectedId.value, () => {
         @update:message-keyword="store.messageKeyword.value = $event"
         @search="actions.searchMessages"
         @clear-search="clearMessageSearch"
-        @announcement="actions.sendAnnouncement"
         @cancel-edit="cancelEdit"
         @update:message-input="store.messageInput.value = $event; store.updateMentionState($event)"
         @message-keydown="handleComposerKeydown"

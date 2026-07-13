@@ -233,8 +233,9 @@ export const chatApi = {
       body: file,
     });
   },
-  getBlob(path) {
-    return requestBlob(path, { headers: authHeaders() });
+  async getBlob(path) {
+    const response = await requestBlob(path, { headers: authHeaders() });
+    return response.blob();
   },
   getBlobWithProgress(path, onProgress) {
     return requestBlobWithProgress(path, {}, onProgress);

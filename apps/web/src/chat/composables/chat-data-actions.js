@@ -3,6 +3,25 @@ import { readChatCache, writeChatCache } from "./local-chat-cache.js";
 
 export function createChatDataActions(store, chatApi) {
   const cacheUserId = () => store.me.value?.id || localStorage.getItem("chat_user_id") || "guest";
+  const getDraftCacheKey = (conversationId) => `draft-${conversationId}`;
+
+  async function saveConversationDraft(conversationId, draft = "") {
+    const targetId = String(conversationId || "").trim();
+    if (!targetId) return;
+    await writeChatCache(cacheUserId(), getDraftCacheKey(targetId), {
+      data: {
+        text: String(draft || ""),
+      },
+      cachedAt: new Date().toISOString(),
+    }).catch(() => {});
+  }
+
+  async function loadConversationDraft(conversationId) {
+    const targetId = String(conversationId || "").trim();
+    if (!targetId) return "";
+    const cached = await readChatCache(cacheUserId(), getDraftCacheKey(targetId));
+    return String(cached?.data?.text || "");
+  }
 
   async function loadProfile(auth) {
     const cached = await readChatCache(cacheUserId(), "profile");
@@ -141,6 +160,10 @@ export function createChatDataActions(store, chatApi) {
   }
 
   async function selectConversation(id) {
+    const previousId = String(store.selectedId.value || "").trim();
+    if (previousId) {
+      await saveConversationDraft(previousId, store.messageInput.value);
+    }
     store.selectedId.value = id;
     store.searchKeyword.value = "";
     store.messageKeyword.value = "";
@@ -148,7 +171,10 @@ export function createChatDataActions(store, chatApi) {
     store.messages.value = [];
     store.hasMoreMessages.value = false;
     store.clearReplyState();
+    store.messageInput.value = "";
     await refreshSelectedConversation();
+    store.messageInput.value = await loadConversationDraft(id);
+    store.updateMentionState(store.messageInput.value);
     await markConversationReadIfNeeded().catch(() => {});
   }
 
@@ -167,6 +193,8 @@ export function createChatDataActions(store, chatApi) {
     refreshSelectedConversation,
     refreshAll,
     markConversationReadIfNeeded,
+    saveConversationDraft,
+    loadConversationDraft,
     selectConversation,
     searchMessages,
   };

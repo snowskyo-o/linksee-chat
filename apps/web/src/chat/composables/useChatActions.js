@@ -258,6 +258,7 @@ export function useChatActions(store) {
 
   async function submitComposer() {
     if (!store.selectedId.value) return;
+    const activeConversationId = store.selectedId.value;
     const content = store.messageInput.value.trim();
     const pendingFiles = store.pendingFiles.value.slice();
     if (!content && !pendingFiles.length) return;
@@ -290,6 +291,7 @@ export function useChatActions(store) {
         store.resetComposer();
       }
     }
+    dataActions.saveConversationDraft(activeConversationId, "").catch(() => {});
     dataActions.loadConversations().catch(() => {});
     dataActions.markConversationReadIfNeeded().catch(() => {});
   }
@@ -692,6 +694,8 @@ export function useChatActions(store) {
     loadOlderMessages: dataActions.loadOlderMessages,
     refreshSelectedConversation: dataActions.refreshSelectedConversation,
     refreshAll: dataActions.refreshAll,
+    saveConversationDraft: dataActions.saveConversationDraft,
+    loadConversationDraft: dataActions.loadConversationDraft,
     selectConversation,
     createDirectConversation,
     createGroupConversation,
