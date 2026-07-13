@@ -1,0 +1,261 @@
+.create-dialog-summary {
+  margin-top: 14px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: #f6f9ff;
+  border: 1px solid rgba(223, 231, 242, 0.96);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: #6e7b8f;
+  font-size: 13px;
+}
+
+
+.create-dialog-summary strong {
+  color: #344156;
+  font-size: 12px;
+}
+
+
+.dialog-contact-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+
+.dialog-contact-item {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 12px 14px;
+  border: 1px solid rgba(221, 229, 238, 0.96);
+  border-radius: 16px;
+  background: #fff;
+  cursor: pointer;
+  text-align: left;
+}
+
+
+.dialog-contact-item.is-selected {
+  border-color: rgba(47, 107, 255, 0.38);
+  background: linear-gradient(180deg, #f6f9ff 0%, #edf3ff 100%);
+}
+
+
+.dialog-contact-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+}
+
+
+.dialog-contact-copy {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+
+.dialog-contact-copy strong,
+.dialog-contact-copy p {
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+
+.dialog-contact-copy p {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+
+.dialog-selected-strip {
+  margin-top: 16px;
+  display: grid;
+  gap: 8px;
+}
+
+
+.dialog-selected-tags {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+
+.dialog-tag {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--brand-soft);
+  color: var(--brand);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+
+.dialog-actions {
+  margin-top: 18px;
+}
+
+
+.announcement-dialog-card textarea {
+  min-height: 150px;
+  resize: vertical;
+}
+
+
+.confirm-dialog-card {
+  width: min(460px, 100%);
+}
+
+
+.toast-stack {
+  position: fixed;
+  top: 70px;
+  right: 18px;
+  display: grid;
+  gap: 10px;
+  z-index: 45;
+}
+
+
+.toast-card {
+  width: min(320px, calc(100vw - 32px));
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.98);
+  border: 1px solid rgba(220, 228, 239, 0.96);
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.18);
+}
+
+
+.toast-card.is-success {
+  border-color: rgba(34, 160, 107, 0.22);
+}
+
+
+.toast-card.is-error {
+  border-color: rgba(216, 77, 87, 0.24);
+}
+
+
+.toast-copy {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+
+.toast-copy strong,
+.toast-copy p {
+  margin: 0;
+}
+
+
+.toast-copy p {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+
+.toast-close {
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+
+.toast-close:hover {
+  background: rgba(47, 107, 255, 0.08);
+  color: var(--brand);
+}
+
+
+.qq-list-window-actions,
+.qq-list-window-actions *,
+.qq-list-nav,
+.qq-list-nav *,
+.qq-list-search-box,
+.qq-list-search-box *,
+.qq-list-search-cluster,
+.qq-list-search-cluster *,
+.qq-search-panel,
+.qq-search-panel *,
+.qq-plus-action-wrap,
+.qq-plus-action-wrap *,
+.qq-quick-create-menu,
+.qq-quick-create-menu *,
+.qq-contact-panel,
+.qq-contact-panel *,
+.new-friends-dialog-card,
+.new-friends-dialog-card *,
+.chat-window-actions,
+.chat-window-actions *,
+.qq-chat-head-actions,
+.qq-chat-head-actions *,
+.chat-toolbar-search-inner,
+.chat-toolbar-search-inner *,
+.desktop-composer,
+.desktop-composer *,
+.mention-panel,
+.mention-panel *,
+.message-context-menu,
+.message-context-menu * {
+  -webkit-app-region: no-drag;
+}
+
+
+.desktop-titlebar,
+.desktop-titlebar *,
+.compact-auth-shell,
+.compact-auth-shell *,
+.qq-list-shell,
+.qq-list-profile-copy,
+.qq-list-profile-copy *,
+.qq-list-status-pill,
+.chat-standalone-topbar,
+.chat-standalone-topbar *,
+.chat-workspace-head,
+.chat-workspace-head *,
+.chat-toolbar-search,
+.chat-toolbar-search *,
+.search-bar,
+.reply-bar,
+.upload-inline-tip,
+.message-system-row,
+.message-head,
+.message-head *,
+.qq-thread-copy,
+.qq-thread-copy * {
+  user-select: none;
+}
+
+
+input,
+textarea,
+.message-input,
+.message-input *,
+.message-bubble,
+.message-bubble *,
+.message-content,
+.message-content *,
+.file-card,
+.file-card * {
+  user-select: text;
+}
+

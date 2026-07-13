@@ -38,6 +38,7 @@ const props = defineProps({
   loadState: { type: Object, default: () => ({ status: "idle", message: "" }) },
   standaloneMode: { type: Boolean, default: false },
   stickers: { type: Array, default: () => [] },
+  recentStickers: { type: Array, default: () => [] },
   stickersLoading: { type: Boolean, default: false },
   stickersHint: { type: String, default: "" },
   stickersHintTone: { type: String, default: "" },
@@ -57,6 +58,7 @@ const emit = defineEmits([
   "capture-screenshot",
   "open-sticker-import",
   "send-sticker",
+  "clear-recent-stickers",
   "download-file",
   "save-file-as",
   "open-file",
@@ -576,6 +578,7 @@ onBeforeUnmount(() => {
       <EmojiPicker :open="emojiOpen" @pick="appendEmoji" />
       <StickerPicker
         :open="stickerOpen"
+        :recent-stickers="recentStickers"
         :stickers="stickers"
         :loading="stickersLoading"
         :hint="stickersHint"
@@ -583,6 +586,7 @@ onBeforeUnmount(() => {
         :desktop-mode="shell.isDesktop"
         @pick="sendSticker"
         @import-files="$emit('open-sticker-import')"
+        @clear-recent="$emit('clear-recent-stickers')"
       />
 
       <AttachmentPreview

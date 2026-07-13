@@ -445,6 +445,7 @@ async function clearDesktopCache() {
 async function handleSendSticker(sticker) {
   const source = sticker?.originalSrc || sticker?.src || "";
   if (!source) return;
+  stickerLibrary.markUsed(sticker);
   try {
     const response = await fetch(source);
     const blob = await response.blob();
@@ -775,6 +776,7 @@ watch(
         :load-state="store.messageLoadState.value"
         :standalone-mode="standaloneConversationMode"
         :stickers="stickerLibrary.stickers.value"
+        :recent-stickers="stickerLibrary.recentStickers.value"
         :stickers-loading="stickerLibrary.loading.value"
         :stickers-hint="stickerLibrary.hint.value"
         :stickers-hint-tone="stickerLibrary.hintTone.value"
@@ -791,6 +793,7 @@ watch(
         @capture-screenshot="captureScreenshot"
         @open-sticker-import="openStickerImport"
         @send-sticker="handleSendSticker"
+        @clear-recent-stickers="stickerLibrary.clearRecent"
         @file-change="handleFileChange"
         @file-paste="handleFilePaste"
         @file-drop="handleFileDrop"

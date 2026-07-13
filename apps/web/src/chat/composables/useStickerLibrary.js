@@ -1,4 +1,16 @@
-import { ref } from "vue";
+import { computed, ref } from "vue";
+
+const RECENT_STICKERS_KEY = "linksee_chat_recent_stickers";
+const RECENT_STICKER_LIMIT = 18;
+
+function loadRecentStickerIds() {
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(RECENT_STICKERS_KEY) || "[]");
+    return Array.isArray(parsed) ? parsed.filter(Boolean).map((item) => String(item)).slice(0, RECENT_STICKER_LIMIT) : [];
+  } catch {
+    return [];
+  }
+}
 
 export function useStickerLibrary() {
   const stickers = ref([]);
@@ -6,6 +18,23 @@ export function useStickerLibrary() {
   const hint = ref("");
   const hintTone = ref("");
   const isDesktop = Boolean(window.desktopShell?.isDesktop);
+  const recentStickerIds = ref(loadRecentStickerIds());
+
+  const recentStickers = computed(() => recentStickerIds.value
+    .map((id) => stickers.value.find((item) => String(item.id) === id))
+    .filter(Boolean));
+
+  const libraryStickers = computed(() => stickers.value.filter((item) => !recentStickerIds.value.includes(String(item.id))));
+
+  function persistRecentStickerIds(nextIds) {
+    recentStickerIds.value = nextIds.slice(0, RECENT_STICKER_LIMIT);
+    window.localStorage.setItem(RECENT_STICKERS_KEY, JSON.stringify(recentStickerIds.value));
+  }
+
+  function syncRecentStickers(nextStickers) {
+    const validIds = new Set((Array.isArray(nextStickers) ? nextStickers : []).map((item) => String(item.id)));
+    persistRecentStickerIds(recentStickerIds.value.filter((id) => validIds.has(String(id))));
+  }
 
   async function refresh() {
     if (!isDesktop || typeof window.desktopShell?.listStickers !== "function") return [];
@@ -13,6 +42,7 @@ export function useStickerLibrary() {
     try {
       const next = await window.desktopShell.listStickers();
       stickers.value = Array.isArray(next) ? next : [];
+      syncRecentStickers(stickers.value);
       return stickers.value;
     } catch (error) {
       hint.value = error?.message || "读取表情包失败";
@@ -29,6 +59,7 @@ export function useStickerLibrary() {
     try {
       const next = await window.desktopShell.importStickerFiles();
       stickers.value = Array.isArray(next) ? next : [];
+      syncRecentStickers(stickers.value);
       hint.value = stickers.value.length ? "表情已导入本地库" : "";
       hintTone.value = stickers.value.length ? "success" : "";
     } catch (error) {
@@ -45,6 +76,7 @@ export function useStickerLibrary() {
     try {
       const next = await window.desktopShell.importStickerFolder();
       stickers.value = Array.isArray(next) ? next : [];
+      syncRecentStickers(stickers.value);
       hint.value = stickers.value.length ? "文件夹表情已导入" : "";
       hintTone.value = stickers.value.length ? "success" : "";
     } catch (error) {
@@ -61,6 +93,7 @@ export function useStickerLibrary() {
     try {
       const next = await window.desktopShell.renameSticker({ id: stickerId, name });
       stickers.value = Array.isArray(next) ? next : [];
+      syncRecentStickers(stickers.value);
       hint.value = "表情名称已更新";
       hintTone.value = "success";
     } catch (error) {
@@ -77,6 +110,7 @@ export function useStickerLibrary() {
     try {
       const next = await window.desktopShell.deleteSticker(stickerId);
       stickers.value = Array.isArray(next) ? next : [];
+      syncRecentStickers(stickers.value);
       hint.value = "表情已删除";
       hintTone.value = "success";
     } catch (error) {
@@ -93,6 +127,7 @@ export function useStickerLibrary() {
     try {
       const next = await window.desktopShell.moveSticker({ id: stickerId, direction });
       stickers.value = Array.isArray(next) ? next : [];
+      syncRecentStickers(stickers.value);
       hint.value = "表情顺序已更新";
       hintTone.value = "success";
     } catch (error) {
@@ -108,9 +143,21 @@ export function useStickerLibrary() {
     hintTone.value = "";
   }
 
+  function markUsed(sticker) {
+    const stickerId = String(sticker?.id || "").trim();
+    if (!stickerId) return;
+    persistRecentStickerIds([stickerId, ...recentStickerIds.value.filter((id) => id !== stickerId)]);
+  }
+
+  function clearRecent() {
+    persistRecentStickerIds([]);
+  }
+
   return {
     isDesktop,
     stickers,
+    recentStickers,
+    libraryStickers,
     loading,
     hint,
     hintTone,
@@ -121,5 +168,7 @@ export function useStickerLibrary() {
     remove,
     move,
     clearHint,
+    markUsed,
+    clearRecent,
   };
 }

@@ -1,6 +1,7 @@
 <script setup>
 defineProps({
   open: { type: Boolean, default: false },
+  recentStickers: { type: Array, default: () => [] },
   stickers: { type: Array, default: () => [] },
   loading: { type: Boolean, default: false },
   hint: { type: String, default: "" },
@@ -8,11 +9,31 @@ defineProps({
   desktopMode: { type: Boolean, default: false },
 });
 
-defineEmits(["pick", "import-files"]);
+defineEmits(["pick", "import-files", "clear-recent"]);
 </script>
 
 <template>
   <div v-if="open" class="emoji-picker sticker-picker">
+    <section v-if="recentStickers.length" class="emoji-picker-group">
+      <header class="emoji-picker-group-title sticker-picker-head">
+        <span>最近使用</span>
+        <button class="ghost-btn compact-btn" type="button" @click="$emit('clear-recent')">清空</button>
+      </header>
+      <div class="sticker-grid">
+        <button
+          v-for="sticker in recentStickers"
+          :key="`recent:${sticker.id}`"
+          class="sticker-card"
+          type="button"
+          :title="sticker.name"
+          @click="$emit('pick', sticker)"
+        >
+          <img :src="sticker.previewSrc || sticker.src" :alt="sticker.name" />
+          <span class="sticker-card-label">{{ sticker.name }}</span>
+        </button>
+      </div>
+    </section>
+
     <section class="emoji-picker-group">
       <header class="emoji-picker-group-title sticker-picker-head">
         <span>表情包</span>
