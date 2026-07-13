@@ -8,21 +8,18 @@ export function useLoginSession({ autoLogin, password, passwordInput, rememberAc
   const hint = ref("");
   const hintTone = ref("");
   const submitting = ref(false);
-
   function persistLoginPreferences(account) {
     localStorage.setItem("login_remember_account", rememberAccount.value ? "true" : "false");
     localStorage.setItem("login_auto_login", autoLogin.value ? "true" : "false");
     if (rememberAccount.value || autoLogin.value) localStorage.setItem("login_last_user_id", account);
     else localStorage.removeItem("login_last_user_id");
   }
-
   function saveSession(account, data = {}) {
     localStorage.setItem("chat_access_token", data.accessToken || "");
     localStorage.setItem("chat_refresh_token", data.refreshToken || "");
     localStorage.setItem("chat_user_id", account);
     localStorage.setItem("chat_role", data.role || "");
   }
-
   async function enterChat() {
     if (isDesktopRuntime() && typeof window.desktopShell?.loginSuccess === "function") {
       await window.desktopShell.loginSuccess();
@@ -30,7 +27,6 @@ export function useLoginSession({ autoLogin, password, passwordInput, rememberAc
     }
     navigateTo("chat");
   }
-
   function normalizeLoginError(error) {
     if (error?.code === "NETWORK_ERROR") return "登录失败，请检查网络后重试";
     if (error?.code === "UNAUTHENTICATED") return "账号或密码错误";
