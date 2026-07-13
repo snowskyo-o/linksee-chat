@@ -9,6 +9,7 @@ import NewFriendsDialog from "./components/NewFriendsDialog.vue";
 import QuickCreateMenu from "./components/QuickCreateMenu.vue";
 import SettingsDialog from "./components/SettingsDialog.vue";
 import FriendRemarkDialog from "./components/FriendRemarkDialog.vue";
+import UpdatePromptDialog from "./components/UpdatePromptDialog.vue";
 import { useDesktopShell } from "../shared/useDesktopShell.js";
 import { clearAppLogs, onAppLogsUpdated, readAppLogs } from "../shared/app-log.js";
 import { chatApi } from "../shared/api-client.js";
@@ -50,6 +51,7 @@ const activePane = ref("messages");
 const remarkDialogOpen = ref(false);
 const remarkDraft = ref("");
 const remarkTarget = ref(null);
+const updatePromptOpen = ref(false);
 const unreadTotal = computed(() => store.filteredConversations.value.reduce((sum, row) => {
   return sum + Number(row.unreadCount || 0) + Number(row.unreadMentionCount || 0);
 }, 0));
@@ -100,16 +102,38 @@ let detachLogs = null;
 let friendSearchTimer = 0;
 const selectConversation = (id) => { store.selectedId.value = id; };
 
+function updateReminderKey(version) {
+  return `linksee_update_remind_after_${String(version || "latest")}`;
+}
+
+function shouldShowUpdatePrompt(update) {
+  if (!update?.hasUpdate) return false;
+  if (update.mandatory) return true;
+  const remindAfter = Number(window.localStorage.getItem(updateReminderKey(update.latestVersion)) || 0);
+  return Date.now() >= remindAfter;
+}
+
 async function checkForUpdates() {
   const currentVersion = appInfo.value.version || "";
   if (!currentVersion) return;
   const payload = await chatApi.getJson(`/api/v1/updates/latest?currentVersion=${encodeURIComponent(currentVersion)}`).catch(() => null);
-  if (payload?.data) appInfo.value = { ...appInfo.value, update: payload.data };
+  if (payload?.data) {
+    appInfo.value = { ...appInfo.value, update: payload.data };
+    updatePromptOpen.value = shouldShowUpdatePrompt(payload.data);
+  }
 }
 
 function openUpdatePage() {
   const url = appInfo.value.update?.downloadUrl || appInfo.value.update?.notesUrl || "";
   if (url) window.open(url, "_blank", "noopener,noreferrer");
+  updatePromptOpen.value = false;
+}
+
+function remindUpdateLater() {
+  const update = appInfo.value.update || {};
+  const remindAfter = Date.now() + 6 * 60 * 60 * 1000;
+  window.localStorage.setItem(updateReminderKey(update.latestVersion), String(remindAfter));
+  updatePromptOpen.value = false;
 }
 
 async function handleRealtimeEvent(event) {
@@ -555,6 +579,14 @@ watch(() => friendCenter.keyword.value, () => {
       @save-profile="actions.saveProfile"
       @upload-avatar="handleAvatarUpload"
       @open-update="openUpdatePage"
+    />
+
+    <UpdatePromptDialog
+      :open="updatePromptOpen"
+      :update="appInfo.update"
+      @update-now="openUpdatePage"
+      @remind-later="remindUpdateLater"
+      @close="updatePromptOpen = false"
     />
   </main>
 </template>

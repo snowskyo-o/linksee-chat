@@ -11,6 +11,7 @@ import InfoSidebar from "./components/InfoSidebar.vue";
 import SettingsDialog from "./components/SettingsDialog.vue";
 import StickerImportDialog from "./components/StickerImportDialog.vue";
 import ToastStack from "./components/ToastStack.vue";
+import UpdatePromptDialog from "./components/UpdatePromptDialog.vue";
 import DesktopTitlebar from "../shared/components/DesktopTitlebar.vue";
 import { appendAppLog, clearAppLogs, onAppLogsUpdated, readAppLogs } from "../shared/app-log.js";
 import { chatApi } from "../shared/api-client.js";
@@ -38,6 +39,7 @@ const imageViewerSrc = ref("");
 const imageViewerLoading = ref(false);
 const imageViewerHint = ref("");
 const imageViewerFile = ref(null);
+const updatePromptOpen = ref(false);
 const appInfo = ref({
   productName: "Linksee Chat",
   version: "",
@@ -56,6 +58,17 @@ const showStandaloneInfoSidebar = computed(() => (
 let conversationsRefreshTimer = null;
 let selectedRefreshTimer = null;
 let detachLogs = null;
+
+function updateReminderKey(version) {
+  return `linksee_update_remind_after_${String(version || "latest")}`;
+}
+
+function shouldShowUpdatePrompt(update) {
+  if (!update?.hasUpdate) return false;
+  if (update.mandatory) return true;
+  const remindAfter = Number(window.localStorage.getItem(updateReminderKey(update.latestVersion)) || 0);
+  return Date.now() >= remindAfter;
+}
 
 function scheduleConversationsRefresh() {
   if (conversationsRefreshTimer) window.clearTimeout(conversationsRefreshTimer);
@@ -108,12 +121,23 @@ async function checkForUpdates() {
   const currentVersion = appInfo.value.version || "";
   if (!currentVersion) return;
   const payload = await chatApi.getJson(`/api/v1/updates/latest?currentVersion=${encodeURIComponent(currentVersion)}`).catch(() => null);
-  if (payload?.data) appInfo.value = { ...appInfo.value, update: payload.data };
+  if (payload?.data) {
+    appInfo.value = { ...appInfo.value, update: payload.data };
+    updatePromptOpen.value = shouldShowUpdatePrompt(payload.data);
+  }
 }
 
 function openUpdatePage() {
   const url = appInfo.value.update?.downloadUrl || appInfo.value.update?.notesUrl || "";
   if (url) window.open(url, "_blank", "noopener,noreferrer");
+  updatePromptOpen.value = false;
+}
+
+function remindUpdateLater() {
+  const update = appInfo.value.update || {};
+  const remindAfter = Date.now() + 6 * 60 * 60 * 1000;
+  window.localStorage.setItem(updateReminderKey(update.latestVersion), String(remindAfter));
+  updatePromptOpen.value = false;
 }
 
 function isCurrentConversationFocused(conversationId) {
@@ -436,6 +460,14 @@ watch(() => store.selectedId.value, () => {
     </section>
 
     <ToastStack :notifications="store.notifications.value" @dismiss="store.dismissNotification" />
+
+    <UpdatePromptDialog
+      :open="updatePromptOpen"
+      :update="appInfo.update"
+      @update-now="openUpdatePage"
+      @remind-later="remindUpdateLater"
+      @close="updatePromptOpen = false"
+    />
 
     <SettingsDialog
       :open="settingsOpen"
