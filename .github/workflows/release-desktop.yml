@@ -96,8 +96,18 @@ jobs:
           $remote = "$($env:UPDATE_SSH_USER)@$($env:UPDATE_SSH_HOST)"
           $sshOptions = @("-i", $keyPath, "-p", $port, "-o", "BatchMode=yes", "-o", "ConnectTimeout=20", "-o", "ServerAliveInterval=15", "-o", "ServerAliveCountMax=2", "-o", "StrictHostKeyChecking=no")
           $scpOptions = @("-i", $keyPath, "-P", $port, "-o", "BatchMode=yes", "-o", "ConnectTimeout=20", "-o", "ServerAliveInterval=15", "-o", "ServerAliveCountMax=2", "-o", "StrictHostKeyChecking=no")
-          $env:UPDATE_SSH_KEY | Set-Content -NoNewline -Encoding ascii $keyPath
-          icacls $keyPath /inheritance:r /grant:r "$env:USERNAME:R" | Out-Null
+          [System.IO.File]::WriteAllText($keyPath, $env:UPDATE_SSH_KEY.Replace("`r`n", "`n"))
+
+          $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+          $acl = Get-Acl $keyPath
+          $acl.SetAccessRuleProtection($true, $false)
+          foreach ($rule in @($acl.Access)) {
+            [void]$acl.RemoveAccessRule($rule)
+          }
+          $readRule = New-Object System.Security.AccessControl.FileSystemAccessRule($identity, "Read", "Allow")
+          $acl.AddAccessRule($readRule)
+          Set-Acl -Path $keyPath -AclObject $acl
+
           ssh @sshOptions $remote "mkdir -p '$target'"
           scp @scpOptions `
             "release/desktop/${{ steps.release.outputs.version }}/latest.yml" `
