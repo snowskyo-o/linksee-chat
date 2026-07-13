@@ -1,4 +1,5 @@
 import { escapeHtml } from "../../shared/utils.js";
+import { isImageFileLike } from "../composables/file-attachments.js";
 
 export function escapeDerivedSearchPattern(value) {
   return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -41,8 +42,9 @@ export function buildDerivedMessagePreview(message, authUserId = "") {
   if (!message) return "还没有消息";
   if (message.deletedAt) return "消息已撤回";
   if (message.type === "announcement") return `【公告】${message.content || ""}`;
-  if (message.type === "file") return message.content || "[文件]";
-  return message.content || "[空消息]";
+  const text = String(message.content || "").trim();
+  if (text) return text;
+  return buildAttachmentPreview(message.files);
 }
 
 export function buildFavoriteMessagePreview(item) {
@@ -54,6 +56,15 @@ export function buildFavoriteMessagePreview(item) {
 function resolveMessageSenderName(message, authUserId) {
   if (String(message?.senderId || "") === String(authUserId || "")) return "你";
   return message?.sender?.profile?.realName || message?.senderId || "";
+}
+
+function buildAttachmentPreview(files) {
+  if (!Array.isArray(files) || !files.length) return "[空消息]";
+  if (files.length === 1) {
+    const file = files[0];
+    return file?.name || (isImageFileLike(file) ? "[图片]" : "[文件]");
+  }
+  return files.map((file) => file?.name || (isImageFileLike(file) ? "图片" : "文件")).join("、");
 }
 
 export function buildDerivedReplyText(message) {
