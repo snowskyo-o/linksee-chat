@@ -407,9 +407,10 @@ async function openDownloadDirectory() {
 }
 
 async function handleSendSticker(sticker) {
-  if (!sticker?.src) return;
+  const source = sticker?.originalSrc || sticker?.src || "";
+  if (!source) return;
   try {
-    const response = await fetch(sticker.src);
+    const response = await fetch(source);
     const blob = await response.blob();
     const extension = blob.type === "image/gif"
       ? "gif"
