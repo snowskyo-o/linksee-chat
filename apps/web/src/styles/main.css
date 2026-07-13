@@ -537,6 +537,83 @@ html body .desktop-page-shell { min-height: 100vh; }
   background: #fff;
 }
 
+.compact-auth-field input:disabled {
+  color: #8d98a9;
+  background: #f3f6fb;
+  cursor: not-allowed;
+}
+
+.compact-auth-password-wrap {
+  position: relative;
+}
+
+.compact-auth-password-wrap input {
+  padding-right: 68px;
+}
+
+.compact-auth-password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  transform: translateY(-50%);
+  height: 30px;
+  min-width: 48px;
+  border: 0;
+  border-radius: 10px;
+  color: var(--brand);
+  background: rgba(47, 107, 255, 0.10);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.compact-auth-password-toggle:hover {
+  background: rgba(47, 107, 255, 0.16);
+}
+
+.compact-auth-password-toggle:disabled {
+  color: #98a5b8;
+  cursor: not-allowed;
+}
+
+.compact-auth-options,
+.compact-auth-links {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.compact-auth-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #607086;
+  font-size: 13px;
+  font-weight: 600;
+  user-select: none;
+}
+
+.compact-auth-check input {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--brand);
+}
+
+.compact-auth-links button {
+  border: 0;
+  padding: 0;
+  color: #6d7a8c;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.compact-auth-links button:hover {
+  color: var(--brand);
+}
+
 .compact-auth-submit {
   margin-top: 6px;
   height: 46px;
