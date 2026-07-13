@@ -5,6 +5,8 @@ const props = defineProps({
   open: { type: Boolean, default: false },
   settings: { type: Object, default: () => ({ notifications: {}, general: {}, appearance: {} }) },
   desktopPreferences: { type: Object, default: () => ({}) },
+  profileAccount: { type: String, default: "" },
+  profileRole: { type: String, default: "" },
   profileName: { type: String, default: "" },
   profileBio: { type: String, default: "" },
   profileHint: { type: String, default: "" },
@@ -19,6 +21,7 @@ const emit = defineEmits([
   "update:profileName",
   "update:profileBio",
   "save-profile",
+  "logout",
   "upload-avatar",
   "open-update",
   "update:desktopPreferences",
@@ -74,6 +77,14 @@ function patchDesktopPreferences(key, value) {
               </label>
             </div>
             <label class="field field-quiet">
+              <span>账号</span>
+              <input :value="profileAccount" readonly />
+            </label>
+            <label v-if="profileRole" class="field field-quiet">
+              <span>身份</span>
+              <input :value="profileRole" readonly />
+            </label>
+            <label class="field field-quiet">
               <span>昵称</span>
               <input :value="profileName" placeholder="输入你的昵称" @input="$emit('update:profileName', $event.target.value)" />
             </label>
@@ -86,7 +97,10 @@ function patchDesktopPreferences(key, value) {
                 @input="$emit('update:profileBio', $event.target.value)"
               ></textarea>
             </label>
-            <button class="secondary-btn" type="submit">保存资料</button>
+            <div class="settings-inline-actions">
+              <button class="secondary-btn" type="submit">保存资料</button>
+              <button class="ghost-btn compact-btn is-danger" type="button" @click="$emit('logout')">退出登录</button>
+            </div>
             <div class="hint" :class="profileHint ? (profileHintTone === 'error' ? 'is-error' : 'is-success') : ''">
               {{ profileHint }}
             </div>
