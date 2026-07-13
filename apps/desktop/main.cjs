@@ -949,6 +949,11 @@ function registerIpcHandlers() {
   ipcMain.handle("desktop:open-storage-path", async (_event, targetPath) => {
     const nextPath = String(targetPath || "").trim();
     if (!nextPath || !fs.existsSync(nextPath)) return false;
+    const stat = fs.statSync(nextPath);
+    if (stat.isFile()) {
+      shell.showItemInFolder(nextPath);
+      return true;
+    }
     await shell.openPath(nextPath);
     return true;
   });

@@ -462,6 +462,19 @@ export function useChatActions(store) {
     }
   }
 
+  async function openFileLocation(file) {
+    const targetPath = String(file?.transfer?.path || "").trim();
+    if (!targetPath) {
+      store.setComposerHint("该文件还没有本地保存记录", "error");
+      return;
+    }
+    if (typeof window.desktopShell?.openStoragePath !== "function") {
+      store.setComposerHint("当前环境不支持打开文件位置", "error");
+      return;
+    }
+    await window.desktopShell.openStoragePath(targetPath);
+  }
+
   async function recallMessage(messageId) {
     const message = findMessage(store, messageId);
     if (!message || message.operationState) return;
@@ -708,6 +721,7 @@ export function useChatActions(store) {
     uploadFiles,
     queueFiles,
     downloadFile,
+    openFileLocation,
     handleMessageAction,
     submitForwardMessage,
     submitConfirmDialog,

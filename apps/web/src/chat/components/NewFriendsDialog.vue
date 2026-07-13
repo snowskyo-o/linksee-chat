@@ -23,6 +23,7 @@ defineEmits([
   "reject-request",
   "cancel-request",
   "edit-friend",
+  "remove-friend",
 ]);
 </script>
 
@@ -163,6 +164,9 @@ defineEmits([
             <div class="new-friends-actions">
               <button class="ghost-btn compact-btn" type="button" @click="$emit('edit-friend', contact)">
                 备注
+              </button>
+              <button class="ghost-btn compact-btn" type="button" @click="$emit('remove-friend', contact.id)">
+                删除
               </button>
               <button class="ghost-btn compact-btn" type="button" @click="$emit('start-chat', contact.id)">
                 继续聊天

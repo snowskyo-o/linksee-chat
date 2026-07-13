@@ -14,6 +14,7 @@ import {
   listFriendDiscovery,
   listFriendRequestsForUser,
   updateFriendAlias,
+  removeFriendship,
 } from "../services/friend-store.mjs";
 import {
   buildConversationResponse,
@@ -272,6 +273,23 @@ export function createChatRouter(emitConversationEvent) {
         friendUserId,
         alias,
       },
+    });
+  });
+
+  router.delete("/friends/:friendUserId", async (req, res) => {
+    const friendUserId = typeof req.params.friendUserId === "string" ? req.params.friendUserId.trim() : "";
+    if (!friendUserId || friendUserId === req.userId) {
+      return res.status(400).json({ ok: false, code: "VALIDATION_FAILED", message: "friendUserId 无效" });
+    }
+
+    const removed = await removeFriendship(req.userId, friendUserId);
+    if (!removed) {
+      return res.status(404).json({ ok: false, code: "NOT_FOUND", message: "好友关系不存在" });
+    }
+
+    return res.json({
+      ok: true,
+      data: { friendUserId },
     });
   });
 

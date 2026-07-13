@@ -53,6 +53,7 @@ const emit = defineEmits([
   "open-sticker-import",
   "send-sticker",
   "download-file",
+  "open-file-location",
   "open-image",
   "file-change",
   "file-paste",
@@ -93,7 +94,18 @@ const contextMenuItems = computed(() => {
       meta: file.expiryText,
       disabled: file.expired,
       file,
+      action: "download",
     }));
+    message.files
+      .filter((file) => file.transfer?.status === "saved" && file.transfer?.path)
+      .forEach((file, index) => items.push({
+        key: `open-location:${index}`,
+        label: `打开 ${file.name} 所在位置`,
+        meta: file.transfer?.path || "",
+        disabled: !file.transfer?.path,
+        file,
+        action: "open-location",
+      }));
   }
   return items;
 });
@@ -178,6 +190,11 @@ function openMessageMenu(payload) {
 function selectContextItem(item) {
   if (item.disabled) return;
   if (item.file) {
+    if (item.action === "open-location") {
+      emit("open-file-location", item.file);
+      closeFloatingPanels();
+      return;
+    }
     emit("download-file", item.file);
     closeFloatingPanels();
     return;

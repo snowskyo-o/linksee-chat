@@ -149,6 +149,24 @@ export function useFriendCenter(store, callbacks = {}) {
     }
   }
 
+  async function removeFriend(userId) {
+    const targetUserId = String(userId || "").trim();
+    if (!targetUserId || isPending(`remove:${targetUserId}`)) return;
+    setPending(`remove:${targetUserId}`, true);
+    setHint("", "");
+    try {
+      await chatApi.delete(`/api/v1/friends/${encodeURIComponent(targetUserId)}`);
+      setHint("已删除联系人", "success");
+      await refresh();
+      if (typeof callbacks.onChanged === "function") await callbacks.onChanged();
+    } catch (error) {
+      setHint(error?.message || "删除联系人失败", "error");
+      throw error;
+    } finally {
+      setPending(`remove:${targetUserId}`, false);
+    }
+  }
+
   function openDirectChat(userId) {
     if (!userId) return;
     open.value = false;
@@ -187,6 +205,7 @@ export function useFriendCenter(store, callbacks = {}) {
     sendRequest,
     resolveRequest,
     updateAlias,
+    removeFriend,
     includesKeyword,
     isPending,
   };

@@ -224,3 +224,23 @@ export async function updateFriendAlias(currentUserId, friendUserId, alias) {
     data,
   });
 }
+
+export async function removeFriendship(currentUserId, friendUserId) {
+  const friendship = await findFriendship(currentUserId, friendUserId);
+  if (!friendship) return false;
+
+  await prisma.$transaction([
+    prisma.chatFriendship.delete({
+      where: { id: friendship.id },
+    }),
+    prisma.chatFriendRequest.deleteMany({
+      where: {
+        OR: [
+          { senderId: currentUserId, receiverId: friendUserId },
+          { senderId: friendUserId, receiverId: currentUserId },
+        ],
+      },
+    }),
+  ]);
+  return true;
+}

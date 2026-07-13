@@ -655,6 +655,7 @@ watch(() => friendCenter.keyword.value, () => {
       @update:keyword="friendCenter.keyword.value = $event"
       @start-chat="startChatFromNewFriends"
       @edit-friend="openFriendRemark"
+      @remove-friend="friendCenter.removeFriend($event).catch(() => {})"
       @send-request="friendCenter.sendRequest"
       @accept-request="friendCenter.resolveRequest($event, 'accept', '已通过好友申请')"
       @reject-request="friendCenter.resolveRequest($event, 'reject', '已拒绝好友申请')"

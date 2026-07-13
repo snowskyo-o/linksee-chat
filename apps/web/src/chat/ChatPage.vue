@@ -574,6 +574,7 @@ watch(
         @file-drop="handleFileDrop"
         @remove-pending-file="store.removePendingFile"
         @download-file="actions.downloadFile"
+        @open-file-location="actions.openFileLocation"
         @open-image="openImageViewer"
         @load-more="actions.loadOlderMessages"
       />
