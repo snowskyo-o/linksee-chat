@@ -29,12 +29,25 @@ export function buildDerivedConversationSubtitle(row, authUserId) {
   return count > 0 ? `${count} 位成员` : "群聊";
 }
 
-export function buildDerivedConversationPreview(row) {
+export function buildDerivedConversationPreview(row, authUserId = "") {
   if (!row?.lastMessage) return "还没有消息";
-  if (row.lastMessage.deletedAt) return "消息已撤回";
-  if (row.lastMessage.type === "announcement") return `【公告】${row.lastMessage.content || ""}`;
-  if (row.lastMessage.type === "file") return row.lastMessage.content || "[文件]";
-  return row.lastMessage.content || "[空消息]";
+  const preview = buildDerivedMessagePreview(row.lastMessage);
+  if (row.kind !== "group" || row.lastMessage.deletedAt || row.lastMessage.type === "announcement") return preview;
+  const senderName = resolveMessageSenderName(row.lastMessage, authUserId);
+  return senderName ? `${senderName}：${preview}` : preview;
+}
+
+export function buildDerivedMessagePreview(message, authUserId = "") {
+  if (!message) return "还没有消息";
+  if (message.deletedAt) return "消息已撤回";
+  if (message.type === "announcement") return `【公告】${message.content || ""}`;
+  if (message.type === "file") return message.content || "[文件]";
+  return message.content || "[空消息]";
+}
+
+function resolveMessageSenderName(message, authUserId) {
+  if (String(message?.senderId || "") === String(authUserId || "")) return "你";
+  return message?.sender?.profile?.realName || message?.senderId || "";
 }
 
 export function buildDerivedReplyText(message) {

@@ -1,5 +1,6 @@
 import { appendAppLog } from "../../shared/app-log.js";
 import { playNotificationSound } from "../../shared/notification-sound.js";
+import { buildDerivedConversationPreview } from "../store/chat-store-derived-utils.js";
 
 export function createRealtimeFocusHelpers(store) {
   function isCurrentConversationFocused(conversationId) {
@@ -26,7 +27,7 @@ export function createRealtimeNotificationActions({ store, desktopControls, isCu
       if (isCurrentConversationFocused(conversationId)) return;
       const conversation = store.conversations.value.find((item) => String(item.id) === String(conversationId));
       const title = conversation?.title || conversation?.displayTitle || store.chatTitle.value || "新消息";
-      const body = conversation?.lastMessage?.content || "你收到一条新消息";
+      const body = conversation?.lastMessage ? buildDerivedConversationPreview(conversation, store.me.value?.id || "") : "你收到一条新消息";
 
       if (soundEnabled) {
         const played = await playNotificationSound().catch(() => false);

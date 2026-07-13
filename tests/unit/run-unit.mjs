@@ -7,7 +7,7 @@ const { mergeUserProfile, mergeUsersById } = await import("../../apps/web/src/ch
 const { mergeMessagesById } = await import("../../apps/web/src/chat/composables/chat-profile-merge-conversations.js");
 const { resolveImageViewerOwnerMessageId } = await import("../../apps/web/src/chat/composables/chat-image-viewer-derived.js");
 const { isMessageActionAvailable } = await import("../../apps/web/src/chat/composables/chat-message-action-rules.js");
-const { buildReplyPreviewText } = await import("../../apps/web/src/chat/store/chat-store-derived-utils.js");
+const { buildDerivedConversationPreview, buildReplyPreviewText } = await import("../../apps/web/src/chat/store/chat-store-derived-utils.js");
 const { canDeleteMessageForCurrentUser } = await import("../../apps/web/src/chat/store/chat-store-message-derived.js");
 
 const source = "http://minio:9000/chat-files/path/file.txt?X-Amz-Signature=abc";
@@ -104,3 +104,30 @@ assert.equal(
 );
 
 console.log("[unit] reply preview keeps attachment names");
+
+assert.equal(
+  buildDerivedConversationPreview({
+    kind: "group",
+    lastMessage: {
+      senderId: "bob",
+      sender: { profile: { realName: "李明" } },
+      content: "最新版已经上传",
+      type: "text",
+    },
+  }, "alice"),
+  "李明：最新版已经上传",
+);
+
+assert.equal(
+  buildDerivedConversationPreview({
+    kind: "group",
+    lastMessage: {
+      senderId: "alice",
+      content: "我来跟进",
+      type: "text",
+    },
+  }, "alice"),
+  "你：我来跟进",
+);
+
+console.log("[unit] group conversation preview keeps sender context");

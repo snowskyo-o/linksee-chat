@@ -39,7 +39,7 @@ export function createChatStoreConversationDerived(auth, state) {
       isMuted: state.mutedConversationIds.value.includes(String(row.id || "")),
       isHidden: state.hiddenConversationIds.value.includes(String(row.id || "")),
       avatarUrl: row.kind === "direct" ? resolveMediaUrl(peer?.profile?.avatarUrl || "") : "",
-      preview: buildDerivedConversationPreview(row),
+      preview: buildDerivedConversationPreview(row, auth.userId),
     };
   }).sort((a, b) => {
     const aRank = conversationRank(a);
