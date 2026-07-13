@@ -228,9 +228,14 @@ const markConversationRead = (row) => {
 };
 const hideConversationFromList = (row) => {
   if (!row?.id) return;
-  store.hideConversation(row.id);
-  if (store.selectedId.value === row.id) store.selectedId.value = store.filteredConversations.value[0]?.id || "";
-  store.pushNotification({ title: "已从列表隐藏", message: `${row.displayTitle || "会话"} 仍可通过搜索重新打开`, tone: "success", ttl: 2200 });
+  chatApi.delete(`/api/v1/conversations/${encodeURIComponent(row.id)}`).then(() => {
+    store.hideConversation(row.id);
+    store.conversations.value = store.conversations.value.filter((item) => String(item.id) !== String(row.id));
+    if (store.selectedId.value === row.id) store.selectedId.value = store.filteredConversations.value[0]?.id || "";
+    store.pushNotification({ title: "已删除会话", message: row.displayTitle || "会话", tone: "success", ttl: 1800 });
+  }).catch((error) => {
+    store.pushNotification({ title: "删除失败", message: error?.message || "暂时无法删除会话", tone: "error" });
+  });
 };
 const openFriendRemark = (contact) => { remarkTarget.value = contact || null; remarkDraft.value = String(contact?.friendAlias || ""); remarkDialogOpen.value = true; };
 async function submitFriendRemark() {

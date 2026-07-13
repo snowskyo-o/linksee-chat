@@ -430,6 +430,12 @@ export function createChatRouter(emitConversationEvent) {
     const rows = await prisma.chatConversation.findMany({
       where: {
         members: { some: { userId: req.userId } },
+        states: {
+          none: {
+            userId: req.userId,
+            hiddenAt: { not: null },
+          },
+        },
       },
       orderBy: { updatedAt: "desc" },
       include: {
@@ -446,10 +452,40 @@ export function createChatRouter(emitConversationEvent) {
   router.post("/conversations", async (req, res) => {
     const created = await createConversationForRequest(req.userId, req.body, res);
     if (!created) return;
+    await prisma.chatConversationState.delete({
+      where: {
+        conversationId_userId: {
+          conversationId: created.conversation.id,
+          userId: req.userId,
+        },
+      },
+    }).catch(() => {});
     return res.status(created.statusCode).json({
       ok: true,
       data: await buildConversationResponse(req.userId, created.conversation),
     });
+  });
+
+  router.delete("/conversations/:conversationId", async (req, res) => {
+    const ctx = await requireConversation(req, res);
+    if (!ctx) return;
+
+    await prisma.chatConversationState.upsert({
+      where: {
+        conversationId_userId: {
+          conversationId: ctx.conversation.id,
+          userId: req.userId,
+        },
+      },
+      update: { hiddenAt: new Date() },
+      create: {
+        conversationId: ctx.conversation.id,
+        userId: req.userId,
+        hiddenAt: new Date(),
+      },
+    });
+
+    return res.json({ ok: true });
   });
 
   router.post("/conversations/:conversationId/pin", async (req, res) => {

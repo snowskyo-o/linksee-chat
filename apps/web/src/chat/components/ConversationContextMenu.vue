@@ -27,7 +27,7 @@ defineEmits(["toggle-pin", "mark-read", "toggle-mute", "hide-conversation", "ope
         <span>{{ muted ? "取消免打扰" : "消息免打扰" }}</span>
       </button>
       <button class="qq-thread-context-item is-danger" type="button" @click="$emit('hide-conversation')">
-        <span>从列表隐藏</span>
+        <span>删除会话</span>
       </button>
       <button class="qq-thread-context-item" type="button" @click="$emit('copy-title')">
         <span>复制会话名称</span>
