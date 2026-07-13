@@ -7,7 +7,7 @@ import { cleanupExpiredChatFiles } from "../services/chat-file-service.mjs";
 
 const server = http.createServer();
 const gateway = setupSocketGateway(server);
-const app = createApp(gateway.emitConversationEvent);
+const app = createApp(gateway);
 
 server.removeAllListeners("request");
 server.on("request", app);

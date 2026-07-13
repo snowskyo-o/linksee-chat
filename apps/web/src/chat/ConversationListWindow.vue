@@ -11,10 +11,12 @@ import SettingsDialog from "./components/SettingsDialog.vue";
 import FriendRemarkDialog from "./components/FriendRemarkDialog.vue";
 import { useDesktopShell } from "../shared/useDesktopShell.js";
 import { clearAppLogs, onAppLogsUpdated, readAppLogs } from "../shared/app-log.js";
+import { appendCacheBust } from "../shared/media.js";
 import { getAuth, logout } from "../shared/session.js";
 import { loadAppSettings, saveAppSettings } from "../shared/app-settings.js";
 import { useChatStore } from "./store/useChatStore.js";
 import { useChatActions } from "./composables/useChatActions.js";
+import { useChatRealtime } from "./composables/useChatRealtime.js";
 import { useConversationSearchSections } from "./composables/useConversationSearchSections.js";
 import { useFriendCenter } from "./composables/useFriendCenter.js";
 import { useListSearch } from "./composables/useListSearch.js";
@@ -23,6 +25,7 @@ const shell = useDesktopShell();
 const auth = getAuth();
 const store = useChatStore(auth);
 const actions = useChatActions(store);
+const realtime = useChatRealtime(auth, store.selectedId, store.conversations, store.socketOnline, handleRealtimeEvent);
 const friendCenter = useFriendCenter(store, {
   async onChanged() {
     await actions.loadContacts().catch(() => {});
@@ -96,6 +99,26 @@ const searchController = useListSearch({
 let detachLogs = null;
 let friendSearchTimer = 0;
 const selectConversation = (id) => { store.selectedId.value = id; };
+
+async function handleRealtimeEvent(event) {
+  const topic = String(event?.topic || "");
+  if (!topic || topic === "socket.ready") return;
+  if (topic === "user.profile.updated") {
+    const profile = event.payload?.profile || {};
+    actions.applyUserProfileUpdate(event.payload?.userId, {
+      realName: profile.realName,
+      originalRealName: profile.originalRealName || profile.realName,
+      bio: profile.bio || "",
+      avatarUrl: profile.avatarUrl
+        ? appendCacheBust(profile.avatarUrl, profile.avatarVersion || Date.now())
+        : "",
+    });
+    return;
+  }
+  if (topic.startsWith("conversation.")) {
+    actions.loadConversations().catch(() => {});
+  }
+}
 
 async function openConversation(id) {
   store.showConversation(id);
@@ -275,12 +298,14 @@ onMounted(async () => {
   await actions.loadContacts();
   await actions.loadConversations();
   await friendCenter.refresh();
+  realtime.connect();
 });
 
 onBeforeUnmount(() => {
   window.removeEventListener("pointerdown", handleGlobalPointer);
   if (typeof detachLogs === "function") detachLogs();
   window.clearTimeout(friendSearchTimer);
+  realtime.disconnect();
 });
 
 watch(searchKeyword, (value) => {

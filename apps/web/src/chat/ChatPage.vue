@@ -14,6 +14,7 @@ import ToastStack from "./components/ToastStack.vue";
 import DesktopTitlebar from "../shared/components/DesktopTitlebar.vue";
 import { appendAppLog, clearAppLogs, onAppLogsUpdated, readAppLogs } from "../shared/app-log.js";
 import { chatApi } from "../shared/api-client.js";
+import { appendCacheBust } from "../shared/media.js";
 import { getAuth, logout } from "../shared/session.js";
 import { loadAppSettings, saveAppSettings } from "../shared/app-settings.js";
 import { getDesktopConversationId, getDesktopWindowKind, isDesktopRuntime } from "../shared/runtime.js";
@@ -73,10 +74,26 @@ function scheduleSelectedRefresh() {
   }, 120);
 }
 
+function applyRealtimeProfile(payload) {
+  const profile = payload?.profile || {};
+  actions.applyUserProfileUpdate(payload?.userId, {
+    realName: profile.realName,
+    originalRealName: profile.originalRealName || profile.realName,
+    bio: profile.bio || "",
+    avatarUrl: profile.avatarUrl
+      ? appendCacheBust(profile.avatarUrl, profile.avatarVersion || Date.now())
+      : "",
+  });
+}
+
 async function handleRealtimeEvent(event) {
   const topic = String(event?.topic || "");
   const conversationId = String(event?.payload?.conversationId || "");
   if (!topic || topic === "socket.ready") return;
+  if (topic === "user.profile.updated") {
+    applyRealtimeProfile(event.payload);
+    return;
+  }
   if (topic === "conversation.message.created") {
     notifyIncomingMessage(conversationId);
   }

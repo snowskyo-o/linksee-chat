@@ -7,6 +7,22 @@ import { findUserById } from "../services/chat-store.mjs";
 export const profileRouter = Router();
 export const publicProfileRouter = Router();
 
+function publicAvatarUrl(userId) {
+  return `/api/v1/users/${encodeURIComponent(userId)}/avatar`;
+}
+
+function emitProfileUpdate(emitUserProfileEvent, userId, profile) {
+  if (typeof emitUserProfileEvent !== "function") return;
+  emitUserProfileEvent(userId, "user.profile.updated", {
+    profile: {
+      realName: profile?.realName || userId,
+      bio: profile?.bio || "",
+      avatarUrl: profile?.avatarUrl ? publicAvatarUrl(userId) : "",
+      avatarVersion: Date.now(),
+    },
+  }).catch(() => {});
+}
+
 async function streamUserAvatar(req, res) {
   const user = await prisma.user.findUnique({
     where: { id: req.params.userId },
@@ -52,7 +68,10 @@ publicProfileRouter.get("/users/:userId/profile", async (req, res) => {
   });
 });
 
-profileRouter.get("/users/me", async (req, res) => {
+export function createProfileRouter(emitUserProfileEvent) {
+  const router = Router();
+
+  router.get("/users/me", async (req, res) => {
   const user = await findUserById(req.userId);
   if (!user) {
     return res.status(404).json({ ok: false, code: "NOT_FOUND", message: "用户不存在" });
@@ -69,14 +88,14 @@ profileRouter.get("/users/me", async (req, res) => {
         realName: user.profile?.realName || user.id,
         bio: user.profile?.bio || "",
         avatarUrl: user.profile?.avatarUrl
-          ? `/api/v1/users/${encodeURIComponent(user.id)}/avatar`
+          ? publicAvatarUrl(user.id)
           : "",
       },
     },
   });
 });
 
-profileRouter.patch("/users/me/profile", async (req, res) => {
+  router.patch("/users/me/profile", async (req, res) => {
   const realName = typeof req.body?.realName === "string" ? req.body.realName.trim() : "";
   const bio = typeof req.body?.bio === "string" ? req.body.bio.trim() : "";
 
@@ -96,12 +115,13 @@ profileRouter.patch("/users/me/profile", async (req, res) => {
     create: { userId: req.userId, realName, bio },
   });
 
+  emitProfileUpdate(emitUserProfileEvent, req.userId, updated);
   return res.json({ ok: true, data: { userId: req.userId, ...updated } });
 });
 
 publicProfileRouter.get("/users/:userId/avatar", streamUserAvatar);
 
-profileRouter.post("/users/me/avatar", express.raw({
+  router.post("/users/me/avatar", express.raw({
   type: () => true,
   limit: "5mb",
 }), async (req, res) => {
@@ -124,16 +144,22 @@ profileRouter.post("/users/me/avatar", express.raw({
   });
 
   const stored = `minio:${objectKey}`;
-  await prisma.userProfile.upsert({
+  const updated = await prisma.userProfile.upsert({
     where: { userId: req.userId },
     update: { avatarUrl: stored },
     create: { userId: req.userId, realName: req.userId, avatarUrl: stored },
   });
 
+  emitProfileUpdate(emitUserProfileEvent, req.userId, updated);
   return res.json({
     ok: true,
     data: {
-      avatarUrl: `/api/v1/users/${encodeURIComponent(req.userId)}/avatar`,
+      avatarUrl: publicAvatarUrl(req.userId),
     },
   });
 });
+
+  return router;
+}
+
+profileRouter.use(createProfileRouter());

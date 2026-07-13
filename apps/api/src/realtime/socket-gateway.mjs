@@ -65,5 +65,25 @@ export function setupSocketGateway(server) {
       cacheRealtimeEvent(String(conversationId), event).catch(() => {});
       io.to(String(conversationId)).emit("realtime:event", event);
     },
+    async emitUserProfileEvent(userId, topic, payload) {
+      const memberships = await prisma.chatConversationMember.findMany({
+        where: { userId },
+        select: { conversationId: true },
+      });
+      const rooms = [...new Set(memberships.map((row) => row.conversationId.toString()))];
+      rooms.forEach((room) => {
+        const event = {
+          id: crypto.randomUUID(),
+          topic,
+          payload: {
+            conversationId: room,
+            userId,
+            ...payload,
+          },
+        };
+        cacheRealtimeEvent(room, event).catch(() => {});
+        io.to(room).emit("realtime:event", event);
+      });
+    },
   };
 }

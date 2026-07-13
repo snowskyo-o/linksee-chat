@@ -45,12 +45,21 @@ export function useChatActions(store) {
   function syncCurrentUserProfileLocally(profilePatch) {
     const targetUserId = store.me.value?.id || localStorage.getItem("chat_user_id") || "";
     if (!targetUserId) return;
+    applyUserProfileUpdate(targetUserId, profilePatch);
+  }
+
+  function applyUserProfileUpdate(userId, profilePatch) {
+    const targetUserId = String(userId || "");
+    if (!targetUserId) return;
     patchUserProfileLocally(store, targetUserId, profilePatch);
-    store.me.value = normalizeUser(store.me.value || {});
+    if (store.me.value) store.me.value = normalizeUser(store.me.value);
     store.contacts.value = store.contacts.value.map((user) => normalizeUser(user));
     store.participants.value = store.participants.value.map((user) => normalizeUser(user));
-    store.profileName.value = store.me.value?.profile?.realName || store.profileName.value;
-    store.profileBio.value = store.me.value?.profile?.bio || "";
+    if (String(store.me.value?.id || "") === targetUserId) {
+      store.profileName.value = store.me.value?.profile?.realName || store.profileName.value;
+      store.profileBio.value = store.me.value?.profile?.bio || "";
+      document.title = `Linksee Chat · ${store.profileName.value}`;
+    }
     persistSidebarCaches();
   }
 
@@ -588,5 +597,6 @@ export function useChatActions(store) {
     toggleConversationPinById,
     saveProfile,
     uploadAvatar,
+    applyUserProfileUpdate,
   };
 }

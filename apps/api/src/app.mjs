@@ -2,7 +2,7 @@ import express from "express";
 import path from "node:path";
 import { createChatRouter } from "./routes/chat-routes.mjs";
 import { authRouter } from "./routes/auth-routes.mjs";
-import { profileRouter, publicProfileRouter } from "./routes/profile-routes.mjs";
+import { createProfileRouter, publicProfileRouter } from "./routes/profile-routes.mjs";
 import { realtimeRouter } from "./routes/realtime-routes.mjs";
 import { findUserIdByAccessToken } from "./services/session-store.mjs";
 import { webStaticDir } from "../../../infra/paths/index.mjs";
@@ -35,7 +35,7 @@ async function requireAuth(req, res, next) {
   next();
 }
 
-export function createApp(emitConversationEvent) {
+export function createApp(realtime = {}) {
   const app = express();
 
   app.use((req, res, next) => {
@@ -69,9 +69,9 @@ export function createApp(emitConversationEvent) {
 
   app.use("/api/v1/auth", authRouter);
   app.use("/api/v1", publicProfileRouter);
-  app.use("/api/v1", requireAuth, profileRouter);
+  app.use("/api/v1", requireAuth, createProfileRouter(realtime.emitUserProfileEvent));
   app.use("/api/v1", requireAuth, realtimeRouter);
-  app.use("/api/v1", requireAuth, createChatRouter(emitConversationEvent));
+  app.use("/api/v1", requireAuth, createChatRouter(realtime.emitConversationEvent));
 
   return app;
 }
