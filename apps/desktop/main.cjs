@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Menu, Notification, Tray, nativeImage, shell } = require("electron");
+const { app, BrowserWindow, ipcMain, Menu, Notification, Tray, nativeImage, shell, dialog } = require("electron");
 const fs = require("node:fs");
 const path = require("node:path");
 
@@ -15,6 +15,108 @@ const configCandidates = [
   path.join(process.resourcesPath || "", "desktop-config.json"),
   path.join(path.dirname(process.execPath), "desktop-config.json"),
 ];
+
+function getStorageInfo() {
+  const root = app.getPath("userData");
+  return {
+    root,
+    stickers: path.join(root, "stickers"),
+    avatars: path.join(root, "avatars-cache"),
+    chatCache: path.join(root, "chat-cache"),
+    exports: path.join(root, "exports"),
+  };
+}
+
+function ensureStorageDirectories() {
+  const storage = getStorageInfo();
+  Object.values(storage).forEach((targetPath) => {
+    if (!targetPath) return;
+    fs.mkdirSync(targetPath, { recursive: true });
+  });
+  return storage;
+}
+
+const STICKER_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".svg"]);
+
+function isStickerFile(filePath) {
+  return STICKER_EXTENSIONS.has(path.extname(String(filePath || "")).toLowerCase());
+}
+
+function fileToDataUrl(filePath) {
+  const extension = path.extname(filePath).toLowerCase();
+  const mimeType = extension === ".jpg" || extension === ".jpeg"
+    ? "image/jpeg"
+    : extension === ".gif"
+      ? "image/gif"
+      : extension === ".webp"
+        ? "image/webp"
+        : extension === ".bmp"
+          ? "image/bmp"
+          : extension === ".svg"
+            ? "image/svg+xml"
+            : "image/png";
+  const payload = fs.readFileSync(filePath).toString("base64");
+  return `data:${mimeType};base64,${payload}`;
+}
+
+function sanitizeStickerName(value) {
+  return String(value || "")
+    .replace(/[^\w\u4e00-\u9fa5.-]+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "") || "sticker";
+}
+
+function listStickerEntries() {
+  const { stickers } = ensureStorageDirectories();
+  if (!fs.existsSync(stickers)) return [];
+  return fs.readdirSync(stickers, { withFileTypes: true })
+    .filter((entry) => entry.isFile() && isStickerFile(entry.name))
+    .map((entry) => {
+      const filePath = path.join(stickers, entry.name);
+      const stat = fs.statSync(filePath);
+      return {
+        id: entry.name,
+        name: path.parse(entry.name).name,
+        fileName: entry.name,
+        size: stat.size,
+        updatedAt: stat.mtime.toISOString(),
+        src: fileToDataUrl(filePath),
+      };
+    })
+    .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime());
+}
+
+function copyStickerIntoLibrary(sourcePath, prefix = "") {
+  if (!sourcePath || !fs.existsSync(sourcePath) || !isStickerFile(sourcePath)) return;
+  const { stickers } = ensureStorageDirectories();
+  const parsed = path.parse(sourcePath);
+  const baseName = sanitizeStickerName(`${prefix ? `${prefix}_` : ""}${parsed.name}`);
+  let candidate = `${baseName}${parsed.ext.toLowerCase()}`;
+  let nextPath = path.join(stickers, candidate);
+  let counter = 1;
+  while (fs.existsSync(nextPath)) {
+    candidate = `${baseName}_${counter}${parsed.ext.toLowerCase()}`;
+    nextPath = path.join(stickers, candidate);
+    counter += 1;
+  }
+  fs.copyFileSync(sourcePath, nextPath);
+}
+
+function walkStickerFiles(rootPath, bucket = [], depth = 0) {
+  if (!rootPath || !fs.existsSync(rootPath) || depth > 3) return bucket;
+  const entries = fs.readdirSync(rootPath, { withFileTypes: true });
+  entries.forEach((entry) => {
+    const nextPath = path.join(rootPath, entry.name);
+    if (entry.isDirectory()) {
+      walkStickerFiles(nextPath, bucket, depth + 1);
+      return;
+    }
+    if (entry.isFile() && isStickerFile(nextPath)) {
+      bucket.push(nextPath);
+    }
+  });
+  return bucket;
+}
 
 function normalizeOrigin(value) {
   return String(value || "").trim().replace(/\/$/, "");
@@ -485,7 +587,31 @@ function registerIpcHandlers() {
     electron: process.versions.electron,
     chrome: process.versions.chrome,
     node: process.versions.node,
+    storage: getStorageInfo(),
   }));
+  ipcMain.handle("desktop:list-stickers", () => listStickerEntries());
+  ipcMain.handle("desktop:import-sticker-files", async () => {
+    const result = await dialog.showOpenDialog({
+      title: "导入表情图片",
+      properties: ["openFile", "multiSelections"],
+      filters: [{ name: "Images", extensions: Array.from(STICKER_EXTENSIONS).map((item) => item.replace(/^\./, "")) }],
+    });
+    if (result.canceled || !result.filePaths?.length) return listStickerEntries();
+    result.filePaths.forEach((filePath) => copyStickerIntoLibrary(filePath));
+    return listStickerEntries();
+  });
+  ipcMain.handle("desktop:import-sticker-folder", async () => {
+    const result = await dialog.showOpenDialog({
+      title: "导入表情文件夹",
+      properties: ["openDirectory"],
+    });
+    if (result.canceled || !result.filePaths?.[0]) return listStickerEntries();
+    const folderPath = result.filePaths[0];
+    const files = walkStickerFiles(folderPath).slice(0, 200);
+    const prefix = sanitizeStickerName(path.basename(folderPath));
+    files.forEach((filePath) => copyStickerIntoLibrary(filePath, prefix));
+    return listStickerEntries();
+  });
   ipcMain.handle("desktop:minimize", (event) => {
     const window = resolveWindowByEvent(event);
     if (!window || window.isDestroyed()) return null;
@@ -553,6 +679,7 @@ app.on("will-quit", () => {
 });
 
 app.whenReady().then(async () => {
+  ensureStorageDirectories();
   ensureTray();
   createLoginWindow();
 

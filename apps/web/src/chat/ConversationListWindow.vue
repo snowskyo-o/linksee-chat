@@ -8,6 +8,7 @@ import ListSearchPanel from "./components/ListSearchPanel.vue";
 import NewFriendsDialog from "./components/NewFriendsDialog.vue";
 import QuickCreateMenu from "./components/QuickCreateMenu.vue";
 import SettingsDialog from "./components/SettingsDialog.vue";
+import FriendRemarkDialog from "./components/FriendRemarkDialog.vue";
 import { useDesktopShell } from "../shared/useDesktopShell.js";
 import { clearAppLogs, onAppLogsUpdated, readAppLogs } from "../shared/app-log.js";
 import { getAuth, logout } from "../shared/session.js";
@@ -40,8 +41,12 @@ const appInfo = ref({
   electron: window.desktopShell?.versions?.electron || "",
   chrome: window.desktopShell?.versions?.chrome || "",
   node: window.desktopShell?.versions?.node || "",
+  storage: null,
 });
 const activePane = ref("messages");
+const remarkDialogOpen = ref(false);
+const remarkDraft = ref("");
+const remarkTarget = ref(null);
 const unreadTotal = computed(() => store.filteredConversations.value.reduce((sum, row) => {
   return sum + Number(row.unreadCount || 0) + Number(row.unreadMentionCount || 0);
 }, 0));
@@ -58,7 +63,9 @@ const contactRows = computed(() => store.createDialogContacts.value.map((contact
   key: `contact:${contact.id}`,
   id: contact.id,
   title: contact.name,
-  subtitle: contact.bio || "联系人",
+  subtitle: contact.friendAlias && contact.realName && contact.realName !== contact.friendAlias
+    ? `${contact.realName}${contact.bio ? ` · ${contact.bio}` : ""}`
+    : (contact.bio || "联系人"),
   meta: "联系人",
   kind: "contact",
   avatarUrl: contact.avatarUrl,
@@ -110,35 +117,27 @@ const handleAvatarUpload = (event) => actions.uploadAvatar(event.target?.files?.
 const copyConversationTitle = async (row) => {
   const title = String(row?.displayTitle || row?.title || "").trim();
   if (!title) return;
-  try {
-    await navigator.clipboard.writeText(title);
-    store.pushNotification({ title: "已复制", message: `“${title}”`, tone: "success", ttl: 1600 });
-  } catch (error) {
-    store.pushNotification({ title: "复制失败", message: error?.message || "当前环境不支持剪贴板", tone: "error" });
-  }
+  try { await navigator.clipboard.writeText(title); store.pushNotification({ title: "已复制", message: `“${title}”`, tone: "success", ttl: 1600 }); }
+  catch (error) { store.pushNotification({ title: "复制失败", message: error?.message || "当前环境不支持剪贴板", tone: "error" }); }
 };
 const toggleConversationMute = (row) => {
   const muted = store.toggleConversationMuted(row?.id);
-  store.pushNotification({
-    title: muted ? "已开启免打扰" : "已取消免打扰",
-    message: row?.displayTitle || "会话",
-    tone: "success",
-    ttl: 1600,
-  });
+  store.pushNotification({ title: muted ? "已开启免打扰" : "已取消免打扰", message: row?.displayTitle || "会话", tone: "success", ttl: 1600 });
 };
 const hideConversationFromList = (row) => {
   if (!row?.id) return;
   store.hideConversation(row.id);
-  if (store.selectedId.value === row.id) {
-    store.selectedId.value = store.filteredConversations.value[0]?.id || "";
-  }
-  store.pushNotification({
-    title: "已从列表隐藏",
-    message: `${row.displayTitle || "会话"} 仍可通过搜索重新打开`,
-    tone: "success",
-    ttl: 2200,
-  });
+  if (store.selectedId.value === row.id) store.selectedId.value = store.filteredConversations.value[0]?.id || "";
+  store.pushNotification({ title: "已从列表隐藏", message: `${row.displayTitle || "会话"} 仍可通过搜索重新打开`, tone: "success", ttl: 2200 });
 };
+const openFriendRemark = (contact) => { remarkTarget.value = contact || null; remarkDraft.value = String(contact?.friendAlias || ""); remarkDialogOpen.value = true; };
+async function submitFriendRemark() {
+  if (!remarkTarget.value?.id) return;
+  await friendCenter.updateAlias(remarkTarget.value.id, remarkDraft.value);
+  await actions.loadContacts().catch(() => {});
+  await actions.loadConversations().catch(() => {});
+  remarkDialogOpen.value = false;
+}
 
 function handleGlobalPointer(event) {
   const target = event.target;
@@ -269,6 +268,7 @@ onMounted(async () => {
       electron: runtimeInfo.electron || appInfo.value.electron,
       chrome: runtimeInfo.chrome || appInfo.value.chrome,
       node: runtimeInfo.node || appInfo.value.node,
+      storage: runtimeInfo.storage || null,
     };
   }
   await actions.loadProfile(auth);
@@ -489,10 +489,20 @@ watch(() => friendCenter.keyword.value, () => {
       @close="friendCenter.closeCenter()"
       @update:keyword="friendCenter.keyword.value = $event"
       @start-chat="startChatFromNewFriends"
+      @edit-friend="openFriendRemark"
       @send-request="friendCenter.sendRequest"
       @accept-request="friendCenter.resolveRequest($event, 'accept', '已通过好友申请')"
       @reject-request="friendCenter.resolveRequest($event, 'reject', '已拒绝好友申请')"
       @cancel-request="friendCenter.resolveRequest($event, 'cancel', '已取消好友申请')"
+    />
+
+    <FriendRemarkDialog
+      :open="remarkDialogOpen"
+      :contact="remarkTarget"
+      :value="remarkDraft"
+      @close="remarkDialogOpen = false"
+      @update:value="remarkDraft = $event"
+      @submit="submitFriendRemark"
     />
 
     <SettingsDialog

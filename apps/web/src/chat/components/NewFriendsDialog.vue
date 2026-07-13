@@ -22,6 +22,7 @@ defineEmits([
   "accept-request",
   "reject-request",
   "cancel-request",
+  "edit-friend",
 ]);
 </script>
 
@@ -157,11 +158,16 @@ defineEmits([
             </div>
             <div class="new-friends-copy">
               <strong>{{ contact.name }}</strong>
-              <p>{{ contact.bio || '已在你的好友列表中' }}</p>
+              <p>{{ contact.originalName && contact.originalName !== contact.name ? `${contact.originalName}${contact.bio ? ` · ${contact.bio}` : ""}` : (contact.bio || '已在你的好友列表中') }}</p>
             </div>
-            <button class="ghost-btn compact-btn" type="button" @click="$emit('start-chat', contact.id)">
-              继续聊天
-            </button>
+            <div class="new-friends-actions">
+              <button class="ghost-btn compact-btn" type="button" @click="$emit('edit-friend', contact)">
+                备注
+              </button>
+              <button class="ghost-btn compact-btn" type="button" @click="$emit('start-chat', contact.id)">
+                继续聊天
+              </button>
+            </div>
           </article>
         </section>
       </div>

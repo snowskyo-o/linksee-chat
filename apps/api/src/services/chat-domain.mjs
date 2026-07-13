@@ -8,6 +8,7 @@ import {
   resolveConversationById,
   sanitizeUser,
 } from "./chat-store.mjs";
+import { decorateUsersWithFriendAliases } from "./friend-store.mjs";
 
 export async function parseMentions(conversationId, content) {
   const participants = await getConversationParticipants(conversationId);
@@ -196,9 +197,17 @@ export async function buildConversationResponse(userId, conversation) {
     Array.isArray(message.mentions) && message.mentions.includes(userId)
   )).length;
 
+  const participants = await decorateUsersWithFriendAliases(
+    userId,
+    conversation.members.map((member) => sanitizeUser(member.user)),
+  );
+  const directPeer = conversation.kind === "direct"
+    ? participants.find((item) => item.id !== userId)
+    : null;
+
   return {
     id: conversation.id.toString(),
-    title: buildConversationTitle(conversation, userId),
+    title: conversation.title || directPeer?.profile?.realName || buildConversationTitle(conversation, userId),
     roomKey: conversation.roomKey,
     kind: conversation.kind,
     updatedAt: conversation.updatedAt.toISOString(),
@@ -207,7 +216,7 @@ export async function buildConversationResponse(userId, conversation) {
     scopeId: conversation.scopeId,
     unreadCount,
     unreadMentionCount,
-    participants: conversation.members.map((member) => sanitizeUser(member.user)),
+    participants,
     participantIds: conversation.members.map((member) => member.userId),
     lastReadAt: reads?.lastReadAt?.toISOString() || null,
     lastMessage: lastMessage

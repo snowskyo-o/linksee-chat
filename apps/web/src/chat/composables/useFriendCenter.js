@@ -5,6 +5,8 @@ function normalizePerson(user) {
   return {
     id: String(user?.id || ""),
     name: user?.profile?.realName || user?.id || "未命名用户",
+    originalName: user?.profile?.originalRealName || user?.profile?.realName || user?.id || "",
+    friendAlias: user?.friendAlias || "",
     bio: user?.profile?.bio || "",
     avatarUrl: user?.profile?.avatarUrl || "",
   };
@@ -36,6 +38,8 @@ export function useFriendCenter(store, callbacks = {}) {
     return {
       id: person.id,
       name: fallbackContact?.name || person.name,
+      originalName: fallbackContact?.realName || person.originalName,
+      friendAlias: fallbackContact?.friendAlias || person.friendAlias,
       bio: fallbackContact?.bio || person.bio,
       avatarUrl: fallbackContact?.avatarUrl || person.avatarUrl,
       relation: item?.relation || "none",
@@ -127,6 +131,24 @@ export function useFriendCenter(store, callbacks = {}) {
     }
   }
 
+  async function updateAlias(userId, alias) {
+    const targetUserId = String(userId || "").trim();
+    if (!targetUserId || isPending(`alias:${targetUserId}`)) return;
+    setPending(`alias:${targetUserId}`, true);
+    setHint("", "");
+    try {
+      await chatApi.patchJson(`/api/v1/friends/${encodeURIComponent(targetUserId)}/alias`, { alias });
+      setHint("好友备注已更新", "success");
+      await refresh();
+      if (typeof callbacks.onChanged === "function") await callbacks.onChanged();
+    } catch (error) {
+      setHint(error?.message || "更新备注失败", "error");
+      throw error;
+    } finally {
+      setPending(`alias:${targetUserId}`, false);
+    }
+  }
+
   function openDirectChat(userId) {
     if (!userId) return;
     open.value = false;
@@ -164,6 +186,7 @@ export function useFriendCenter(store, callbacks = {}) {
     openDirectChat,
     sendRequest,
     resolveRequest,
+    updateAlias,
     includesKeyword,
     isPending,
   };

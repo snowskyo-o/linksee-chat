@@ -188,6 +188,19 @@ function exportLogs() {
 
         <section class="settings-card">
           <div class="detail-card-head">
+            <h3>本地数据目录</h3>
+          </div>
+          <div class="settings-meta-list">
+            <div class="settings-meta-row"><span>根目录</span><strong>{{ appInfo.storage?.root || "-" }}</strong></div>
+            <div class="settings-meta-row"><span>表情包目录</span><strong>{{ appInfo.storage?.stickers || "-" }}</strong></div>
+            <div class="settings-meta-row"><span>头像缓存</span><strong>{{ appInfo.storage?.avatars || "-" }}</strong></div>
+            <div class="settings-meta-row"><span>聊天缓存</span><strong>{{ appInfo.storage?.chatCache || "-" }}</strong></div>
+            <div class="settings-meta-row"><span>导出目录</span><strong>{{ appInfo.storage?.exports || "-" }}</strong></div>
+          </div>
+        </section>
+
+        <section class="settings-card">
+          <div class="detail-card-head">
             <h3>运行日志</h3>
             <div class="settings-log-actions">
               <button class="ghost-btn compact-btn" type="button" @click="exportLogs">导出</button>

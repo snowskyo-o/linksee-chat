@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { prisma } from "../../../../infra/db/prisma.mjs";
+import { decorateUsersWithFriendAliases } from "./friend-store.mjs";
 
 export function publicAvatarUrl(user) {
   if (!user?.profile?.avatarUrl) return "";
@@ -83,7 +84,7 @@ export async function findContacts(userId) {
     orderBy: { id: "asc" },
     include: { profile: true },
   });
-  return users.map(sanitizeUser);
+  return decorateUsersWithFriendAliases(userId, users.map(sanitizeUser));
 }
 
 export async function resolveConversationById(conversationId) {

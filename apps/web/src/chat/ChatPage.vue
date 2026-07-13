@@ -17,10 +17,12 @@ import { getDesktopConversationId, getDesktopWindowKind, isDesktopRuntime } from
 import { useChatStore } from "./store/useChatStore.js";
 import { useChatActions } from "./composables/useChatActions.js";
 import { useChatRealtime } from "./composables/useChatRealtime.js";
+import { useStickerLibrary } from "./composables/useStickerLibrary.js";
 
 const auth = getAuth();
 const store = useChatStore(auth);
 const actions = useChatActions(store);
+const stickerLibrary = useStickerLibrary();
 const queryConversationId = new URLSearchParams(window.location.search).get("conversationId") || "";
 const desktopConversationId = getDesktopConversationId() || queryConversationId;
 const settingsOpen = ref(false);
@@ -32,6 +34,7 @@ const appInfo = ref({
   electron: window.desktopShell?.versions?.electron || "",
   chrome: window.desktopShell?.versions?.chrome || "",
   node: window.desktopShell?.versions?.node || "",
+  storage: null,
 });
 const standaloneConversationMode = computed(() => (
   isDesktopRuntime() && getDesktopWindowKind() === "chat"
@@ -175,6 +178,29 @@ function handleFileDrop(files) {
   });
 }
 
+async function handleSendSticker(sticker) {
+  if (!sticker?.src) return;
+  try {
+    const response = await fetch(sticker.src);
+    const blob = await response.blob();
+    const extension = blob.type === "image/gif"
+      ? "gif"
+      : blob.type === "image/webp"
+        ? "webp"
+        : blob.type === "image/jpeg"
+          ? "jpg"
+          : "png";
+    const file = new File([blob], `${sticker.name || "sticker"}.${extension}`, {
+      type: blob.type || "image/png",
+      lastModified: Date.now(),
+    });
+    await actions.uploadFiles([file]);
+    stickerLibrary.clearHint();
+  } catch (error) {
+    store.setComposerHint(error?.message || "表情发送失败", "error");
+  }
+}
+
 function clearMessageSearch() {
   store.messageKeyword.value = "";
   store.searchKeyword.value = "";
@@ -202,11 +228,13 @@ onMounted(async () => {
         electron: runtimeInfo.electron || appInfo.value.electron,
         chrome: runtimeInfo.chrome || appInfo.value.chrome,
         node: runtimeInfo.node || appInfo.value.node,
+        storage: runtimeInfo.storage || null,
       };
     }
     await actions.loadProfile(auth);
     await actions.loadContacts();
     await actions.loadConversations();
+    await stickerLibrary.refresh();
     if (standaloneConversationMode.value && desktopConversationId) {
       await actions.selectConversation(desktopConversationId);
     } else {
@@ -282,6 +310,10 @@ onBeforeUnmount(() => {
         :has-more-messages="store.hasMoreMessages.value"
         :loading-more-messages="store.loadingMoreMessages.value"
         :standalone-mode="standaloneConversationMode"
+        :stickers="stickerLibrary.stickers.value"
+        :stickers-loading="stickerLibrary.loading.value"
+        :stickers-hint="stickerLibrary.hint.value"
+        :stickers-hint-tone="stickerLibrary.hintTone.value"
         @update:message-keyword="store.messageKeyword.value = $event"
         @search="actions.searchMessages"
         @clear-search="clearMessageSearch"
@@ -293,6 +325,9 @@ onBeforeUnmount(() => {
         @submit="actions.submitComposer"
         @message-action="actions.handleMessageAction"
         @open-file-picker="openFilePicker"
+        @import-stickers="stickerLibrary.importFiles"
+        @import-sticker-folder="stickerLibrary.importFolder"
+        @send-sticker="handleSendSticker"
         @file-change="handleFileChange"
         @file-drop="handleFileDrop"
         @download-file="actions.downloadFile"

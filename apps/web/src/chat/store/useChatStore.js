@@ -52,7 +52,12 @@ function buildConversationSubtitle(row, authUserId) {
   if (!row) return "";
   if (row.kind === "direct") {
     const peer = (row.participants || []).find((item) => item.id !== authUserId);
-    return peer?.profile?.bio || "私聊";
+    const originalName = peer?.profile?.originalRealName || "";
+    const bio = peer?.profile?.bio || "";
+    if (peer?.friendAlias && originalName && originalName !== peer.friendAlias) {
+      return bio ? `${originalName} · ${bio}` : originalName;
+    }
+    return bio || "私聊";
   }
   const count = Array.isArray(row.participants) ? row.participants.length : 0;
   return count > 0 ? `${count} 位成员` : "群聊";
@@ -146,7 +151,9 @@ export function useChatStore(auth) {
   const selectedParticipants = computed(() => contacts.value.filter((user) => createDialogParticipantIds.value.includes(user.id)));
   const createDialogContacts = computed(() => contacts.value.map((user) => ({
     id: user.id,
-    name: user.profile?.realName || user.id,
+    name: user.friendAlias || user.profile?.realName || user.id,
+    realName: user.profile?.originalRealName || user.profile?.realName || user.id,
+    friendAlias: user.friendAlias || "",
     bio: user.profile?.bio || "",
     avatarUrl: resolveMediaUrl(user.profile?.avatarUrl || ""),
   })));

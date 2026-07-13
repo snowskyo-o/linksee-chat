@@ -23,6 +23,55 @@ function mapFriendRequest(row, currentUserId) {
   };
 }
 
+function extractFriendAlias(friendship, currentUserId) {
+  if (!friendship) return "";
+  return friendship.userLowId === currentUserId
+    ? String(friendship.lowAlias || "")
+    : String(friendship.highAlias || "");
+}
+
+function decorateSanitizedUser(user, friendAlias = "") {
+  const alias = String(friendAlias || "").trim();
+  const originalRealName = user?.profile?.realName || user?.id || "";
+  if (!user) return null;
+  return {
+    ...user,
+    friendAlias: alias,
+    profile: {
+      ...(user.profile || {}),
+      realName: alias || originalRealName,
+      originalRealName,
+    },
+  };
+}
+
+export async function buildFriendAliasMap(userId, peerIds = []) {
+  const rows = await prisma.chatFriendship.findMany({
+    where: {
+      OR: [
+        { userLowId: userId, ...(peerIds.length ? { userHighId: { in: peerIds } } : {}) },
+        { userHighId: userId, ...(peerIds.length ? { userLowId: { in: peerIds } } : {}) },
+      ],
+    },
+  });
+
+  return new Map(rows.map((row) => ([
+    row.userLowId === userId ? row.userHighId : row.userLowId,
+    extractFriendAlias(row, userId),
+  ])));
+}
+
+export async function decorateUsersWithFriendAliases(userId, users = []) {
+  const peerIds = users
+    .map((user) => String(user?.id || "").trim())
+    .filter(Boolean)
+    .filter((peerId) => peerId !== userId);
+
+  if (!peerIds.length) return users.map((user) => decorateSanitizedUser(user));
+  const aliasMap = await buildFriendAliasMap(userId, peerIds);
+  return users.map((user) => decorateSanitizedUser(user, aliasMap.get(String(user?.id || ""))));
+}
+
 export async function findFriendship(userIdA, userIdB) {
   const [userLowId, userHighId] = orderedFriendPair(userIdA, userIdB);
   if (!userLowId || !userHighId || userLowId === userHighId) return null;
@@ -51,7 +100,14 @@ export async function listFriendRequestsForUser(userId) {
     },
   });
 
-  return rows.map((row) => mapFriendRequest(row, userId)).filter(Boolean);
+  const mapped = rows.map((row) => mapFriendRequest(row, userId)).filter(Boolean);
+  const peerIds = mapped.flatMap((row) => [row.senderId, row.receiverId]).filter((id) => id !== userId);
+  const aliasMap = await buildFriendAliasMap(userId, peerIds);
+  return mapped.map((row) => ({
+    ...row,
+    sender: decorateSanitizedUser(row.sender, aliasMap.get(row.senderId)),
+    receiver: decorateSanitizedUser(row.receiver, aliasMap.get(row.receiverId)),
+  }));
 }
 
 export async function listFriendDiscovery(userId, keyword = "") {
@@ -90,19 +146,23 @@ export async function listFriendDiscovery(userId, keyword = "") {
     if (!requestMap.has(peerId)) requestMap.set(peerId, row);
   });
 
-  const friendshipSet = new Set(friendships.map((row) => (
-    row.userLowId === userId ? row.userHighId : row.userLowId
-  )));
+  const friendshipMap = new Map(friendships.map((row) => ([
+    row.userLowId === userId ? row.userHighId : row.userLowId,
+    row,
+  ])));
 
   return users
     .filter((user) => {
+      const friendship = friendshipMap.get(user.id) || null;
+      const friendAlias = extractFriendAlias(friendship, userId);
       if (!search) return true;
-      return [user.id, user.profile?.realName, user.profile?.bio]
+      return [user.id, user.profile?.realName, user.profile?.bio, friendAlias]
         .some((value) => String(value || "").toLowerCase().includes(search));
     })
     .map((user) => {
       const request = requestMap.get(user.id) || null;
-      const isFriend = friendshipSet.has(user.id);
+      const friendship = friendshipMap.get(user.id) || null;
+      const isFriend = Boolean(friendship);
       let relation = "none";
       if (isFriend) {
         relation = "friend";
@@ -117,7 +177,7 @@ export async function listFriendDiscovery(userId, keyword = "") {
       }
 
       return {
-        user: sanitizeUser(user),
+        user: decorateSanitizedUser(sanitizeUser(user), extractFriendAlias(friendship, userId)),
         relation,
         request: request
           ? {
@@ -148,5 +208,19 @@ export async function ensureFriendship(userIdA, userIdB) {
       userLowId,
       userHighId,
     },
+  });
+}
+
+export async function updateFriendAlias(currentUserId, friendUserId, alias) {
+  const friendship = await findFriendship(currentUserId, friendUserId);
+  if (!friendship) return null;
+
+  const data = friendship.userLowId === currentUserId
+    ? { lowAlias: alias || null }
+    : { highAlias: alias || null };
+
+  return prisma.chatFriendship.update({
+    where: { id: friendship.id },
+    data,
   });
 }

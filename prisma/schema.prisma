@@ -190,6 +190,8 @@ model ChatFriendship {
   id         BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
   userLowId  String   @db.VarChar(32)
   userHighId String   @db.VarChar(32)
+  lowAlias   String?  @db.VarChar(40)
+  highAlias  String?  @db.VarChar(40)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 

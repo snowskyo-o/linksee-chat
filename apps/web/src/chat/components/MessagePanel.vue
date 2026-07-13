@@ -4,6 +4,7 @@ import { useDesktopShell } from "../../shared/useDesktopShell.js";
 import EmojiPicker from "./EmojiPicker.vue";
 import MessageBubble from "./MessageBubble.vue";
 import MessageContextMenu from "./MessageContextMenu.vue";
+import StickerPicker from "./StickerPicker.vue";
 
 const shell = useDesktopShell();
 
@@ -28,6 +29,10 @@ const props = defineProps({
   hasMoreMessages: { type: Boolean, default: false },
   loadingMoreMessages: { type: Boolean, default: false },
   standaloneMode: { type: Boolean, default: false },
+  stickers: { type: Array, default: () => [] },
+  stickersLoading: { type: Boolean, default: false },
+  stickersHint: { type: String, default: "" },
+  stickersHintTone: { type: String, default: "" },
 });
 
 const emit = defineEmits([
@@ -42,6 +47,9 @@ const emit = defineEmits([
   "submit",
   "message-action",
   "open-file-picker",
+  "import-stickers",
+  "import-sticker-folder",
+  "send-sticker",
   "download-file",
   "file-change",
   "file-drop",
@@ -49,6 +57,7 @@ const emit = defineEmits([
 ]);
 
 const emojiOpen = ref(false);
+const stickerOpen = ref(false);
 const messageListRef = ref(null);
 const workspaceRef = ref(null);
 const pendingIncomingCount = ref(0);
@@ -65,32 +74,12 @@ const messageMenu = ref({
 const contextMenuItems = computed(() => {
   const message = messageMenu.value.message;
   if (!message) return [];
-
-  const items = [
-    { key: "reply", label: "回复" },
-  ];
-
-  if (message.canForward) {
-    items.push({ key: "forward", label: "转发" });
-  }
-
-  items.push({
-    key: "favorite",
-    label: message.isFavorite ? "取消收藏" : "收藏",
-  });
-
-  if (message.canRecall) {
-    items.push({ key: "recall", label: "撤回", tone: "danger" });
-  }
-
-  if (message.canDelete) {
-    items.push({ key: "delete", label: "删除", tone: "danger" });
-  }
-
-  if (message.canRetry) {
-    items.push({ key: "retry", label: "重试发送" });
-  }
-
+  const items = [{ key: "reply", label: "回复" }];
+  if (message.canForward) items.push({ key: "forward", label: "转发" });
+  items.push({ key: "favorite", label: message.isFavorite ? "取消收藏" : "收藏" });
+  if (message.canRecall) items.push({ key: "recall", label: "撤回", tone: "danger" });
+  if (message.canDelete) items.push({ key: "delete", label: "删除", tone: "danger" });
+  if (message.canRetry) items.push({ key: "retry", label: "重试发送" });
   if (message.isFileMessage) {
     message.files.forEach((file, index) => {
       items.push({
@@ -108,6 +97,7 @@ const contextMenuItems = computed(() => {
 
 function closeFloatingPanels() {
   emojiOpen.value = false;
+  stickerOpen.value = false;
   messageMenu.value = {
     open: false,
     x: 0,
@@ -118,10 +108,8 @@ function closeFloatingPanels() {
 
 function handleGlobalPointer(event) {
   const target = event.target;
-  if (
-    target instanceof HTMLElement
-    && (target.closest(".message-context-menu") || target.closest(".emoji-picker") || target.closest(".qq-chat-tool-btn.is-emoji"))
-  ) {
+  if (target instanceof HTMLElement
+    && (target.closest(".message-context-menu") || target.closest(".emoji-picker") || target.closest(".sticker-picker") || target.closest(".qq-chat-tool-btn.is-emoji") || target.closest(".qq-chat-tool-btn.is-sticker"))) {
     return;
   }
   closeFloatingPanels();
@@ -143,12 +131,24 @@ onBeforeUnmount(() => {
 
 function toggleEmojiPicker() {
   messageMenu.value.open = false;
+  stickerOpen.value = false;
   emojiOpen.value = !emojiOpen.value;
+}
+
+function toggleStickerPicker() {
+  messageMenu.value.open = false;
+  emojiOpen.value = false;
+  stickerOpen.value = !stickerOpen.value;
 }
 
 function appendEmoji(emoji) {
   emit("update:messageInput", `${props.messageInput || ""}${emoji}`);
   emojiOpen.value = false;
+}
+
+function sendSticker(sticker) {
+  emit("send-sticker", sticker);
+  stickerOpen.value = false;
 }
 
 function openMessageMenu(payload) {
@@ -193,9 +193,7 @@ function collectSearchMatches() {
     searchMatchIndex.value = -1;
     return;
   }
-  if (searchMatchIndex.value < 0 || searchMatchIndex.value >= searchMatches.value.length) {
-    searchMatchIndex.value = 0;
-  }
+  if (searchMatchIndex.value < 0 || searchMatchIndex.value >= searchMatches.value.length) searchMatchIndex.value = 0;
   searchMatches.value.forEach((node, index) => {
     node.classList.toggle("is-active", index === searchMatchIndex.value);
   });
@@ -292,9 +290,7 @@ function handleDrop(event) {
 
 function handleWindowDragOver(event) {
   if (!dragActive.value || !isFileDrag(event)) return;
-  if (!isPointInsideWorkspace(event.clientX, event.clientY)) {
-    resetDragState();
-  }
+  if (!isPointInsideWorkspace(event.clientX, event.clientY)) resetDragState();
 }
 
 function handleWindowDragEnd() {
@@ -472,6 +468,9 @@ onBeforeUnmount(() => {
           <button class="qq-chat-tool-btn is-emoji" type="button" title="表情" @click="toggleEmojiPicker">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 1 1 0 20a10 10 0 0 1 0-20Zm-3 7a1.25 1.25 0 1 0 0 2.5A1.25 1.25 0 0 0 9 9Zm6 0a1.25 1.25 0 1 0 0 2.5A1.25 1.25 0 0 0 15 9Zm-6.18 5.36a1 1 0 0 0-1.64 1.14A5.98 5.98 0 0 0 12 18a5.98 5.98 0 0 0 4.82-2.5a1 1 0 1 0-1.64-1.14A3.98 3.98 0 0 1 12 16a3.98 3.98 0 0 1-3.18-1.64Z"/></svg>
           </button>
+          <button v-if="shell.isDesktop" class="qq-chat-tool-btn is-sticker" type="button" title="表情包" @click="toggleStickerPicker">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14a2 2 0 0 1 2 2v7.5A6.5 6.5 0 0 1 14.5 20H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Zm9.5 14A4.5 4.5 0 0 0 19 13.5V6H5v12h9.5ZM8 9.25a1.25 1.25 0 1 0 0 2.5a1.25 1.25 0 0 0 0-2.5Zm5 0a1.25 1.25 0 1 0 0 2.5a1.25 1.25 0 0 0 0-2.5Zm-5.2 5.52a1 1 0 0 0 .4 1.36c1.14.64 2.4.97 3.8.97c1.4 0 2.66-.33 3.8-.97a1 1 0 0 0-.96-1.76c-.83.46-1.75.69-2.84.69s-2.01-.23-2.84-.69a1 1 0 0 0-1.36.4Z"/></svg>
+          </button>
           <button class="qq-chat-tool-btn" type="button" title="发送文件" :disabled="uploadingFiles" @click="$emit('open-file-picker')">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 7H9.83l-2-2H5a2 2 0 0 0-2 2v10c0 1.1.9 2 2 2h14a2 2 0 0 0 2-2V9c0-1.1-.9-2-2-2Zm0 10H5V7h2l2 2h10v8Z"/></svg>
           </button>
@@ -482,6 +481,17 @@ onBeforeUnmount(() => {
       </div>
 
       <EmojiPicker :open="emojiOpen" @pick="appendEmoji" />
+      <StickerPicker
+        :open="stickerOpen"
+        :stickers="stickers"
+        :loading="stickersLoading"
+        :hint="stickersHint"
+        :hint-tone="stickersHintTone"
+        :desktop-mode="shell.isDesktop"
+        @pick="sendSticker"
+        @import-files="$emit('import-stickers')"
+        @import-folder="$emit('import-sticker-folder')"
+      />
 
       <textarea
         :value="messageInput"
