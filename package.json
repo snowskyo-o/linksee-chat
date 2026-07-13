@@ -28,6 +28,7 @@
         "docker:up": "docker compose up -d --build",
         "docker:down": "docker compose down",
         "pack:desktop": "npm run build:web && electron-builder --dir",
+        "release:metadata": "node ./scripts/release/create-update-metadata.mjs",
         "release:manifest": "node ./scripts/release/create-manifest.mjs",
         "release:verify": "node ./scripts/release/verify-artifacts.mjs"
     },

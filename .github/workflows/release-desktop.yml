@@ -62,6 +62,9 @@ jobs:
       - name: Build desktop installer
         run: npm run dist:desktop
 
+      - name: Create update metadata
+        run: npm run release:metadata -- ${{ steps.release.outputs.version }}
+
       - name: Create release manifest
         env:
           RELEASE_CHANNEL: ${{ steps.release.outputs.channel }}
