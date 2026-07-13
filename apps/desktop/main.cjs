@@ -154,6 +154,31 @@ function ensureConversationCacheDir(conversationId = "shared") {
   return target;
 }
 
+function ensureStateCacheDir(scope = "shared") {
+  const { chatCache } = ensureStorageDirectories();
+  const target = path.join(chatCache, "_state", sanitizeFileName(scope, "shared"));
+  fs.mkdirSync(target, { recursive: true });
+  return target;
+}
+
+function readStateCache(scope = "shared", key = "") {
+  if (!key) return null;
+  const filePath = path.join(ensureStateCacheDir(scope), `${sanitizeFileName(key, "cache")}.json`);
+  if (!fs.existsSync(filePath)) return null;
+  try {
+    return JSON.parse(fs.readFileSync(filePath, "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+function writeStateCache(scope = "shared", key = "", data = null) {
+  if (!key) return false;
+  const filePath = path.join(ensureStateCacheDir(scope), `${sanitizeFileName(key, "cache")}.json`);
+  fs.writeFileSync(filePath, JSON.stringify(data ?? null, null, 2), "utf8");
+  return true;
+}
+
 function saveDownloadedAsset({ fileName, bytes, conversationId = "", cacheKey = "" }) {
   const safeName = sanitizeFileName(fileName, "attachment");
   const payload = Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes || []);
@@ -203,6 +228,7 @@ const targetOrigin = remoteOrigin || localOrigin;
 let loginWindow = null;
 let listWindow = null;
 const chatWindows = new Map();
+const windowContextById = new Map();
 let tray = null;
 let isQuitting = false;
 let listWindowBoundsSnapshot = null;
@@ -451,7 +477,35 @@ function showPrimaryWindowFromTray() {
   createLoginWindow();
 }
 
+function setWindowContext(window, context = {}) {
+  if (!window || window.isDestroyed()) return;
+  const existing = windowContextById.get(window.id) || {};
+  windowContextById.set(window.id, {
+    ...existing,
+    kind: String(context.kind || existing.kind || "").trim(),
+    conversationId: String(context.conversationId || existing.conversationId || "").trim(),
+  });
+}
+
+function clearWindowContext(window) {
+  if (!window) return;
+  windowContextById.delete(window.id);
+}
+
+function shouldSuppressDesktopNotification(conversationId = "") {
+  const targetConversationId = String(conversationId || "").trim();
+  if (!targetConversationId) return false;
+  for (const [windowId, context] of windowContextById.entries()) {
+    const currentWindow = BrowserWindow.fromId(windowId);
+    if (!currentWindow || currentWindow.isDestroyed() || currentWindow.isMinimized() || !currentWindow.isVisible()) continue;
+    if (!currentWindow.isFocused()) continue;
+    if (String(context?.conversationId || "").trim() === targetConversationId) return true;
+  }
+  return false;
+}
+
 function showDesktopNotification({ title, body, conversationId = "" }) {
+  if (shouldSuppressDesktopNotification(conversationId)) return false;
   if (!Notification.isSupported()) return false;
   const notification = new Notification({
     title: String(title || "Linksee Chat"),
@@ -541,6 +595,7 @@ function createLoginWindow() {
     pagePath: loginPagePath,
     kind: "login",
   });
+  setWindowContext(loginWindow, { kind: "login", conversationId: "" });
 
   loginWindow.on("close", (event) => {
     if (isQuitting) return;
@@ -549,6 +604,7 @@ function createLoginWindow() {
   });
 
   loginWindow.on("closed", () => {
+    clearWindowContext(loginWindow);
     loginWindow = null;
   });
 
@@ -572,6 +628,7 @@ function createListWindow() {
     pagePath: listPagePath,
     kind: "list",
   });
+  setWindowContext(listWindow, { kind: "list", conversationId: "" });
 
   listWindow.on("close", (event) => {
     if (isQuitting) return;
@@ -586,6 +643,7 @@ function createListWindow() {
   });
 
   listWindow.on("closed", () => {
+    clearWindowContext(listWindow);
     listWindow = null;
   });
 
@@ -614,8 +672,10 @@ function createChatWindow(conversationId) {
     kind: "chat",
     conversationId: key,
   });
+  setWindowContext(chatWindow, { kind: "chat", conversationId: key });
 
   chatWindow.on("closed", () => {
+    clearWindowContext(chatWindow);
     chatWindows.delete(key);
   });
 
@@ -645,6 +705,11 @@ function registerIpcHandlers() {
     node: process.versions.node,
     storage: getStorageInfo(),
   }));
+  ipcMain.handle("desktop:update-window-context", (event, payload = {}) => {
+    const currentWindow = resolveWindowByEvent(event);
+    setWindowContext(currentWindow, payload || {});
+    return true;
+  });
   ipcMain.handle("desktop:resolve-avatar-source", async (_event, sourceUrl) => {
     try {
       return await ensureRemoteAvatarCached(sourceUrl);
@@ -659,6 +724,12 @@ function registerIpcHandlers() {
       conversationId: payload.conversationId,
       cacheKey: payload.cacheKey,
     });
+  });
+  ipcMain.handle("desktop:read-state-cache", (_event, payload = {}) => {
+    return readStateCache(payload.scope, payload.key);
+  });
+  ipcMain.handle("desktop:write-state-cache", (_event, payload = {}) => {
+    return writeStateCache(payload.scope, payload.key, payload.data);
   });
   ipcMain.handle("desktop:open-storage-path", async (_event, targetPath) => {
     const nextPath = String(targetPath || "").trim();

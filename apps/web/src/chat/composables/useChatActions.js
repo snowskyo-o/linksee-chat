@@ -201,30 +201,47 @@ export function useChatActions(store) {
       for (let index = 0; index < files.length; index += 1) {
         const file = files[index];
         store.uploadFileName.value = file.name || `file-${index + 1}`;
-        const presign = await chatApi.postJson("/api/v1/chat/files/presign-upload", {
-          conversationId: store.selectedId.value,
-          fileName: file.name || "attachment",
-          mimeType: file.type || "application/octet-stream",
-          size: file.size,
-        });
-        const data = presign.data || {};
-        await chatApi.putExternal(
-          data.uploadUrl,
-          file,
-          data.headers || { "Content-Type": file.type || "application/octet-stream" },
-          ({ percent }) => {
-            const base = Math.floor((index / files.length) * 100);
-            const scaled = Math.min(100, Math.floor(((index + percent / 100) / files.length) * 100));
-            store.uploadProgress.value = Math.max(base, scaled);
-          },
-        );
-        uploadedFiles.push({
-          name: file.name || "attachment",
-          objectKey: data.objectKey,
-          size: file.size,
-          mimeType: file.type || "application/octet-stream",
-          uploadedAt: new Date().toISOString(),
-        });
+        const base = Math.floor((index / files.length) * 100);
+        const updateProgress = ({ percent }) => {
+          const scaled = Math.min(100, Math.floor(((index + percent / 100) / files.length) * 100));
+          store.uploadProgress.value = Math.max(base, scaled);
+        };
+        try {
+          const presign = await chatApi.postJson("/api/v1/chat/files/presign-upload", {
+            conversationId: store.selectedId.value,
+            fileName: file.name || "attachment",
+            mimeType: file.type || "application/octet-stream",
+            size: file.size,
+          });
+          const data = presign.data || {};
+          await chatApi.putExternal(
+            data.uploadUrl,
+            file,
+            data.headers || { "Content-Type": file.type || "application/octet-stream" },
+            updateProgress,
+          );
+          uploadedFiles.push({
+            name: file.name || "attachment",
+            objectKey: data.objectKey,
+            size: file.size,
+            mimeType: file.type || "application/octet-stream",
+            uploadedAt: new Date().toISOString(),
+          });
+        } catch (error) {
+          appendAppLog({ level: "warn", category: "file", message: "预签名上传失败，切换到服务端直传", meta: error?.message || "" });
+          const payload = await chatApi.postBinary("/api/v1/chat/files/upload-direct", file, {
+            "Content-Type": file.type || "application/octet-stream",
+            "X-Conversation-Id": store.selectedId.value,
+            "X-File-Name": encodeURIComponent(file.name || "attachment"),
+            "X-File-Size": String(file.size || 0),
+          });
+          updateProgress({ percent: 100 });
+          uploadedFiles.push(payload.data || {
+            name: file.name || "attachment",
+            size: file.size,
+            mimeType: file.type || "application/octet-stream",
+          });
+        }
       }
       store.uploadProgress.value = 100;
       await chatApi.postJson(`/api/v1/conversations/${encodeURIComponent(store.selectedId.value)}/messages`, {

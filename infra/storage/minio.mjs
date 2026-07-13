@@ -19,9 +19,15 @@ export function toPublicMinioUrl(url) {
 
   const source = new URL(url);
   const target = new URL(publicOrigin);
+  const basePath = target.pathname && target.pathname !== "/"
+    ? target.pathname.replace(/\/$/, "")
+    : "";
   source.protocol = target.protocol;
   source.hostname = target.hostname;
   source.port = target.port;
+  if (basePath && !source.pathname.startsWith(`${basePath}/`) && source.pathname !== basePath) {
+    source.pathname = `${basePath}${source.pathname}`.replace(/\/{2,}/g, "/");
+  }
   return source.toString();
 }
 

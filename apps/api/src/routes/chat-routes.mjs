@@ -36,6 +36,7 @@ import {
   normalizeChatFiles,
   presignChatDownload,
   presignChatUpload,
+  uploadChatFile,
 } from "../services/chat-file-service.mjs";
 
 function serializeMessage(message) {
@@ -341,6 +342,45 @@ export function createChatRouter(emitConversationEvent) {
           "Content-Type": mimeType || "application/octet-stream",
         },
       },
+    });
+  });
+
+  router.post("/chat/files/upload-direct", express.raw({
+    type: () => true,
+    limit: CHAT_FILE_MAX_BYTES + 1024 * 1024,
+  }), async (req, res) => {
+    const conversationId = typeof req.headers["x-conversation-id"] === "string" ? req.headers["x-conversation-id"].trim() : "";
+    const fileName = typeof req.headers["x-file-name"] === "string"
+      ? decodeURIComponent(req.headers["x-file-name"]).trim()
+      : "";
+    const mimeType = typeof req.headers["content-type"] === "string" ? req.headers["content-type"].trim() : "";
+    const sizeHeader = Number(req.headers["x-file-size"] || req.body?.length || 0);
+
+    if (!conversationId || !fileName) {
+      return res.status(400).json({ ok: false, code: "VALIDATION_FAILED", message: "conversationId 和 fileName 必填" });
+    }
+    if (!isAllowedChatMimeType(mimeType)) {
+      return res.status(400).json({ ok: false, code: "VALIDATION_FAILED", message: "文件类型不支持" });
+    }
+    if (!ensureChatFileSize(sizeHeader)) {
+      return res.status(400).json({ ok: false, code: "VALIDATION_FAILED", message: `文件大小不能超过 ${CHAT_FILE_MAX_BYTES} 字节` });
+    }
+
+    const fakeReq = { ...req, params: { conversationId } };
+    const ctx = await requireConversation(fakeReq, res);
+    if (!ctx) return;
+
+    const uploaded = await uploadChatFile({
+      conversationId,
+      fileName,
+      mimeType,
+      size: sizeHeader,
+      buffer: req.body,
+    });
+
+    return res.status(201).json({
+      ok: true,
+      data: uploaded,
     });
   });
 

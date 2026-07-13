@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import AnnouncementDialog from "./components/AnnouncementDialog.vue";
 import ConfirmDialog from "./components/ConfirmDialog.vue";
 import ConversationSidebar from "./components/ConversationSidebar.vue";
@@ -96,6 +96,14 @@ function isCurrentConversationFocused(conversationId) {
   return document.visibilityState === "visible"
     && document.hasFocus()
     && String(store.selectedId.value) === String(conversationId);
+}
+
+function syncDesktopWindowContext() {
+  if (typeof window.desktopShell?.updateWindowContext !== "function") return;
+  window.desktopShell.updateWindowContext({
+    kind: standaloneConversationMode.value ? "chat" : "main-chat",
+    conversationId: String(store.selectedId.value || ""),
+  }).catch(() => {});
 }
 
 async function notifyIncomingMessage(conversationId) {
@@ -260,6 +268,7 @@ onMounted(async () => {
     } else {
       await actions.refreshSelectedConversation();
     }
+    syncDesktopWindowContext();
     realtime.connect();
   } catch (error) {
     store.setComposerHint(error?.message || "聊天初始化失败", "error");
@@ -271,6 +280,10 @@ onBeforeUnmount(() => {
   if (selectedRefreshTimer) window.clearTimeout(selectedRefreshTimer);
   if (typeof detachLogs === "function") detachLogs();
   realtime.disconnect();
+});
+
+watch(() => store.selectedId.value, () => {
+  syncDesktopWindowContext();
 });
 </script>
 
