@@ -27,9 +27,13 @@ const displayChatTitle = computed(() => {
 </script>
 
 <template>
-  <ChatStandaloneTopbar v-if="standaloneMode" />
+  <ChatStandaloneTopbar
+    v-if="standaloneMode"
+    :has-conversation="hasConversation"
+    :title="displayChatTitle"
+  />
 
-  <header v-if="hasConversation" class="chat-workspace-head" :class="{ 'is-standalone': standaloneMode }">
+  <header v-if="hasConversation && !standaloneMode" class="chat-workspace-head" :class="{ 'is-standalone': standaloneMode }">
     <div class="chat-title-block">
       <h2>{{ displayChatTitle }}</h2>
     </div>

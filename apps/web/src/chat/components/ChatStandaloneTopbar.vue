@@ -1,14 +1,23 @@
 <script setup>
+import { computed } from "vue";
 import { useDesktopShell } from "../../shared/useDesktopShell.js";
 
+const props = defineProps({
+  hasConversation: { type: Boolean, default: false },
+  title: { type: String, default: "" },
+});
+
 const shell = useDesktopShell();
+const titleText = computed(() => (
+  props.hasConversation && props.title ? props.title : "Linksee Chat"
+));
 </script>
 
 <template>
   <div class="chat-standalone-topbar">
     <div class="chat-window-drag">
       <span class="chat-window-mark">L</span>
-      <span class="chat-window-app">Linksee Chat</span>
+      <span class="chat-window-app">{{ titleText }}</span>
     </div>
     <div v-if="shell.isDesktop" class="chat-window-actions">
       <button class="desktop-window-btn desktop-window-btn-standalone" type="button" aria-label="最小化" @click="shell.minimizeWindow">
