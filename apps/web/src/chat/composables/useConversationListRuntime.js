@@ -1,7 +1,8 @@
-import { computed, ref } from "vue";
 import { formatConversationTime, useRecentKeywords } from "./useRecentKeywords.js";
 import { useConversationListActions } from "./useConversationListActions.js";
+import { useConversationListDerivedState } from "./useConversationListDerivedState.js";
 import { useConversationListLifecycle } from "./useConversationListLifecycle.js";
+import { useConversationListRemarkActions } from "./useConversationListRemarkActions.js";
 import { useConversationSearchSections } from "./useConversationSearchSections.js";
 import { useChatDesktopControls } from "./useChatDesktopControls.js";
 import { useConversationListSearchRuntime } from "./useConversationListSearchRuntime.js";
@@ -15,50 +16,9 @@ export function useConversationListRuntime({
   selectConversation,
 }) {
   const desktopControls = useChatDesktopControls({ store, actions });
-  const searchFocused = ref(false);
-  const quickCreateOpen = ref(false);
-  const activePane = ref("messages");
-  const remarkDialogOpen = ref(false);
-  const remarkDraft = ref("");
-  const remarkTarget = ref(null);
+  const derivedState = useConversationListDerivedState(store);
   const { recentKeywords, pushRecentKeyword, clearRecentKeywords } = useRecentKeywords();
-
-  const unreadTotal = computed(() => store.filteredConversations.value.reduce((sum, row) => {
-    return sum + Number(row.unreadCount || 0) + Number(row.unreadMentionCount || 0);
-  }, 0));
-  const filteredFavorites = computed(() => {
-    const keyword = store.conversationKeyword.value.trim().toLowerCase();
-    return store.favoriteMessages.value.filter((item) => {
-      if (!keyword) return true;
-      return [item.conversationTitle, item.senderName, item.content]
-        .some((value) => String(value || "").toLowerCase().includes(keyword));
-    });
-  });
-  const searchKeyword = computed(() => store.conversationKeyword.value.trim());
-  const contactRows = computed(() => store.createDialogContacts.value.map((contact) => ({
-    key: `contact:${contact.id}`,
-    id: contact.id,
-    title: contact.name,
-    subtitle: contact.friendAlias && contact.realName && contact.realName !== contact.friendAlias
-      ? `${contact.realName}${contact.bio ? ` · ${contact.bio}` : ""}`
-      : (contact.bio || "联系人"),
-    meta: "联系人",
-    kind: "contact",
-    avatarUrl: contact.avatarUrl,
-    avatarText: contact.name.slice(0, 2).toUpperCase(),
-  })));
-  const filteredContacts = computed(() => {
-    const keyword = searchKeyword.value.toLowerCase();
-    if (!keyword) return contactRows.value;
-    return contactRows.value.filter((row) => (
-      [row.title, row.subtitle].some((value) => String(value || "").toLowerCase().includes(keyword))
-    ));
-  });
-  const searchPanelOpen = computed(() => searchFocused.value || Boolean(searchKeyword.value));
-  const visibleConversations = computed(() => (
-    searchPanelOpen.value ? store.conversationRows.value : store.filteredConversations.value
-  ));
-  const searchSections = useConversationSearchSections(store, searchKeyword, contactRows);
+  const searchSections = useConversationSearchSections(store, derivedState.searchKeyword, derivedState.contactRows);
 
   async function handleRealtimeEvent(event) {
     const topic = String(event?.topic || "");
@@ -83,59 +43,48 @@ export function useConversationListRuntime({
   async function handleDesktopOpenConversation(payload = {}) {
     const conversationId = String(payload.conversationId || "").trim();
     if (!conversationId) return;
-    activePane.value = "messages";
+    derivedState.activePane.value = "messages";
     await actions.loadConversations().catch(() => {});
     store.showConversation(conversationId);
     store.selectedId.value = conversationId;
-  }
-
-  function openFriendRemark(contact) {
-    remarkTarget.value = contact || null;
-    remarkDraft.value = String(contact?.friendAlias || "");
-    remarkDialogOpen.value = true;
-  }
-
-  function closeFriendRemark() {
-    remarkDialogOpen.value = false;
-  }
-
-  async function submitFriendRemark() {
-    if (!remarkTarget.value?.id) return;
-    await friendCenter.updateAlias(remarkTarget.value.id, remarkDraft.value);
-    await actions.loadContacts().catch(() => {});
-    await actions.loadConversations().catch(() => {});
-    remarkDialogOpen.value = false;
   }
 
   function handleGlobalPointer(event) {
     const target = event.target;
     if (!(target instanceof HTMLElement)) return;
     if (target.closest(".qq-list-search-cluster") || target.closest(".qq-search-panel") || target.closest(".qq-plus-action-wrap") || target.closest(".qq-quick-create-menu") || target.closest(".new-friends-dialog-card")) return;
-    searchFocused.value = false;
-    quickCreateOpen.value = false;
+    derivedState.searchFocused.value = false;
+    derivedState.quickCreateOpen.value = false;
   }
 
   const conversationActions = useConversationListActions({
     actions,
-    activePane,
+    activePane: derivedState.activePane,
     friendCenter,
     openConversation,
-    searchKeyword,
+    searchKeyword: derivedState.searchKeyword,
     selectConversation,
     store,
   });
+  const remarkActions = useConversationListRemarkActions({
+    actions,
+    friendCenter,
+    remarkDialogOpen: derivedState.remarkDialogOpen,
+    remarkDraft: derivedState.remarkDraft,
+    remarkTarget: derivedState.remarkTarget,
+  });
   const searchRuntime = useConversationListSearchRuntime({
-    activePane,
+    activePane: derivedState.activePane,
     openConversation,
     openDirectConversationByContact: conversationActions.openDirectConversationByContact,
     openSearchFooter: conversationActions.handleSearchFooterPick,
     pushRecentKeyword,
     recentKeywords,
-    searchKeyword,
+    searchKeyword: derivedState.searchKeyword,
     searchPanelOpen: {
-      open: searchPanelOpen,
-      quickCreateOpen,
-      searchFocused,
+      open: derivedState.searchPanelOpen,
+      quickCreateOpen: derivedState.quickCreateOpen,
+      searchFocused: derivedState.searchFocused,
     },
     searchSections,
     selectConversation,
@@ -148,15 +97,15 @@ export function useConversationListRuntime({
     friendCenter,
     handleDesktopOpenConversation,
     handleGlobalPointer,
-    quickCreateOpen,
+    quickCreateOpen: derivedState.quickCreateOpen,
     realtime,
     reloadConversationList: conversationActions.reloadConversationList,
-    searchKeyword,
-    unreadTotal,
+    searchKeyword: derivedState.searchKeyword,
+    unreadTotal: derivedState.unreadTotal,
   });
 
   return {
-    activePane,
+    activePane: derivedState.activePane,
     appInfo: desktopControls.appInfo,
     appSettings: desktopControls.appSettings,
     checkForUpdates: desktopControls.checkForUpdates,
@@ -164,12 +113,12 @@ export function useConversationListRuntime({
     clearDesktopCache: desktopControls.clearDesktopCache,
     clearRecentKeywords,
     clearSearchInput: searchRuntime.clearSearchInput,
-    closeFriendRemark,
-    contactRows,
+    closeFriendRemark: remarkActions.closeFriendRemark,
+    contactRows: derivedState.contactRows,
     copyConversationTitle: conversationActions.copyConversationTitle,
     desktopPreferences: desktopControls.desktopPreferences,
-    filteredContacts,
-    filteredFavorites,
+    filteredContacts: derivedState.filteredContacts,
+    filteredFavorites: derivedState.filteredFavorites,
     formatConversationTime,
     handleSearchFooterPick: conversationActions.handleSearchFooterPick,
     handleAvatarUpload: desktopControls.handleAvatarUpload,
@@ -181,7 +130,7 @@ export function useConversationListRuntime({
     markConversationRead: conversationActions.markConversationRead,
     openDirectConversationByContact: conversationActions.openDirectConversationByContact,
     openFavorite: conversationActions.openFavorite,
-    openFriendRemark,
+    openFriendRemark: remarkActions.openFriendRemark,
     openGroupCreation: conversationActions.openGroupCreation,
     openNewFriendsCenter: conversationActions.openNewFriendsCenter,
     openConversation,
@@ -192,25 +141,25 @@ export function useConversationListRuntime({
     quickCreateOpen: searchRuntime.quickCreateOpen,
     recentKeywords,
     reloadConversationList: conversationActions.reloadConversationList,
-    remarkDialogOpen,
-    remarkDraft,
-    remarkTarget,
+    remarkDialogOpen: derivedState.remarkDialogOpen,
+    remarkDraft: derivedState.remarkDraft,
+    remarkTarget: derivedState.remarkTarget,
     remindUpdateLater: desktopControls.remindUpdateLater,
     removeFavorite: conversationActions.removeFavorite,
     searchActiveKey: searchRuntime.searchActiveKey,
     searchFocused: searchRuntime.searchFocused,
-    searchKeyword,
-    searchPanelOpen,
+    searchKeyword: derivedState.searchKeyword,
+    searchPanelOpen: derivedState.searchPanelOpen,
     searchSections,
     selectConversation,
     settingsOpen: desktopControls.settingsOpen,
     showUpdatePromptOpen: desktopControls.updatePromptOpen,
     startChatFromNewFriends: conversationActions.startChatFromNewFriends,
-    submitFriendRemark,
+    submitFriendRemark: remarkActions.submitFriendRemark,
     toggleConversationMute: conversationActions.toggleConversationMute,
-    unreadTotal,
+    unreadTotal: derivedState.unreadTotal,
     updatePromptOpen: desktopControls.updatePromptOpen,
-    visibleConversations,
+    visibleConversations: derivedState.visibleConversations,
     handleUpdateNow: desktopControls.handleUpdateNow,
     closeSettings: desktopControls.closeSettings,
     closeUpdatePrompt: desktopControls.closeUpdatePrompt,
