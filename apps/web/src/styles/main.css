@@ -2528,6 +2528,24 @@ html body .desktop-page-shell { min-height: 100vh; }
   text-align: right;
   word-break: break-all;
 }
+.settings-update-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(91, 125, 240, 0.24);
+  background: #f1f6ff;
+}
+.settings-update-card.is-required {
+  border-color: rgba(232, 102, 102, 0.32);
+  background: #fff5f5;
+}
+.settings-update-card strong {
+  display: block;
+  margin-bottom: 4px;
+}
 .settings-log-list {
   display: grid;
   gap: 10px;

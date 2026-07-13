@@ -11,7 +11,7 @@ import SettingsDialog from "./components/SettingsDialog.vue";
 import FriendRemarkDialog from "./components/FriendRemarkDialog.vue";
 import { useDesktopShell } from "../shared/useDesktopShell.js";
 import { clearAppLogs, onAppLogsUpdated, readAppLogs } from "../shared/app-log.js";
-import { appendCacheBust } from "../shared/media.js";
+import { chatApi } from "../shared/api-client.js";
 import { getAuth, logout } from "../shared/session.js";
 import { loadAppSettings, saveAppSettings } from "../shared/app-settings.js";
 import { useChatStore } from "./store/useChatStore.js";
@@ -100,19 +100,23 @@ let detachLogs = null;
 let friendSearchTimer = 0;
 const selectConversation = (id) => { store.selectedId.value = id; };
 
+async function checkForUpdates() {
+  const currentVersion = appInfo.value.version || "";
+  if (!currentVersion) return;
+  const payload = await chatApi.getJson(`/api/v1/updates/latest?currentVersion=${encodeURIComponent(currentVersion)}`).catch(() => null);
+  if (payload?.data) appInfo.value = { ...appInfo.value, update: payload.data };
+}
+
+function openUpdatePage() {
+  const url = appInfo.value.update?.downloadUrl || appInfo.value.update?.notesUrl || "";
+  if (url) window.open(url, "_blank", "noopener,noreferrer");
+}
+
 async function handleRealtimeEvent(event) {
   const topic = String(event?.topic || "");
   if (!topic || topic === "socket.ready") return;
-  if (topic === "user.profile.updated") {
-    const profile = event.payload?.profile || {};
-    actions.applyUserProfileUpdate(event.payload?.userId, {
-      realName: profile.realName,
-      originalRealName: profile.originalRealName || profile.realName,
-      bio: profile.bio || "",
-      avatarUrl: profile.avatarUrl
-        ? appendCacheBust(profile.avatarUrl, profile.avatarVersion || Date.now())
-        : "",
-    });
+  if (topic === "user.profile.dirty") {
+    actions.markProfileDirty(event.payload?.userId);
     return;
   }
   if (topic.startsWith("conversation.")) {
@@ -123,6 +127,8 @@ async function handleRealtimeEvent(event) {
 async function openConversation(id) {
   store.showConversation(id);
   store.selectedId.value = id;
+  const conversation = store.conversations.value.find((item) => String(item.id) === String(id));
+  await actions.refreshProfilesIfDirty((conversation?.participants || []).map((user) => user.id)).catch(() => {});
   if (typeof window.desktopShell?.openChatWindow === "function") await window.desktopShell.openChatWindow(id);
 }
 async function openFavorite(item) {
@@ -299,6 +305,7 @@ onMounted(async () => {
   await actions.loadConversations();
   await friendCenter.refresh();
   realtime.connect();
+  checkForUpdates().catch(() => {});
 });
 
 onBeforeUnmount(() => {
@@ -547,6 +554,7 @@ watch(() => friendCenter.keyword.value, () => {
       @update:profile-bio="store.profileBio.value = $event"
       @save-profile="actions.saveProfile"
       @upload-avatar="handleAvatarUpload"
+      @open-update="openUpdatePage"
     />
   </main>
 </template>

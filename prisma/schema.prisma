@@ -48,12 +48,14 @@ model User {
 }
 
 model UserProfile {
-  userId     String  @id @db.VarChar(32)
-  realName   String  @db.VarChar(40)
-  avatarUrl  String? @db.VarChar(255)
-  bio        String? @db.Text
-  location   String? @db.VarChar(100)
-  accountNo  String? @db.VarChar(40)
+  userId         String  @id @db.VarChar(32)
+  realName       String  @db.VarChar(40)
+  avatarUrl      String? @db.VarChar(255)
+  bio            String? @db.Text
+  location       String? @db.VarChar(100)
+  accountNo      String? @db.VarChar(40)
+  profileVersion Int     @default(1)
+  avatarVersion  Int     @default(1)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

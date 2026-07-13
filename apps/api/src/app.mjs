@@ -4,6 +4,7 @@ import { createChatRouter } from "./routes/chat-routes.mjs";
 import { authRouter } from "./routes/auth-routes.mjs";
 import { createProfileRouter, publicProfileRouter } from "./routes/profile-routes.mjs";
 import { realtimeRouter } from "./routes/realtime-routes.mjs";
+import { updateRouter } from "./routes/update-routes.mjs";
 import { findUserIdByAccessToken } from "./services/session-store.mjs";
 import { webStaticDir } from "../../../infra/paths/index.mjs";
 
@@ -68,6 +69,7 @@ export function createApp(realtime = {}) {
   });
 
   app.use("/api/v1/auth", authRouter);
+  app.use("/api/v1", updateRouter);
   app.use("/api/v1", publicProfileRouter);
   app.use("/api/v1", requireAuth, createProfileRouter(realtime.emitUserProfileEvent));
   app.use("/api/v1", requireAuth, realtimeRouter);

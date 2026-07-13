@@ -4,22 +4,30 @@ import { env } from "../../../../infra/config/env.mjs";
 import { minioClient } from "../../../../infra/storage/minio.mjs";
 import { findUserById } from "../services/chat-store.mjs";
 
-export const profileRouter = Router();
 export const publicProfileRouter = Router();
 
 function publicAvatarUrl(userId) {
   return `/api/v1/users/${encodeURIComponent(userId)}/avatar`;
 }
 
+function serializePublicProfile(user) {
+  return {
+    id: user.id,
+    profile: {
+      realName: user.profile?.realName || user.id,
+      bio: user.profile?.bio || "",
+      avatarUrl: user.profile?.avatarUrl ? publicAvatarUrl(user.id) : "",
+      profileVersion: Number(user.profile?.profileVersion || 0),
+      avatarVersion: Number(user.profile?.avatarVersion || 0),
+    },
+  };
+}
+
 function emitProfileUpdate(emitUserProfileEvent, userId, profile) {
   if (typeof emitUserProfileEvent !== "function") return;
-  emitUserProfileEvent(userId, "user.profile.updated", {
-    profile: {
-      realName: profile?.realName || userId,
-      bio: profile?.bio || "",
-      avatarUrl: profile?.avatarUrl ? publicAvatarUrl(userId) : "",
-      avatarVersion: Date.now(),
-    },
+  emitUserProfileEvent(userId, "user.profile.dirty", {
+    profileVersion: Number(profile?.profileVersion || 0),
+    avatarVersion: Number(profile?.avatarVersion || 0),
   }).catch(() => {});
 }
 
@@ -53,20 +61,10 @@ publicProfileRouter.get("/users/:userId/profile", async (req, res) => {
     return res.status(404).json({ ok: false, code: "NOT_FOUND", message: "用户不存在" });
   }
 
-  return res.json({
-    ok: true,
-    data: {
-      id: user.id,
-      profile: {
-        realName: user.profile?.realName || user.id,
-        bio: user.profile?.bio || "",
-        avatarUrl: user.profile?.avatarUrl
-          ? `/api/v1/users/${encodeURIComponent(user.id)}/avatar`
-          : "",
-      },
-    },
-  });
+  return res.json({ ok: true, data: serializePublicProfile(user) });
 });
+
+publicProfileRouter.get("/users/:userId/avatar", streamUserAvatar);
 
 export function createProfileRouter(emitUserProfileEvent) {
   const router = Router();
@@ -84,16 +82,57 @@ export function createProfileRouter(emitUserProfileEvent) {
       role: user.role,
       isActive: user.isActive,
       forceChangePassword: false,
-      profile: {
-        realName: user.profile?.realName || user.id,
-        bio: user.profile?.bio || "",
-        avatarUrl: user.profile?.avatarUrl
-          ? publicAvatarUrl(user.id)
-          : "",
-      },
+      profile: serializePublicProfile(user).profile,
     },
   });
 });
+
+  router.post("/users/profiles/check", async (req, res) => {
+    const items = Array.isArray(req.body?.items) ? req.body.items.slice(0, 100) : [];
+    const requestedIds = [...new Set(items.map((item) => String(item?.userId || "").trim()).filter(Boolean))];
+    if (!requestedIds.length) {
+      return res.json({ ok: true, data: [] });
+    }
+
+    const visibleRows = await prisma.chatConversationMember.findMany({
+      where: {
+        userId: req.userId,
+        conversation: {
+          members: {
+            some: { userId: { in: requestedIds } },
+          },
+        },
+      },
+      select: { conversation: { select: { members: { select: { userId: true } } } } },
+    });
+    const visibleIds = new Set([req.userId]);
+    visibleRows.forEach((row) => {
+      row.conversation.members.forEach((member) => visibleIds.add(member.userId));
+    });
+
+    const clientVersions = new Map(items.map((item) => [
+      String(item?.userId || ""),
+      {
+        profileVersion: Number(item?.profileVersion || 0),
+        avatarVersion: Number(item?.avatarVersion || 0),
+      },
+    ]));
+    const users = await prisma.user.findMany({
+      where: { id: { in: requestedIds.filter((id) => visibleIds.has(id)) }, isActive: true },
+      include: { profile: true },
+    });
+    const changed = users
+      .filter((user) => {
+        const cached = clientVersions.get(user.id) || {};
+        const serverProfileVersion = Number(user.profile?.profileVersion || 0);
+        const serverAvatarVersion = Number(user.profile?.avatarVersion || 0);
+        return serverProfileVersion > Number(cached.profileVersion || 0)
+          || serverAvatarVersion > Number(cached.avatarVersion || 0);
+      })
+      .map(serializePublicProfile);
+
+    return res.json({ ok: true, data: changed });
+  });
 
   router.patch("/users/me/profile", async (req, res) => {
   const realName = typeof req.body?.realName === "string" ? req.body.realName.trim() : "";
@@ -111,15 +150,13 @@ export function createProfileRouter(emitUserProfileEvent) {
 
   const updated = await prisma.userProfile.upsert({
     where: { userId: req.userId },
-    update: { realName, bio },
-    create: { userId: req.userId, realName, bio },
+    update: { realName, bio, profileVersion: { increment: 1 } },
+    create: { userId: req.userId, realName, bio, profileVersion: 1, avatarVersion: 1 },
   });
 
   emitProfileUpdate(emitUserProfileEvent, req.userId, updated);
   return res.json({ ok: true, data: { userId: req.userId, ...updated } });
 });
-
-publicProfileRouter.get("/users/:userId/avatar", streamUserAvatar);
 
   router.post("/users/me/avatar", express.raw({
   type: () => true,
@@ -146,8 +183,8 @@ publicProfileRouter.get("/users/:userId/avatar", streamUserAvatar);
   const stored = `minio:${objectKey}`;
   const updated = await prisma.userProfile.upsert({
     where: { userId: req.userId },
-    update: { avatarUrl: stored },
-    create: { userId: req.userId, realName: req.userId, avatarUrl: stored },
+    update: { avatarUrl: stored, avatarVersion: { increment: 1 } },
+    create: { userId: req.userId, realName: req.userId, avatarUrl: stored, profileVersion: 1, avatarVersion: 1 },
   });
 
   emitProfileUpdate(emitUserProfileEvent, req.userId, updated);
@@ -155,11 +192,10 @@ publicProfileRouter.get("/users/:userId/avatar", streamUserAvatar);
     ok: true,
     data: {
       avatarUrl: publicAvatarUrl(req.userId),
+      avatarVersion: Number(updated.avatarVersion || 0),
     },
   });
 });
 
   return router;
 }
-
-profileRouter.use(createProfileRouter());

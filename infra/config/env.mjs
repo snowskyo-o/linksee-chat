@@ -16,4 +16,11 @@ export const env = {
     accessTtlSeconds: Number(process.env.SESSION_ACCESS_TTL_SECONDS || "1800"),
     refreshTtlSeconds: Number(process.env.SESSION_REFRESH_TTL_SECONDS || "604800"),
   },
+  updates: {
+    latestVersion: String(process.env.APP_LATEST_VERSION || "").trim(),
+    downloadUrl: String(process.env.APP_DOWNLOAD_URL || "").trim(),
+    notesUrl: String(process.env.APP_RELEASE_NOTES_URL || "").trim(),
+    mandatory: String(process.env.APP_UPDATE_MANDATORY || "false") === "true",
+    minSupportedVersion: String(process.env.APP_MIN_SUPPORTED_VERSION || "").trim(),
+  },
 };

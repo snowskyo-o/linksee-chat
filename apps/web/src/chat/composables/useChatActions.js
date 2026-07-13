@@ -19,6 +19,7 @@ import {
 export function useChatActions(store) {
   const dataActions = createChatDataActions(store, chatApi);
   const cacheUserId = () => store.me.value?.id || localStorage.getItem("chat_user_id") || "guest";
+  const dirtyProfileUserIds = new Set();
 
   function persistSidebarCaches() {
     const userId = cacheUserId();
@@ -63,6 +64,64 @@ export function useChatActions(store) {
     persistSidebarCaches();
   }
 
+  function getKnownProfileUsers(userIds = []) {
+    const wanted = new Set(userIds.map((id) => String(id || "")).filter(Boolean));
+    const byId = new Map();
+    const collect = (user) => {
+      if (!user?.id) return;
+      if (wanted.size && !wanted.has(String(user.id))) return;
+      byId.set(String(user.id), user);
+    };
+    collect(store.me.value);
+    store.contacts.value.forEach(collect);
+    store.participants.value.forEach(collect);
+    store.conversations.value.forEach((conversation) => {
+      (conversation.participants || []).forEach(collect);
+    });
+    store.messages.value.forEach((message) => {
+      collect(message.sender);
+      collect(message.replyTo?.sender);
+    });
+    return Array.from(byId.values());
+  }
+
+  function markProfileDirty(userId) {
+    const targetUserId = String(userId || "");
+    if (targetUserId) dirtyProfileUserIds.add(targetUserId);
+  }
+
+  async function refreshProfilesIfDirty(userIds = []) {
+    const targetIds = userIds.map((id) => String(id || "")).filter(Boolean);
+    const ids = targetIds.length
+      ? targetIds.filter((id) => dirtyProfileUserIds.has(id))
+      : Array.from(dirtyProfileUserIds);
+    if (!ids.length) return;
+
+    const items = getKnownProfileUsers(ids).map((user) => ({
+      userId: user.id,
+      profileVersion: Number(user.profile?.profileVersion || 0),
+      avatarVersion: Number(user.profile?.avatarVersion || 0),
+    }));
+    if (!items.length) return;
+
+    const payload = await chatApi.postJson("/api/v1/users/profiles/check", { items });
+    const changed = Array.isArray(payload.data) ? payload.data : [];
+    changed.forEach((user) => {
+      const profile = user.profile || {};
+      applyUserProfileUpdate(user.id, {
+        realName: profile.realName,
+        originalRealName: profile.originalRealName || profile.realName,
+        bio: profile.bio || "",
+        avatarUrl: profile.avatarUrl
+          ? appendCacheBust(profile.avatarUrl, profile.avatarVersion || Date.now())
+          : "",
+        profileVersion: Number(profile.profileVersion || 0),
+        avatarVersion: Number(profile.avatarVersion || 0),
+      });
+    });
+    ids.forEach((id) => dirtyProfileUserIds.delete(id));
+  }
+
   function dedupeFiles(fileList) {
     const seen = new Set();
     const unique = [];
@@ -104,8 +163,13 @@ export function useChatActions(store) {
     if (!conversationId) return "";
     store.selectedId.value = conversationId;
     await dataActions.loadConversations();
-    await dataActions.selectConversation(conversationId);
+    await selectConversation(conversationId);
     return conversationId;
+  }
+
+  async function selectConversation(conversationId) {
+    await dataActions.selectConversation(conversationId);
+    await refreshProfilesIfDirty(store.participants.value.map((user) => user.id)).catch(() => {});
   }
 
   async function submitCreateConversation() {
@@ -529,6 +593,8 @@ export function useChatActions(store) {
         realName: payload.data?.realName || store.profileName.value.trim(),
         originalRealName: payload.data?.originalRealName || payload.data?.realName || store.profileName.value.trim(),
         bio: payload.data?.bio ?? store.profileBio.value.trim(),
+        profileVersion: Number(payload.data?.profileVersion || store.me.value?.profile?.profileVersion || 0),
+        avatarVersion: Number(payload.data?.avatarVersion || store.me.value?.profile?.avatarVersion || 0),
       });
       store.profileHint.value = "资料已保存";
       store.profileHintTone.value = "success";
@@ -555,6 +621,7 @@ export function useChatActions(store) {
     const refreshedUrl = appendCacheBust(payload.data?.avatarUrl || "", Date.now());
     syncCurrentUserProfileLocally({
       avatarUrl: refreshedUrl,
+      avatarVersion: Number(payload.data?.avatarVersion || store.me.value?.profile?.avatarVersion || 0),
     });
     store.profileHint.value = "头像已上传";
     store.profileHintTone.value = "success";
@@ -566,6 +633,7 @@ export function useChatActions(store) {
     ]).then(() => {
       syncCurrentUserProfileLocally({
         avatarUrl: refreshedUrl,
+        avatarVersion: Number(payload.data?.avatarVersion || store.me.value?.profile?.avatarVersion || 0),
       });
     });
   }
@@ -579,7 +647,7 @@ export function useChatActions(store) {
     loadOlderMessages: dataActions.loadOlderMessages,
     refreshSelectedConversation: dataActions.refreshSelectedConversation,
     refreshAll: dataActions.refreshAll,
-    selectConversation: dataActions.selectConversation,
+    selectConversation,
     createDirectConversation,
     createGroupConversation,
     openOrCreateDirectConversation,
@@ -598,5 +666,7 @@ export function useChatActions(store) {
     saveProfile,
     uploadAvatar,
     applyUserProfileUpdate,
+    markProfileDirty,
+    refreshProfilesIfDirty,
   };
 }

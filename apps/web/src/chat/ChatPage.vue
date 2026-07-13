@@ -14,7 +14,6 @@ import ToastStack from "./components/ToastStack.vue";
 import DesktopTitlebar from "../shared/components/DesktopTitlebar.vue";
 import { appendAppLog, clearAppLogs, onAppLogsUpdated, readAppLogs } from "../shared/app-log.js";
 import { chatApi } from "../shared/api-client.js";
-import { appendCacheBust } from "../shared/media.js";
 import { getAuth, logout } from "../shared/session.js";
 import { loadAppSettings, saveAppSettings } from "../shared/app-settings.js";
 import { getDesktopConversationId, getDesktopWindowKind, isDesktopRuntime } from "../shared/runtime.js";
@@ -74,24 +73,12 @@ function scheduleSelectedRefresh() {
   }, 120);
 }
 
-function applyRealtimeProfile(payload) {
-  const profile = payload?.profile || {};
-  actions.applyUserProfileUpdate(payload?.userId, {
-    realName: profile.realName,
-    originalRealName: profile.originalRealName || profile.realName,
-    bio: profile.bio || "",
-    avatarUrl: profile.avatarUrl
-      ? appendCacheBust(profile.avatarUrl, profile.avatarVersion || Date.now())
-      : "",
-  });
-}
-
 async function handleRealtimeEvent(event) {
   const topic = String(event?.topic || "");
   const conversationId = String(event?.payload?.conversationId || "");
   if (!topic || topic === "socket.ready") return;
-  if (topic === "user.profile.updated") {
-    applyRealtimeProfile(event.payload);
+  if (topic === "user.profile.dirty") {
+    actions.markProfileDirty(event.payload?.userId);
     return;
   }
   if (topic === "conversation.message.created") {
@@ -115,6 +102,18 @@ function openSettings() {
 
 function closeSettings() {
   settingsOpen.value = false;
+}
+
+async function checkForUpdates() {
+  const currentVersion = appInfo.value.version || "";
+  if (!currentVersion) return;
+  const payload = await chatApi.getJson(`/api/v1/updates/latest?currentVersion=${encodeURIComponent(currentVersion)}`).catch(() => null);
+  if (payload?.data) appInfo.value = { ...appInfo.value, update: payload.data };
+}
+
+function openUpdatePage() {
+  const url = appInfo.value.update?.downloadUrl || appInfo.value.update?.notesUrl || "";
+  if (url) window.open(url, "_blank", "noopener,noreferrer");
 }
 
 function isCurrentConversationFocused(conversationId) {
@@ -331,6 +330,7 @@ onMounted(async () => {
     }
     syncDesktopWindowContext();
     realtime.connect();
+    checkForUpdates().catch(() => {});
   } catch (error) {
     store.setComposerHint(error?.message || "聊天初始化失败", "error");
   }
@@ -454,6 +454,7 @@ watch(() => store.selectedId.value, () => {
       @update:profile-bio="store.profileBio.value = $event"
       @save-profile="actions.saveProfile"
       @upload-avatar="handleAvatarUpload"
+      @open-update="openUpdatePage"
     />
 
     <StickerImportDialog
