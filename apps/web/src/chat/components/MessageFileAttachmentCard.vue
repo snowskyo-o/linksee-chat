@@ -13,6 +13,12 @@ function handleFileClick() {
   }
   emit("download", props.file);
 }
+
+function resolvePrimaryActionLabel() {
+  if (props.file?.transfer?.status === "saved") return "打开";
+  if (props.file?.transfer?.status === "failed") return "重试";
+  return "下载";
+}
 </script>
 
 <template>
@@ -33,7 +39,7 @@ function handleFileClick() {
       </small>
       <div class="message-file-actions">
         <span class="message-inline-action" @click.stop="handleFileClick">
-          {{ file.transfer?.status === "saved" ? "打开" : "下载" }}
+          {{ resolvePrimaryActionLabel() }}
         </span>
         <span class="message-inline-action" @click.stop="$emit('save-as', file)">另存为</span>
         <span

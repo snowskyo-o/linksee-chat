@@ -10,6 +10,12 @@ const props = defineProps({
 defineEmits(["copy-image", "download", "forward", "open-file", "open-file-location", "open-image"]);
 
 const { imageLoading, imageSrc } = useMessageImagePreview(toRef(props, "file"));
+
+function resolvePrimaryActionLabel() {
+  if (props.file?.transfer?.status === "saved") return "打开";
+  if (props.file?.transfer?.status === "failed") return "重试";
+  return "保存";
+}
 </script>
 
 <template>
@@ -38,7 +44,7 @@ const { imageLoading, imageSrc } = useMessageImagePreview(toRef(props, "file"));
         class="message-inline-action"
         @click.stop="file.transfer?.status === 'saved' && file.transfer?.path ? $emit('open-file', file) : $emit('download', file)"
       >
-        {{ file.transfer?.status === "saved" ? "打开" : "保存" }}
+        {{ resolvePrimaryActionLabel() }}
       </span>
       <span
         v-if="file.transfer?.status === 'saved' && file.transfer?.path"
