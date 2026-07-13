@@ -367,6 +367,18 @@ async function importStickerFolder() {
   await stickerLibrary.importFolder();
 }
 
+async function renameSticker(payload) {
+  await stickerLibrary.rename(payload?.id, payload?.name);
+}
+
+async function deleteSticker(stickerId) {
+  await stickerLibrary.remove(stickerId);
+}
+
+async function moveSticker(payload) {
+  await stickerLibrary.move(payload?.id, payload?.direction);
+}
+
 async function openStickerFolder() {
   const folder = appInfo.value.storage?.stickers || "";
   if (!folder || typeof window.desktopShell?.openStoragePath !== "function") return;
@@ -760,12 +772,16 @@ watch(
     <StickerImportDialog
       :open="stickerImportOpen"
       :storage="appInfo.storage"
+      :stickers="stickerLibrary.stickers.value"
       :hint="stickerLibrary.hint.value"
       :hint-tone="stickerLibrary.hintTone.value"
       @close="stickerImportOpen = false"
       @import-files="importStickerFiles"
       @import-folder="importStickerFolder"
       @open-sticker-folder="openStickerFolder"
+      @rename-sticker="renameSticker"
+      @delete-sticker="deleteSticker"
+      @move-sticker="moveSticker"
     />
 
     <ImageViewerDialog

@@ -55,6 +55,54 @@ export function useStickerLibrary() {
     }
   }
 
+  async function rename(stickerId, name) {
+    if (!isDesktop || typeof window.desktopShell?.renameSticker !== "function") return;
+    loading.value = true;
+    try {
+      const next = await window.desktopShell.renameSticker({ id: stickerId, name });
+      stickers.value = Array.isArray(next) ? next : [];
+      hint.value = "表情名称已更新";
+      hintTone.value = "success";
+    } catch (error) {
+      hint.value = error?.message || "修改名称失败";
+      hintTone.value = "error";
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function remove(stickerId) {
+    if (!isDesktop || typeof window.desktopShell?.deleteSticker !== "function") return;
+    loading.value = true;
+    try {
+      const next = await window.desktopShell.deleteSticker(stickerId);
+      stickers.value = Array.isArray(next) ? next : [];
+      hint.value = "表情已删除";
+      hintTone.value = "success";
+    } catch (error) {
+      hint.value = error?.message || "删除表情失败";
+      hintTone.value = "error";
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function move(stickerId, direction) {
+    if (!isDesktop || typeof window.desktopShell?.moveSticker !== "function") return;
+    loading.value = true;
+    try {
+      const next = await window.desktopShell.moveSticker({ id: stickerId, direction });
+      stickers.value = Array.isArray(next) ? next : [];
+      hint.value = "表情顺序已更新";
+      hintTone.value = "success";
+    } catch (error) {
+      hint.value = error?.message || "调整顺序失败";
+      hintTone.value = "error";
+    } finally {
+      loading.value = false;
+    }
+  }
+
   function clearHint() {
     hint.value = "";
     hintTone.value = "";
@@ -69,6 +117,9 @@ export function useStickerLibrary() {
     refresh,
     importFiles,
     importFolder,
+    rename,
+    remove,
+    move,
     clearHint,
   };
 }

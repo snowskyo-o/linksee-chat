@@ -2976,9 +2976,11 @@ html body .desktop-page-shell { min-height: 100vh; }
 }
 .sticker-card {
   display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
   place-items: center;
   width: 100%;
   aspect-ratio: 1;
+  padding: 6px;
   border: 1px solid rgba(126, 150, 196, 0.18);
   border-radius: 18px;
   background: rgba(245, 248, 255, 0.96);
@@ -2990,9 +2992,18 @@ html body .desktop-page-shell { min-height: 100vh; }
   box-shadow: 0 14px 30px rgba(77, 108, 182, 0.16);
 }
 .sticker-card img {
-  width: 80%;
-  height: 80%;
+  width: 72%;
+  height: 72%;
   object-fit: contain;
+}
+.sticker-card-label {
+  width: 100%;
+  overflow: hidden;
+  color: #6d7b92;
+  font-size: 11px;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .emoji-picker-row-wide {
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -3124,6 +3135,40 @@ html body .desktop-page-shell { min-height: 100vh; }
   color: #6e7c93;
   font-size: 13px;
   line-height: 1.6;
+}
+.sticker-manager-list {
+  display: grid;
+  gap: 10px;
+  max-height: 280px;
+  margin-top: 14px;
+  overflow-y: auto;
+}
+.sticker-manager-item {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid rgba(126, 150, 196, 0.16);
+  border-radius: 16px;
+  background: rgba(248, 251, 255, 0.9);
+}
+.sticker-manager-preview {
+  width: 52px;
+  height: 52px;
+  padding: 6px;
+  border-radius: 14px;
+  background: rgba(237, 243, 255, 0.95);
+  object-fit: contain;
+}
+.sticker-manager-input {
+  min-width: 0;
+}
+.sticker-manager-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
 }
 .forward-dialog-list {
   display: grid;
