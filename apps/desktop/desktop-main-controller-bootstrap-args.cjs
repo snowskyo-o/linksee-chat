@@ -51,7 +51,6 @@ function createDesktopAppControllerArgs(deps, desktopWindows, showPrimaryWindowF
     buildTrayMenu,
     buildTrayTooltip,
     closeAllChatWindows: desktopWindows.closeAllChatWindows,
-    createDesktopAppController,
     createLoginWindow: desktopWindows.createLoginWindow,
     createTrayIcon: () => trayDeps.createTrayIcon({
       nativeImage,
