@@ -62,6 +62,9 @@ jobs:
       - name: Unit tests
         run: npm run test:unit
 
+      - name: Desktop smoke test
+        run: npm run test:desktop-smoke
+
       - name: Build desktop installer
         run: npm run dist:desktop
 

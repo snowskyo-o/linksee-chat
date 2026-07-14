@@ -21,6 +21,7 @@
         "release:desktop:minor": "npm run version:minor && npm run dist:desktop",
         "release:desktop:major": "npm run version:major && npm run dist:desktop",
         "test": "npm run test:unit",
+        "test:desktop-smoke": "node ./tests/desktop/run-desktop-smoke.mjs",
         "test:unit": "node ./tests/unit/run-unit.mjs",
         "test:integration": "node ./tests/integration/run-integration.mjs",
         "db:generate": "prisma generate",

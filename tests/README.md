@@ -2,12 +2,14 @@
 
 Current coverage:
 
+- `desktop/`: desktop startup smoke tests for main-process wiring
 - `unit/`: pure utility tests that do not need infrastructure
 - `integration/`: smoke tests against the formal stack `MySQL + Redis + MinIO`
 
 Commands:
 
 - `npm test`: run unit tests
+- `npm run test:desktop-smoke`: run desktop startup smoke tests
 - `npm run test:integration`: run stack smoke tests
 
 Integration test notes:
