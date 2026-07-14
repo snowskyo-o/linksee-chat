@@ -24,12 +24,12 @@ export function useChatImageViewer({ store, actions }) {
     const messageId = String(payload?.messageId || "").trim();
     if (!file?.objectKey) return;
     imageViewerOpen.value = true;
-    imageViewerTitle.value = file.name || "图片预览";
+    imageViewerFile.value = file;
+    imageViewerMessageId.value = messageId;
+    imageViewerTitle.value = imageViewerActiveFile.value?.name || file.name || "图片预览";
     imageViewerSrc.value = "";
     imageViewerHint.value = "";
     imageViewerLoading.value = true;
-    imageViewerFile.value = file;
-    imageViewerMessageId.value = messageId;
     try {
       const blob = await chatApi.getBlob(`/api/v1/chat/files/download?objectKey=${encodeURIComponent(file.objectKey)}`);
       imageViewerSrc.value = await createObjectUrlFromBlobLike(blob, file.mimeType || "image/png");

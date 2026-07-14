@@ -3,8 +3,6 @@ function hasArrayBuffer(value) {
 }
 
 export async function ensureBrowserBlob(value, fallbackType = "application/octet-stream") {
-  if (value instanceof Blob) return value;
-
   if (hasArrayBuffer(value)) {
     const buffer = await value.arrayBuffer();
     return new Blob([buffer], {

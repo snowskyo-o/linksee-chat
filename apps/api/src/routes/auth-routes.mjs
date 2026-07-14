@@ -64,6 +64,7 @@ authRouter.post("/login", async (req, res) => {
     ok: true,
     data: {
       ...tokens,
+      userId: user.id,
       role: user.role,
       forceChangePassword: false,
     },
@@ -83,6 +84,7 @@ authRouter.post("/refresh", async (req, res) => {
     ok: true,
     data: {
       ...tokens,
+      userId,
       role: user?.role || "member",
       forceChangePassword: false,
     },

@@ -2,6 +2,10 @@ import { nextTick, ref } from "vue";
 import { chatApi } from "../shared/api-client.js";
 import { isDesktopRuntime, navigateTo } from "../shared/runtime.js";
 
+export function resolveSessionAccount(requestedAccount, data = {}) {
+  return String(data.userId || requestedAccount || "").trim();
+}
+
 export function useLoginSession({ autoLogin, password, passwordInput, rememberAccount, userId }) {
   const rememberedAccount = localStorage.getItem("login_remember_account") === "true";
   const rememberedAutoLogin = localStorage.getItem("login_auto_login") === "true";
@@ -15,10 +19,12 @@ export function useLoginSession({ autoLogin, password, passwordInput, rememberAc
     else localStorage.removeItem("login_last_user_id");
   }
   function saveSession(account, data = {}) {
+    const sessionAccount = resolveSessionAccount(account, data);
     localStorage.setItem("chat_access_token", data.accessToken || "");
     localStorage.setItem("chat_refresh_token", data.refreshToken || "");
-    localStorage.setItem("chat_user_id", account);
+    localStorage.setItem("chat_user_id", sessionAccount);
     localStorage.setItem("chat_role", data.role || "");
+    return sessionAccount;
   }
   async function enterChat() {
     if (isDesktopRuntime() && typeof window.desktopShell?.loginSuccess === "function") {
@@ -51,8 +57,8 @@ export function useLoginSession({ autoLogin, password, passwordInput, rememberAc
         password: password.value,
       });
       const account = userId.value.trim();
-      saveSession(account, payload.data || {});
-      persistLoginPreferences(account);
+      const sessionAccount = saveSession(account, payload.data || {});
+      persistLoginPreferences(sessionAccount);
       await enterChat();
     } catch (error) {
       hint.value = normalizeLoginError(error);
@@ -74,7 +80,9 @@ export function useLoginSession({ autoLogin, password, passwordInput, rememberAc
     hintTone.value = "success";
     try {
       const payload = await chatApi.postJson("/api/v1/auth/refresh", { refreshToken });
-      saveSession(account, payload.data || {});
+      const sessionAccount = saveSession(account, payload.data || {});
+      persistLoginPreferences(sessionAccount || account);
+      if (sessionAccount && sessionAccount !== account) userId.value = sessionAccount;
       await enterChat();
     } catch {
       hint.value = "";

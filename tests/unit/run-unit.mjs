@@ -12,6 +12,8 @@ const { resolveIncomingNotificationCopy } = await import("../../apps/web/src/cha
 const { createFavoriteMessageRecord } = await import("../../apps/web/src/chat/store/chat-store-favorites.js");
 const { buildDerivedConversationPreview, buildDerivedMessagePreview, buildFavoriteMessagePreview, buildReplyPreviewText } = await import("../../apps/web/src/chat/store/chat-store-derived-utils.js");
 const { canDeleteMessageForCurrentUser } = await import("../../apps/web/src/chat/store/chat-store-message-derived.js");
+const { ensureBrowserBlob } = await import("../../apps/web/src/shared/blob-source.js");
+const { resolveSessionAccount } = await import("../../apps/web/src/login/useLoginSession.js");
 
 const source = "http://minio:9000/chat-files/path/file.txt?X-Amz-Signature=abc";
 const result = toPublicMinioUrl(source);
@@ -207,3 +209,25 @@ assert.deepEqual(
 );
 
 console.log("[unit] favorite records keep raw content separate from preview");
+
+assert.equal(
+  resolveSessionAccount("1000000001", { userId: "1000000002" }),
+  "1000000002",
+);
+assert.equal(
+  resolveSessionAccount("1000000001", {}),
+  "1000000001",
+);
+
+console.log("[unit] session account follows token owner when available");
+
+const wrappedBlob = await ensureBrowserBlob({
+  type: "image/jpeg",
+  async arrayBuffer() {
+    return Uint8Array.from([1, 2, 3, 4]).buffer;
+  },
+}, "image/png");
+assert.equal(wrappedBlob.size, 4);
+assert.equal(wrappedBlob.type, "image/jpeg");
+
+console.log("[unit] blob-like image payloads are normalized for preview");

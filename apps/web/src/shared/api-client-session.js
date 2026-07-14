@@ -47,6 +47,7 @@ export async function refreshAccessToken() {
     const data = result.payload?.data || {};
     if (data.accessToken) localStorage.setItem("chat_access_token", data.accessToken);
     if (data.refreshToken) localStorage.setItem("chat_refresh_token", data.refreshToken);
+    if (data.userId) localStorage.setItem("chat_user_id", data.userId);
     if (data.role) localStorage.setItem("chat_role", data.role);
   })();
 
