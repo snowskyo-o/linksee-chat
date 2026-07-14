@@ -32,6 +32,7 @@ function createDesktopAppControllerArgs(deps, desktopWindows, showPrimaryWindowF
     destroyTray,
     ensureStorageDirectories,
     ensureTray,
+    fs,
     focusWindow,
     getDefaultDesktopPreferences,
     getDesktopPreferences,
@@ -54,7 +55,7 @@ function createDesktopAppControllerArgs(deps, desktopWindows, showPrimaryWindowF
     createLoginWindow: desktopWindows.createLoginWindow,
     createTrayIcon: () => trayDeps.createTrayIcon({
       nativeImage,
-      resolveTrayIconPath: () => resolveTrayIconPath({ path, process, projectRoot: context.projectRoot }),
+      resolveTrayIconPath: () => resolveTrayIconPath({ fs, path, process, projectRoot: context.projectRoot }),
     }),
     destroyTray,
     ensureStorageDirectories,

@@ -9,6 +9,7 @@ function createFallbackTrayIcon(nativeImage) {
 }
 
 function resolveTrayIconPath({ fs, path, process, projectRoot }) {
+  if (!fs || typeof fs.existsSync !== "function") return "";
   const candidates = process.platform === "win32"
     ? [
         path.join(process.resourcesPath || "", "icon.ico"),
