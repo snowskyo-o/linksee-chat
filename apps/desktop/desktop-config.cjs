@@ -7,6 +7,10 @@ function normalizeOrigin(value) {
   return String(value || "").trim().replace(/\/$/, "");
 }
 
+function parseDesktopConfig(raw) {
+  return JSON.parse(String(raw || "").replace(/^\uFEFF/, ""));
+}
+
 function buildDesktopRuntimeConfig({ projectRoot, processEnv, processResourcesPath, processExecPath, port }) {
   const configCandidates = [
     path.join(projectRoot, "desktop-config.json"),
@@ -18,7 +22,7 @@ function buildDesktopRuntimeConfig({ projectRoot, processEnv, processResourcesPa
     for (const file of configCandidates) {
       try {
         if (!file || !fs.existsSync(file)) continue;
-        const parsed = JSON.parse(fs.readFileSync(file, "utf8"));
+        const parsed = parseDesktopConfig(fs.readFileSync(file, "utf8"));
         const value = normalizeOrigin(parsed?.[key]);
         if (value) return value;
       } catch (error) {
